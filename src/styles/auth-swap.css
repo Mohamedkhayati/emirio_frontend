@@ -1,0 +1,106 @@
+.authShellSwap{
+  min-height: 100vh;
+  display:grid;
+  place-items:center;
+  padding: 28px 16px;
+}
+
+.swapCard{
+  width: min(1120px, 100%);
+  min-height: 660px;
+  background: var(--card);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  position: relative;
+}
+
+/* two layers that swap positions */
+.panel{
+  position: absolute;
+  inset: 0;
+  width: 50%;
+  height: 100%;
+  transition: transform 520ms cubic-bezier(.2,.85,.2,1);
+}
+
+/* default (login): form left, image right */
+.formPanel{ left: 0; background: #fff; padding: 56px 56px 38px; }
+.imagePanel{ left: 50%; background: #111827; }
+
+.heroImg{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.02);
+}
+
+/* signup state: form moves right, image moves left */
+.swapCard.isSignup .formPanel{ transform: translateX(100%); }
+.swapCard.isSignup .imagePanel{ transform: translateX(-100%); }
+
+/* small parallax for pro feel */
+.swapCard.isSignup .heroImg{ transform: scale(1.02) translateX(8px); }
+.swapCard.isLogin .heroImg{ transform: scale(1.02) translateX(-8px); }
+
+.head h1{
+  margin: 0 0 8px;
+  font-size: 34px;
+  letter-spacing: -0.02em;
+}
+.head p{
+  margin: 0 0 26px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.socialRow{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 6px;
+}
+.btnSocial{
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+  font-weight: 900;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap: 10px;
+}
+.btnSocial span{ color: #111827; }
+
+.switchLine{
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.linkBtn{
+  border: 0;
+  background: transparent;
+  color: var(--pink);
+  font-weight: 900;
+  cursor: pointer;
+}
+.linkBtn:hover{ text-decoration: underline; }
+
+.checkRow{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* responsive */
+@media (max-width: 900px){
+  .panel{ position: static; width: 100%; }
+  .swapCard{ display:grid; grid-template-columns: 1fr; }
+  .imagePanel{ display:none; }
+  .formPanel{ padding: 40px 22px; }
+  .swapCard.isSignup .formPanel{ transform: none; }
+}

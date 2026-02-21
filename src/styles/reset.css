@@ -1,0 +1,17 @@
+.resetShell{
+  min-height: 100vh;
+  display:grid;
+  place-items:center;
+  padding: 26px 16px;
+}
+.resetCard{
+  width: min(520px, 100%);
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 26px;
+}
+.resetCard h1{ margin: 0 0 14px; }
+.switchLine{ margin-top: 12px; font-weight: 900; }
+.switchLine a{ color: var(--pink); text-decoration:none; }
+.switchLine a:hover{ text-decoration: underline; }

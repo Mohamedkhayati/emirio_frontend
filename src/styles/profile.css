@@ -1,0 +1,127 @@
+.pagePad{
+  padding: 26px 18px 60px;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.topBar{
+  display:flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.hello{ font-size: 22px; font-weight: 800; }
+.sub{ font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+.topActions{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+}
+.miniAvatar{
+  width: 34px; height: 34px;
+  border-radius: 999px;
+  background: #111827;
+  color: #fff;
+  display:grid;
+  place-items:center;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.btnGhost{
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.card{
+  background: #fff;
+  border: 1px solid rgba(17,24,39,0.06);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+
+.cardHeader{
+  display:flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.profileRow{
+  display:flex;
+  align-items:center;
+  gap: 14px;
+}
+.avatar{
+  width: 58px; height: 58px;
+  border-radius: 999px;
+  background: #111827;
+  color: #fff;
+  display:grid;
+  place-items:center;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+.name{ font-weight: 900; font-size: 16px; }
+.email{ color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+.btnPink{
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(90deg, var(--pink), var(--pink2));
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+.btnPink:disabled{ opacity:0.75; cursor:not-allowed; }
+
+.cardMsg{ margin: 12px 0 0; display:grid; gap: 10px; }
+
+.grid{
+  margin-top: 16px;
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.field label{
+  display:block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.field input, .field select{
+  width: 100%;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 0 12px;
+  outline: none;
+  background: #fff;
+}
+.field input:disabled, .field select:disabled{
+  background: #f9fafb;
+  color: #6b7280;
+}
+
+.note{
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 760px){
+  .grid{ grid-template-columns: 1fr; }
+}

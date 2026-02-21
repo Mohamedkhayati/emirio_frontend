@@ -1,0 +1,190 @@
+.authShell{
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 28px 16px;
+}
+
+.authCard{
+  width: min(1080px, 100%);
+  background: var(--card);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  min-height: 620px;
+}
+
+.authCard.single{
+  grid-template-columns: 1fr;
+  min-height: auto;
+  padding: 10px;
+}
+
+.authLeft{
+  padding: 56px 56px 38px;
+}
+
+.authHeading h1{
+  margin: 0 0 8px;
+  font-size: 34px;
+  letter-spacing: -0.02em;
+}
+.authHeading p{
+  margin: 0 0 26px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.form{ display: grid; gap: 12px; margin-top: 10px; }
+.label{ font-size: 12px; color: var(--muted); }
+
+.rowBetween{
+  display:flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.input{
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 0 14px;
+  outline: none;
+  background: #fff;
+}
+.input:focus{
+  border-color: rgba(255,46,166,0.45);
+  box-shadow: 0 0 0 4px rgba(255,46,166,0.10);
+}
+
+.btnPrimary{
+  height: 46px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(90deg, var(--pink), var(--pink2));
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.btnPrimary:disabled{ opacity:0.7; cursor:not-allowed; }
+
+.divider{
+  margin: 10px 0 0;
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  color: #9ca3af;
+  font-size: 12px;
+}
+.divider::before,
+.divider::after{
+  content:"";
+  height:1px;
+  background: var(--border);
+  flex: 1;
+}
+
+.socialRow{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 6px;
+}
+.btnSocial{
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap: 8px;
+}
+.dot{
+  width: 10px; height: 10px; border-radius: 999px; display:inline-block;
+}
+.dot.g{ background: #34a853; }
+.dot.a{ background: #111827; }
+
+.footerText{
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.footerText a{ color: var(--pink); text-decoration: none; font-weight: 700; }
+.footerText a:hover{ text-decoration: underline; }
+
+.linkSmall{
+  font-size: 12px;
+  color: var(--pink);
+  text-decoration: none;
+  font-weight: 700;
+}
+.linkSmall:hover{ text-decoration: underline; }
+
+.checkRow{
+  display:flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+/* Right brand panel like your screenshots */
+.authRight{
+  position: relative;
+  background: #fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 30px;
+}
+
+.brand{
+  text-align: center;
+  z-index: 2;
+}
+.brandLogo{
+  font-size: 72px;
+  letter-spacing: -0.04em;
+}
+.brandTag{
+  margin-top: 10px;
+  color: #374151;
+  font-style: italic;
+}
+
+.decor .spark{
+  position:absolute;
+  width: 10px; height: 10px;
+  border-radius: 999px;
+  background: var(--pink);
+  opacity: 0.9;
+}
+.decor .s1{ top: 210px; right: 150px; }
+.decor .s2{ top: 210px; right: 120px; }
+
+.decor .swoosh{
+  position:absolute;
+  right: 28px;
+  bottom: 62px;
+  width: 34px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255,46,166,0.7);
+  transform: rotate(-25deg);
+}
+
+/* Responsive */
+@media (max-width: 900px){
+  .authCard{ grid-template-columns: 1fr; }
+  .authRight{ display:none; }
+  .authLeft{ padding: 40px 22px; }
+  .socialRow{ grid-template-columns: 1fr; }
+}
