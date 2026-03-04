@@ -1,164 +1,252 @@
-import { useEffect, useMemo, useState } from "react";
-import { apiDelete, apiGet, apiPatch } from "../../api/http";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { api } from "../../lib/api";
 import "./admin.css";
 
+const initials = (nom, prenom) =>
+  `${(prenom || "").trim()[0] || ""}${(nom || "").trim()[0] || ""}`.toUpperCase() || "U";
+
+const fmt = (v) => {
+  if (!v) return "-";
+  try { return new Date(v).toLocaleString(); } catch { return String(v); }
+};
+
 export default function AdminPage() {
-  const [users, setUsers] = useState([]);
+  const [rows, setRows] = useState([]);
   const [selected, setSelected] = useState(null);
   const [q, setQ] = useState("");
   const [error, setError] = useState("");
+  const [busyId, setBusyId] = useState(null);
 
-  async function loadList() {
+  const dialogRef = useRef(null);
+
+  async function loadList(pickFirst = false) {
     setError("");
-    const list = await apiGet("/api/admin/users");
-    setUsers(list);
-    if (list.length && !selected) {
-      const details = await apiGet(`/api/admin/users/${list[0].id}`);
-      setSelected(details);
+    const res = await api.get("/api/admin/clients");
+    const list = res.data || [];
+    setRows(list);
+
+    if (pickFirst && list.length && !selected) {
+      const d = await api.get(`/api/admin/clients/${list[0].id}`);
+      setSelected(d.data);
     }
   }
 
-  async function selectUser(id) {
+  async function selectClient(id) {
     setError("");
-    const details = await apiGet(`/api/admin/users/${id}`);
-    setSelected(details);
+    const d = await api.get(`/api/admin/clients/${id}`);
+    setSelected(d.data);
   }
 
   async function setStatus(id, statutCompte) {
     setError("");
-    const details = await apiPatch(`/api/admin/users/${id}/status`, { statutCompte });
-    setSelected(details);
-    await loadList();
+    setBusyId(id);
+    try {
+      const d = await api.put(`/api/admin/clients/${id}/status`, { statutCompte });
+      setSelected(d.data);
+      await loadList(false);
+    } catch (e) {
+      setError(e?.response?.data?.message || `Update failed (${e?.response?.status || "no status"})`);
+    } finally {
+      setBusyId(null);
+    }
   }
 
-  async function deleteUser(id) {
+  async function deleteClient(id) {
+    const ok = window.confirm("Delete this client?");
+    if (!ok) return;
+
     setError("");
-    await apiDelete(`/api/admin/users/${id}`);
-    setSelected(null);
-    await loadList();
+    setBusyId(id);
+    try {
+      await api.delete(`/api/admin/clients/${id}`);
+      dialogRef.current?.close();
+      setSelected(null);
+      await loadList(true);
+    } catch (e) {
+      setError(e?.response?.data?.message || `Delete failed (${e?.response?.status || "no status"})`);
+    } finally {
+      setBusyId(null);
+    }
   }
 
-  useEffect(() => {
-    loadList().catch((e) => setError(e.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => { loadList(true).catch((e) => setError(e.message)); }, []);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return users;
-    return users.filter((u) =>
-      `${u.nom} ${u.prenom} ${u.email}`.toLowerCase().includes(s)
-    );
-  }, [q, users]);
+    if (!s) return rows;
+    return rows.filter((u) => (`${u.nom} ${u.prenom} ${u.email}`).toLowerCase().includes(s));
+  }, [q, rows]);
+
+  const openProfile = () => selected && dialogRef.current?.showModal();
+  const closeProfile = () => dialogRef.current?.close();
 
   return (
-    <div className="adminShell">
-      <aside className="sidebar">
-        <div className="brand">Base</div>
-        <nav className="nav">
-          <a className="navItem active" href="/admin">Customers</a>
-          <a className="navItem" href="#">Dashboard</a>
-          <a className="navItem" href="#">Analytics</a>
-          <a className="navItem" href="#">Settings</a>
-        </nav>
-      </aside>
+    <div className="admPage">
+      <div className="admHeader">
+        <div>
+          <div className="admH1">Customer List</div>
+          <div className="admH2">Manage client accounts</div>
+        </div>
 
-      <main className="main">
-        <div className="topbar">
-          <div>
-            <div className="title">Customer List</div>
-            <div className="subtitle">Manage client accounts</div>
+        <div className="admHeaderRight">
+          <div className="admSearchWrap">
+            <input
+              className="admSearch"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search name / email..."
+            />
           </div>
-          <input
-            className="search"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search name / email..."
-          />
+
+          <button className="admBtn primary" onClick={openProfile} disabled={!selected}>
+            See profile
+          </button>
         </div>
+      </div>
 
-        {error && <div className="errorBox">{error}</div>}
+      {error && <div className="admAlert">{error}</div>}
 
-        <div className="contentGrid">
-          <section className="tableCard">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Status</th>
-                  <th style={{ width: 140 }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((u) => (
-                  <tr
-                    key={u.id}
-                    className={selected?.id === u.id ? "rowActive" : ""}
-                    onClick={() => selectUser(u.id).catch((e) => setError(e.message))}
-                  >
-                    <td>{u.nom} {u.prenom}</td>
-                    <td>{u.email}</td>
-                    <td>
-                      <span className={`pill ${u.statutCompte === "ACTIVE" ? "ok" : "bad"}`}>
-                        {u.statutCompte}
-                      </span>
-                    </td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      <div className="actions">
-                        <button onClick={() => setStatus(u.id, "ACTIVE").catch((e) => setError(e.message))}>
-                          Enable
-                        </button>
-                        <button onClick={() => setStatus(u.id, "DISABLED").catch((e) => setError(e.message))}>
-                          Disable
-                        </button>
-                        <button className="danger" onClick={() => deleteUser(u.id).catch((e) => setError(e.message))}>
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {!filtered.length && (
-                  <tr><td colSpan="4" style={{ padding: 16 }}>No clients.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </section>
+      <div className="admGrid">
+        <div className="admCard">
+          <div className="admCardTop">
+            <div className="admCardTitle">{filtered.length} customers</div>
+            <button className="admBtn" onClick={() => loadList(false)}>Refresh</button>
+          </div>
 
-          <aside className="detailsCard">
-            {!selected ? (
-              <div className="empty">Select a client to see details</div>
-            ) : (
-              <>
-                <div className="profileHeader">
-                  <div className="avatar">{selected.nom?.[0]}{selected.prenom?.[0]}</div>
+          <div className="admTable">
+            <div className="admTr head">
+              <div>Name</div>
+              <div>Email</div>
+              <div>Status</div>
+              <div style={{ textAlign: "right" }}>Actions</div>
+            </div>
+
+            {filtered.map((u) => (
+              <div
+                key={u.id}
+                className={`admTr row ${selected?.id === u.id ? "active" : ""}`}
+                onClick={() => selectClient(u.id).catch((e) => setError(e.message))}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="admNameCell">
+                  <div className="admAvatar">{initials(u.nom, u.prenom)}</div>
                   <div>
-                    <div className="name">{selected.nom} {selected.prenom}</div>
-                    <div className="role">{selected.role}</div>
+                    <div className="admName">{u.prenom} {u.nom}</div>
+                    <div className="admRole">{u.role}</div>
                   </div>
                 </div>
 
-                <div className="infoBlock">
-                  <div className="blockTitle">Contact Info</div>
-                  <div className="kv"><span>Email</span><span>{selected.email}</span></div>
-                  <div className="kv"><span>Status</span><span>{selected.statutCompte}</span></div>
-                  <div className="kv"><span>Created</span><span>{new Date(selected.dateDeCreation).toLocaleString()}</span></div>
+                <div className="admEmail">{u.email}</div>
+
+                <div>
+                  <span className={`admBadge ${u.statutCompte === "ACTIVE" ? "ok" : "bad"}`}>
+                    {u.statutCompte}
+                  </span>
                 </div>
 
-                <div className="infoBlock">
-                  <div className="blockTitle">Actions</div>
-                  <div className="actionsCol">
-                    <button onClick={() => setStatus(selected.id, "ACTIVE").catch((e) => setError(e.message))}>Enable account</button>
-                    <button onClick={() => setStatus(selected.id, "DISABLED").catch((e) => setError(e.message))}>Disable account</button>
-                    <button className="danger" onClick={() => deleteUser(selected.id).catch((e) => setError(e.message))}>Delete account</button>
-                  </div>
+                <div className="admRowActions" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    className="admBtn mini"
+                    disabled={busyId === u.id}
+                    onClick={() => setStatus(u.id, "ACTIVE")}
+                  >
+                    Enable
+                  </button>
+                  <button
+                    className="admBtn mini"
+                    disabled={busyId === u.id}
+                    onClick={() => setStatus(u.id, "BLOCKED")}
+                  >
+                    Block
+                  </button>
+                  <button
+                    className="admBtn mini danger"
+                    disabled={busyId === u.id}
+                    onClick={() => deleteClient(u.id)}
+                  >
+                    Delete
+                  </button>
                 </div>
-              </>
-            )}
-          </aside>
+              </div>
+            ))}
+
+            {!filtered.length && <div className="admEmpty">No clients.</div>}
+          </div>
         </div>
-      </main>
+
+        <div className="admCard side">
+          {!selected ? (
+            <div className="admEmpty">Select a client</div>
+          ) : (
+            <>
+              <div className="admSideTop">
+                <div className="admAvatar big">{initials(selected.nom, selected.prenom)}</div>
+                <div>
+                  <div className="admSideName">{selected.prenom} {selected.nom}</div>
+                  <div className="admSideRole">{selected.role}</div>
+                </div>
+              </div>
+
+              <div className="admDivider" />
+
+              <div className="admInfo">
+                <div className="admInfoRow"><span>Email</span><span className="mono">{selected.email}</span></div>
+                <div className="admInfoRow"><span>Status</span><span>{selected.statutCompte}</span></div>
+                <div className="admInfoRow"><span>Created</span><span>{fmt(selected.dateDeCreation)}</span></div>
+                <div className="admInfoRow"><span>ID</span><span className="mono">{selected.id}</span></div>
+              </div>
+
+              <div className="admSideBtns">
+                <button className="admBtn primary" onClick={openProfile}>See full profile</button>
+                <button className="admBtn" disabled={busyId === selected.id} onClick={() => setStatus(selected.id, "ACTIVE")}>
+                  Enable account
+                </button>
+                <button className="admBtn" disabled={busyId === selected.id} onClick={() => setStatus(selected.id, "BLOCKED")}>
+                  Block account
+                </button>
+                <button className="admBtn danger" disabled={busyId === selected.id} onClick={() => deleteClient(selected.id)}>
+                  Delete account
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <dialog ref={dialogRef} className="admDialog">
+        <div className="admDialogHead">
+          <div className="admDialogTitle">Client profile</div>
+          <button className="admBtn mini" onClick={closeProfile}>Close</button>
+        </div>
+
+        {!selected ? (
+          <div className="admDialogBody">No client selected.</div>
+        ) : (
+          <div className="admDialogBody">
+            <div className="admDialogHero">
+              <div className="admAvatar big">{initials(selected.nom, selected.prenom)}</div>
+              <div>
+                <div className="admSideName">{selected.prenom} {selected.nom}</div>
+                <div className="admH2">{selected.role} • {selected.statutCompte}</div>
+              </div>
+            </div>
+
+            <div className="admDialogGrid">
+              <div className="admTile"><div className="k">Email</div><div className="v mono">{selected.email}</div></div>
+              <div className="admTile"><div className="k">Created</div><div className="v">{fmt(selected.dateDeCreation)}</div></div>
+              <div className="admTile"><div className="k">ID</div><div className="v mono">{selected.id}</div></div>
+              <div className="admTile"><div className="k">Status</div><div className="v">{selected.statutCompte}</div></div>
+            </div>
+
+            <div className="admDialogActions">
+              <button className="admBtn" onClick={() => setStatus(selected.id, "ACTIVE")}>Enable</button>
+              <button className="admBtn" onClick={() => setStatus(selected.id, "BLOCKED")}>Block</button>
+              <button className="admBtn danger" onClick={() => deleteClient(selected.id)}>Delete</button>
+            </div>
+          </div>
+        )}
+      </dialog>
     </div>
   );
 }
