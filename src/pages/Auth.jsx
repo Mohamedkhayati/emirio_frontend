@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { setToken } from "../lib/auth";
 import rightImg from "../assets/auth-right.jpg";
 import "../styles/auth-swap.css";
+
+const API_BASE = "http://localhost:8080";
 
 function GoogleIcon() {
   return (
@@ -27,9 +29,13 @@ function FacebookIcon() {
   );
 }
 
+function startSocialLogin(provider) {
+  window.location.href = `${API_BASE}/oauth2/authorization/${provider}`;
+}
+
 export default function Auth() {
   const nav = useNavigate();
-  const [mode, setMode] = useState("login"); // "login" | "signup"
+  const [mode, setMode] = useState("login");
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -51,6 +57,24 @@ export default function Auth() {
     [isLogin]
   );
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const socialToken = params.get("socialToken");
+    const socialError = params.get("error");
+
+    if (socialError) {
+      setErr(decodeURIComponent(socialError));
+      window.history.replaceState({}, "", "/auth");
+      return;
+    }
+
+    if (socialToken) {
+      setToken(decodeURIComponent(socialToken));
+      window.history.replaceState({}, "", "/profile");
+      nav("/profile", { replace: true });
+    }
+  }, [nav]);
+
   function switchMode(next) {
     setErr("");
     setOk("");
@@ -70,10 +94,11 @@ export default function Auth() {
           password: loginPassword,
         });
         setToken(res.data.token);
-        nav("/profile");
+        nav("/profile", { replace: true });
       } else {
         if (!agree) {
           setErr("Please accept terms & policy.");
+          setLoading(false);
           return;
         }
 
@@ -84,11 +109,12 @@ export default function Auth() {
         setLoginPassword(password);
       }
     } catch (e2) {
-      console.log("SIGNUP/LOGIN ERROR:", e2?.response?.status, e2?.response?.data);
-
       const data = e2?.response?.data;
       const msg =
-        data?.message || (typeof data === "string" ? data : "") || data?.error || `Request failed (${e2?.response?.status || "no status"})`;
+        data?.message ||
+        (typeof data === "string" ? data : "") ||
+        data?.error ||
+        `Request failed (${e2?.response?.status || "no status"})`;
 
       setErr(msg || "Signup failed");
     } finally {
@@ -143,13 +169,22 @@ export default function Auth() {
                 </div>
 
                 <div className="socialRow">
-                  <button type="button" className="btnSocial">
+                  <button
+                    type="button"
+                    className="btnSocial"
+                    onClick={() => startSocialLogin("google")}
+                  >
                     <GoogleIcon />
-                    <span>Google</span>
+                    <span>Continue with Google</span>
                   </button>
-                  <button type="button" className="btnSocial">
+
+                  <button
+                    type="button"
+                    className="btnSocial"
+                    onClick={() => startSocialLogin("facebook")}
+                  >
                     <FacebookIcon />
-                    <span>Facebook</span>
+                    <span>Continue with Facebook</span>
                   </button>
                 </div>
 
@@ -193,6 +228,30 @@ export default function Auth() {
                 <button className="btnPrimary" disabled={loading}>
                   {loading ? "Creating..." : "Signup"}
                 </button>
+
+                <div className="divider">
+                  <span>or</span>
+                </div>
+
+                <div className="socialRow">
+                  <button
+                    type="button"
+                    className="btnSocial"
+                    onClick={() => startSocialLogin("google")}
+                  >
+                    <GoogleIcon />
+                    <span>Continue with Google</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btnSocial"
+                    onClick={() => startSocialLogin("facebook")}
+                  >
+                    <FacebookIcon />
+                    <span>Continue with Facebook</span>
+                  </button>
+                </div>
 
                 <div className="switchLine">
                   Have an account?{" "}

@@ -37,12 +37,13 @@ export default function Profile() {
     }));
   }
 
-  useEffect(() => {
-    load().catch(() => {
-      clearToken();
-      nav("/login");
-    });
-  }, []);
+useEffect(() => {
+  load().catch(() => {
+    clearToken();
+    nav("/auth", { replace: true });
+  });
+}, [nav]);
+
 
   const avatarText = useMemo(
     () => initials(form.nom, form.prenom),
@@ -53,8 +54,9 @@ export default function Profile() {
     setSaving(true);
     setErr("");
     setMsg("");
+
     try {
-      await api.put("/api/profile", { nom: form.nom, prenom: form.prenom });
+await api.put("/api/profile", { nom: form.nom, prenom: form.prenom });
       setMsg("Profile updated");
       setEdit(false);
       await load();
@@ -65,10 +67,11 @@ export default function Profile() {
     }
   }
 
-  function logout() {
-    clearToken();
-    nav("/login");
-  }
+function logout() {
+  clearToken();
+  nav("/auth", { replace: true });
+}
+
 
   if (!data) return <div className="pagePad">Loading...</div>;
 
@@ -79,6 +82,7 @@ export default function Profile() {
           <div className="hello">Welcome, {data.prenom}</div>
           <div className="sub">Manage your personal information</div>
         </div>
+
         <div className="topActions">
           <button className="btnGhost" onClick={logout}>Logout</button>
           <div className="miniAvatar">{avatarText}</div>
