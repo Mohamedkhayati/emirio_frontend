@@ -1,10 +1,13 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { api } from "./lib/api";
+import Favorites from "./pages/Favorites";
 
 import Home from "./pages/Home.jsx";
 import Auth from "./pages/Auth.jsx";
 import Profile from "./pages/Profile.jsx";
+import ProductDetailsPage from "./pages/ProductDetailsPage.jsx";
+import CatalogPage from "./pages/CatalogPage.jsx";
 
 import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
 import ResetPassword from "./pages/auth/ResetPassword.jsx";
@@ -34,11 +37,10 @@ export default function App() {
     loadMe();
   }, []);
 
-  // ✅ Better: use resolvedLanguage + i18n.dir()
   useEffect(() => {
     const lng = i18n.resolvedLanguage || i18n.language || "en";
     document.documentElement.lang = lng;
-    document.documentElement.dir = i18n.dir(lng); // "ltr" or "rtl"
+    document.documentElement.dir = i18n.dir(lng);
   }, [i18n, i18n.resolvedLanguage, i18n.language]);
 
   if (loading) return <div style={{ padding: 20 }}>Loading...</div>;
@@ -48,11 +50,11 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Home me={me} />} />
+      <Route path="/catalog" element={<CatalogPage />} />
+      <Route path="/product/:id" element={<ProductDetailsPage me={me} />} />
+<Route path="/favorites" element={<Favorites />} />
 
-      {/* Optional: if logged in, don't show Auth page */}
-      <Route path="/auth" element={me ? <Navigate to="/profile" replace /> : <Auth />} />
-
-      {/* Reset password pages (public) */}
+      <Route path="/auth" element={me ? <Navigate to="/" replace /> : <Auth />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
 
@@ -61,13 +63,11 @@ export default function App() {
         element={me ? <Profile me={me} /> : <Navigate to="/auth" replace />}
       />
 
-      {/* ADMIN routes */}
-   <Route element={<ProtectedRoute isAllowed={role === "ADMIN"} redirectTo="/profile" />}>
-  <Route element={<AdminLayout me={me} />}>
-    <Route path="/admin" element={<AdminPage />} />
-    <Route path="/admin/clients" element={<Navigate to="/admin" replace />} />
-  </Route>
-</Route>
+      <Route element={<ProtectedRoute isAllowed={role === "ADMIN"} redirectTo="/profile" />}>
+        <Route element={<AdminLayout me={me} />}>
+          <Route path="/admin" element={<AdminPage />} />
+        </Route>
+      </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

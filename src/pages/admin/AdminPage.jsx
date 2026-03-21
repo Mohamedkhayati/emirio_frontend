@@ -19,12 +19,57 @@ const fmtPrice = (v) => {
   return `${Number(v).toFixed(3)} TND`;
 };
 
+const fullImageUrl = (path) => {
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
+  const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+  return `${base}${path}`;
+};
+
+const toInputDateTime = (v) => {
+  if (!v) return "";
+  try {
+    const d = new Date(v);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch {
+    return "";
+  }
+};
+
+const isSaleActive = (a) => {
+  if (!a?.salePrice || Number(a.salePrice) >= Number(a.prix || 0)) return false;
+  const now = Date.now();
+  const start = a.saleStartAt ? new Date(a.saleStartAt).getTime() : null;
+  const end = a.saleEndAt ? new Date(a.saleEndAt).getTime() : null;
+  if (start && now < start) return false;
+  if (end && now > end) return false;
+  return true;
+};
+
+const salePercent = (a) => {
+  if (!isSaleActive(a)) return null;
+  return Math.round(((Number(a.prix) - Number(a.salePrice)) / Number(a.prix)) * 100);
+};
+
 const emptyArticleForm = {
   nom: "",
   description: "",
+  details: "",
   prix: "",
   actif: true,
-  categorieId: ""
+  categorieId: "",
+  marque: "",
+  matiere: "",
+  sku: "",
+  imageFile1: null,
+  imageFile2: null,
+  imageFile3: null,
+  imageFile4: null,
+  salePrice: "",
+  saleStartAt: "",
+  saleEndAt: "",
+  recommended: false
 };
 
 const emptyVariationForm = {
@@ -34,19 +79,9 @@ const emptyVariationForm = {
   tailleId: ""
 };
 
-const emptyCategoryForm = {
-  nom: "",
-  description: ""
-};
-
-const emptyColorForm = {
-  nom: "",
-  codeHex: "#000000"
-};
-
-const emptySizeForm = {
-  pointure: ""
-};
+const emptyCategoryForm = { nom: "", description: "" };
+const emptyColorForm = { nom: "", codeHex: "#000000" };
+const emptySizeForm = { pointure: "" };
 
 export default function AdminPage() {
   const [section, setSection] = useState("customers");
@@ -56,8 +91,6 @@ export default function AdminPage() {
   const [q, setQ] = useState("");
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
-
-  const clientDialogRef = useRef(null);
 
   const [articles, setArticles] = useState([]);
   const [selectedArticle, setSelectedArticle] = useState(null);
@@ -82,6 +115,7 @@ export default function AdminPage() {
   const [editingColorId, setEditingColorId] = useState(null);
   const [editingSizeId, setEditingSizeId] = useState(null);
 
+  const clientDialogRef = useRef(null);
   const articleDialogRef = useRef(null);
   const variationDialogRef = useRef(null);
   const categoryDialogRef = useRef(null);
@@ -117,16 +151,14 @@ export default function AdminPage() {
       setSelected(d.data);
       await loadList(false);
     } catch (e) {
-      setError(e?.response?.data?.message || `Update failed (${e?.response?.status || "no status"})`);
+      setError(e?.response?.data?.message || "Update failed");
     } finally {
       setBusyId(null);
     }
   }
 
   async function deleteClient(id) {
-    const ok = window.confirm("Delete this client?");
-    if (!ok) return;
-
+    if (!window.confirm("Delete this client?")) return;
     setError("");
     setBusyId(id);
     try {
@@ -135,21 +167,19 @@ export default function AdminPage() {
       setSelected(null);
       await loadList(true);
     } catch (e) {
-      setError(e?.response?.data?.message || `Delete failed (${e?.response?.status || "no status"})`);
+      setError(e?.response?.data?.message || "Delete failed");
     } finally {
       setBusyId(null);
     }
   }
 
   async function loadCatalogBaseData() {
-    setCatalogError("");
     const [a, c, co, s] = await Promise.all([
       api.get("/api/admin/articles"),
       api.get("/api/admin/categories"),
       api.get("/api/admin/colors"),
       api.get("/api/admin/sizes")
     ]);
-
     setArticles(a.data || []);
     setCategories(c.data || []);
     setColors(co.data || []);
@@ -157,17 +187,16 @@ export default function AdminPage() {
   }
 
   async function loadArticleDetails(id) {
-    setCatalogError("");
-    const res = await api.get(`/api/articles/${id}`);
+    const [res, vr] = await Promise.all([
+      api.get(`/api/articles/${id}`),
+      api.get(`/api/admin/articles/${id}/variations`)
+    ]);
     setSelectedArticle(res.data);
-
-    const vr = await api.get(`/api/admin/articles/${id}/variations`);
     setVariations(vr.data || []);
   }
 
   async function refreshCatalog(pickFirst = false) {
     await loadCatalogBaseData();
-
     if (pickFirst) {
       const res = await api.get("/api/admin/articles");
       const list = res.data || [];
@@ -189,21 +218,18 @@ export default function AdminPage() {
   const filteredCustomers = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return rows;
-    return rows.filter((u) =>
-      `${u.nom} ${u.prenom} ${u.email}`.toLowerCase().includes(s)
-    );
+    return rows.filter((u) => `${u.nom} ${u.prenom} ${u.email}`.toLowerCase().includes(s));
   }, [q, rows]);
 
   const filteredArticles = useMemo(() => {
     const s = catalogQ.trim().toLowerCase();
     if (!s) return articles;
     return articles.filter((a) =>
-      `${a.nom} ${a.description || ""} ${a.categorieNom || ""}`.toLowerCase().includes(s)
+      `${a.nom} ${a.description || ""} ${a.categorieNom || ""} ${a.marque || ""} ${a.sku || ""}`
+        .toLowerCase()
+        .includes(s)
     );
   }, [catalogQ, articles]);
-
-  const openProfile = () => selected && clientDialogRef.current?.showModal();
-  const closeProfile = () => clientDialogRef.current?.close();
 
   function openCreateArticle() {
     setEditingArticleId(null);
@@ -217,37 +243,65 @@ export default function AdminPage() {
     setArticleForm({
       nom: article.nom || "",
       description: article.description || "",
+      details: article.details || "",
       prix: article.prix ?? "",
       actif: !!article.actif,
-      categorieId: article.categorieId || ""
+      categorieId: article.categorieId || "",
+      marque: article.marque || "",
+      matiere: article.matiere || "",
+      sku: article.sku || "",
+      imageFile1: null,
+      imageFile2: null,
+      imageFile3: null,
+      imageFile4: null,
+      salePrice: article.salePrice ?? "",
+      saleStartAt: toInputDateTime(article.saleStartAt),
+      saleEndAt: toInputDateTime(article.saleEndAt),
+      recommended: !!article.recommended
     });
     articleDialogRef.current?.showModal();
-  }
-
-  function closeArticleDialog() {
-    articleDialogRef.current?.close();
   }
 
   async function saveArticle(e) {
     e.preventDefault();
     setBusyCatalog(true);
     setCatalogError("");
+
     try {
       const payload = {
         nom: articleForm.nom,
         description: articleForm.description,
+        details: articleForm.details,
         prix: Number(articleForm.prix),
         actif: !!articleForm.actif,
-        categorieId: Number(articleForm.categorieId)
+        categorieId: Number(articleForm.categorieId),
+        marque: articleForm.marque,
+        matiere: articleForm.matiere,
+        sku: articleForm.sku,
+        salePrice: articleForm.salePrice ? Number(articleForm.salePrice) : null,
+        saleStartAt: articleForm.saleStartAt || null,
+        saleEndAt: articleForm.saleEndAt || null,
+        recommended: !!articleForm.recommended
       };
 
+      const fd = new FormData();
+      fd.append("data", new Blob([JSON.stringify(payload)], { type: "application/json" }));
+      if (articleForm.imageFile1) fd.append("image1", articleForm.imageFile1);
+      if (articleForm.imageFile2) fd.append("image2", articleForm.imageFile2);
+      if (articleForm.imageFile3) fd.append("image3", articleForm.imageFile3);
+      if (articleForm.imageFile4) fd.append("image4", articleForm.imageFile4);
+
       if (editingArticleId) {
-        await api.put(`/api/admin/articles/${editingArticleId}`, payload);
+        await api.put(`/api/admin/articles/${editingArticleId}`, fd, {
+          headers: { "Content-Type": "multipart/form-data" }
+        });
       } else {
-        await api.post("/api/admin/articles", payload);
+        await api.post("/api/admin/articles", fd, {
+          headers: { "Content-Type": "multipart/form-data" }
+        });
       }
 
-      closeArticleDialog();
+      articleDialogRef.current?.close();
       await refreshCatalog(true);
     } catch (e2) {
       setCatalogError(e2?.response?.data?.message || "Save article failed");
@@ -257,11 +311,8 @@ export default function AdminPage() {
   }
 
   async function deleteArticle(id) {
-    const ok = window.confirm("Delete this article?");
-    if (!ok) return;
-
+    if (!window.confirm("Delete this article?")) return;
     setBusyCatalog(true);
-    setCatalogError("");
     try {
       await api.delete(`/api/admin/articles/${id}`);
       setSelectedArticle(null);
@@ -292,16 +343,11 @@ export default function AdminPage() {
     variationDialogRef.current?.showModal();
   }
 
-  function closeVariationDialog() {
-    variationDialogRef.current?.close();
-  }
-
   async function saveVariation(e) {
     e.preventDefault();
     if (!selectedArticle) return;
 
     setBusyCatalog(true);
-    setCatalogError("");
     try {
       const payload = {
         prix: Number(variationForm.prix),
@@ -316,21 +362,18 @@ export default function AdminPage() {
         await api.post(`/api/admin/articles/${selectedArticle.id}/variations`, payload);
       }
 
-      closeVariationDialog();
+      variationDialogRef.current?.close();
       await loadArticleDetails(selectedArticle.id);
-    } catch (e2) {
-      setCatalogError(e2?.response?.data?.message || "Save variation failed");
+    } catch (e) {
+      setCatalogError(e?.response?.data?.message || "Save variation failed");
     } finally {
       setBusyCatalog(false);
     }
   }
 
   async function deleteVariation(id) {
-    const ok = window.confirm("Delete this variation?");
-    if (!ok) return;
-
+    if (!window.confirm("Delete this variation?")) return;
     setBusyCatalog(true);
-    setCatalogError("");
     try {
       await api.delete(`/api/admin/variations/${id}`);
       await loadArticleDetails(selectedArticle.id);
@@ -349,38 +392,28 @@ export default function AdminPage() {
 
   function openEditCategory(c) {
     setEditingCategoryId(c.id);
-    setCategoryForm({
-      nom: c.nom || "",
-      description: c.description || ""
-    });
+    setCategoryForm({ nom: c.nom || "", description: c.description || "" });
     categoryDialogRef.current?.showModal();
   }
 
   async function saveCategory(e) {
     e.preventDefault();
     setBusyCatalog(true);
-    setCatalogError("");
     try {
-      if (editingCategoryId) {
-        await api.put(`/api/admin/categories/${editingCategoryId}`, categoryForm);
-      } else {
-        await api.post("/api/admin/categories", categoryForm);
-      }
+      if (editingCategoryId) await api.put(`/api/admin/categories/${editingCategoryId}`, categoryForm);
+      else await api.post("/api/admin/categories", categoryForm);
       categoryDialogRef.current?.close();
       await refreshCatalog(false);
-    } catch (e2) {
-      setCatalogError(e2?.response?.data?.message || "Save category failed");
+    } catch (e) {
+      setCatalogError(e?.response?.data?.message || "Save category failed");
     } finally {
       setBusyCatalog(false);
     }
   }
 
   async function deleteCategory(id) {
-    const ok = window.confirm("Delete this category?");
-    if (!ok) return;
-
+    if (!window.confirm("Delete this category?")) return;
     setBusyCatalog(true);
-    setCatalogError("");
     try {
       await api.delete(`/api/admin/categories/${id}`);
       await refreshCatalog(false);
@@ -399,38 +432,28 @@ export default function AdminPage() {
 
   function openEditColor(c) {
     setEditingColorId(c.id);
-    setColorForm({
-      nom: c.nom || "",
-      codeHex: c.codeHex || "#000000"
-    });
+    setColorForm({ nom: c.nom || "", codeHex: c.codeHex || "#000000" });
     colorDialogRef.current?.showModal();
   }
 
   async function saveColor(e) {
     e.preventDefault();
     setBusyCatalog(true);
-    setCatalogError("");
     try {
-      if (editingColorId) {
-        await api.put(`/api/admin/colors/${editingColorId}`, colorForm);
-      } else {
-        await api.post("/api/admin/colors", colorForm);
-      }
+      if (editingColorId) await api.put(`/api/admin/colors/${editingColorId}`, colorForm);
+      else await api.post("/api/admin/colors", colorForm);
       colorDialogRef.current?.close();
       await refreshCatalog(false);
-    } catch (e2) {
-      setCatalogError(e2?.response?.data?.message || "Save color failed");
+    } catch (e) {
+      setCatalogError(e?.response?.data?.message || "Save color failed");
     } finally {
       setBusyCatalog(false);
     }
   }
 
   async function deleteColor(id) {
-    const ok = window.confirm("Delete this color?");
-    if (!ok) return;
-
+    if (!window.confirm("Delete this color?")) return;
     setBusyCatalog(true);
-    setCatalogError("");
     try {
       await api.delete(`/api/admin/colors/${id}`);
       await refreshCatalog(false);
@@ -449,37 +472,28 @@ export default function AdminPage() {
 
   function openEditSize(s) {
     setEditingSizeId(s.id);
-    setSizeForm({
-      pointure: s.pointure || ""
-    });
+    setSizeForm({ pointure: s.pointure || "" });
     sizeDialogRef.current?.showModal();
   }
 
   async function saveSize(e) {
     e.preventDefault();
     setBusyCatalog(true);
-    setCatalogError("");
     try {
-      if (editingSizeId) {
-        await api.put(`/api/admin/sizes/${editingSizeId}`, sizeForm);
-      } else {
-        await api.post("/api/admin/sizes", sizeForm);
-      }
+      if (editingSizeId) await api.put(`/api/admin/sizes/${editingSizeId}`, sizeForm);
+      else await api.post("/api/admin/sizes", sizeForm);
       sizeDialogRef.current?.close();
       await refreshCatalog(false);
-    } catch (e2) {
-      setCatalogError(e2?.response?.data?.message || "Save size failed");
+    } catch (e) {
+      setCatalogError(e?.response?.data?.message || "Save size failed");
     } finally {
       setBusyCatalog(false);
     }
   }
 
   async function deleteSize(id) {
-    const ok = window.confirm("Delete this size?");
-    if (!ok) return;
-
+    if (!window.confirm("Delete this size?")) return;
     setBusyCatalog(true);
-    setCatalogError("");
     try {
       await api.delete(`/api/admin/sizes/${id}`);
       await refreshCatalog(false);
@@ -494,19 +508,19 @@ export default function AdminPage() {
     <div className="adminLayout">
       <aside className="adminSidebar clean">
         <div className="adminMenu onlyMenu">
-          <button
-            className={`adminMenuItem ${section === "customers" ? "active" : ""}`}
-            onClick={() => setSection("customers")}
-          >
+          <button className={`adminMenuItem ${section === "customers" ? "active" : ""}`} onClick={() => setSection("customers")}>
             Customers List
           </button>
-
-          <button
-            className={`adminMenuItem ${section === "catalog" ? "active" : ""}`}
-            onClick={() => setSection("catalog")}
-          >
+          <button className={`adminMenuItem ${section === "catalog" ? "active" : ""}`} onClick={() => setSection("catalog")}>
             Catalog Manager
           </button>
+          <button
+  className={`adminMenuItem ${section === "dashboard" ? "active" : ""}`}
+  onClick={() => setSection("dashboard")}
+>
+  Dashboard
+</button>
+
         </div>
       </aside>
 
@@ -522,15 +536,9 @@ export default function AdminPage() {
 
                 <div className="admHeaderRight">
                   <div className="admSearchWrap">
-                    <input
-                      className="admSearch"
-                      value={q}
-                      onChange={(e) => setQ(e.target.value)}
-                      placeholder="Search name / email..."
-                    />
+                    <input className="admSearch" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name / email..." />
                   </div>
-
-                  <button className="admBtn primary" onClick={openProfile} disabled={!selected}>
+                  <button className="admBtn primary" onClick={() => selected && clientDialogRef.current?.showModal()} disabled={!selected}>
                     See profile
                   </button>
                 </div>
@@ -558,8 +566,6 @@ export default function AdminPage() {
                         key={u.id}
                         className={`admTr row ${selected?.id === u.id ? "active" : ""}`}
                         onClick={() => selectClient(u.id).catch((e) => setError(e.message))}
-                        role="button"
-                        tabIndex={0}
                       >
                         <div className="admNameCell">
                           <div className="admAvatar">{initials(u.nom, u.prenom)}</div>
@@ -578,20 +584,12 @@ export default function AdminPage() {
                         </div>
 
                         <div className="admRowActions" onClick={(e) => e.stopPropagation()}>
-                          <button className="admBtn mini" disabled={busyId === u.id} onClick={() => setStatus(u.id, "ACTIVE")}>
-                            Enable
-                          </button>
-                          <button className="admBtn mini" disabled={busyId === u.id} onClick={() => setStatus(u.id, "BLOCKED")}>
-                            Block
-                          </button>
-                          <button className="admBtn mini danger" disabled={busyId === u.id} onClick={() => deleteClient(u.id)}>
-                            Delete
-                          </button>
+                          <button className="admBtn mini" disabled={busyId === u.id} onClick={() => setStatus(u.id, "ACTIVE")}>Enable</button>
+                          <button className="admBtn mini" disabled={busyId === u.id} onClick={() => setStatus(u.id, "BLOCKED")}>Block</button>
+                          <button className="admBtn mini danger" disabled={busyId === u.id} onClick={() => deleteClient(u.id)}>Delete</button>
                         </div>
                       </div>
                     ))}
-
-                    {!filteredCustomers.length && <div className="admEmpty">No clients.</div>}
                   </div>
                 </div>
 
@@ -609,64 +607,15 @@ export default function AdminPage() {
                       </div>
 
                       <div className="admDivider" />
-
                       <div className="admInfo">
                         <div className="admInfoRow"><span>Email</span><span className="mono">{selected.email}</span></div>
                         <div className="admInfoRow"><span>Status</span><span>{selected.statutCompte}</span></div>
                         <div className="admInfoRow"><span>Created</span><span>{fmt(selected.dateDeCreation)}</span></div>
-                        <div className="admInfoRow"><span>ID</span><span className="mono">{selected.id}</span></div>
-                      </div>
-
-                      <div className="admSideBtns">
-                        <button className="admBtn primary" onClick={openProfile}>See full profile</button>
-                        <button className="admBtn" disabled={busyId === selected.id} onClick={() => setStatus(selected.id, "ACTIVE")}>
-                          Enable account
-                        </button>
-                        <button className="admBtn" disabled={busyId === selected.id} onClick={() => setStatus(selected.id, "BLOCKED")}>
-                          Block account
-                        </button>
-                        <button className="admBtn danger" disabled={busyId === selected.id} onClick={() => deleteClient(selected.id)}>
-                          Delete account
-                        </button>
                       </div>
                     </>
                   )}
                 </div>
               </div>
-
-              <dialog ref={clientDialogRef} className="admDialog">
-                <div className="admDialogHead">
-                  <div className="admDialogTitle">Client profile</div>
-                  <button className="admBtn mini" onClick={closeProfile}>Close</button>
-                </div>
-
-                {!selected ? (
-                  <div className="admDialogBody">No client selected.</div>
-                ) : (
-                  <div className="admDialogBody">
-                    <div className="admDialogHero">
-                      <div className="admAvatar big">{initials(selected.nom, selected.prenom)}</div>
-                      <div>
-                        <div className="admSideName">{selected.prenom} {selected.nom}</div>
-                        <div className="admH2">{selected.role} • {selected.statutCompte}</div>
-                      </div>
-                    </div>
-
-                    <div className="admDialogGrid">
-                      <div className="admTile"><div className="k">Email</div><div className="v mono">{selected.email}</div></div>
-                      <div className="admTile"><div className="k">Created</div><div className="v">{fmt(selected.dateDeCreation)}</div></div>
-                      <div className="admTile"><div className="k">ID</div><div className="v mono">{selected.id}</div></div>
-                      <div className="admTile"><div className="k">Status</div><div className="v">{selected.statutCompte}</div></div>
-                    </div>
-
-                    <div className="admDialogActions">
-                      <button className="admBtn" onClick={() => setStatus(selected.id, "ACTIVE")}>Enable</button>
-                      <button className="admBtn" onClick={() => setStatus(selected.id, "BLOCKED")}>Block</button>
-                      <button className="admBtn danger" onClick={() => deleteClient(selected.id)}>Delete</button>
-                    </div>
-                  </div>
-                )}
-              </dialog>
             </div>
           </div>
         )}
@@ -677,19 +626,13 @@ export default function AdminPage() {
               <div className="admHeader">
                 <div>
                   <div className="admH1">Catalog Manager</div>
-                  <div className="admH2">Manage articles, variations, categories, colors and sizes</div>
+                  <div className="admH2">Manage articles, sales, recommendations, variations and references</div>
                 </div>
 
                 <div className="admHeaderRight">
                   <div className="admSearchWrap">
-                    <input
-                      className="admSearch"
-                      value={catalogQ}
-                      onChange={(e) => setCatalogQ(e.target.value)}
-                      placeholder="Search article / category..."
-                    />
+                    <input className="admSearch" value={catalogQ} onChange={(e) => setCatalogQ(e.target.value)} placeholder="Search article / category / brand..." />
                   </div>
-
                   <button className="admBtn" onClick={() => refreshCatalog(false)}>Refresh</button>
                   <button className="admBtn" onClick={openCreateCategory}>Add category</button>
                   <button className="admBtn" onClick={openCreateColor}>Add color</button>
@@ -700,75 +643,8 @@ export default function AdminPage() {
 
               {catalogError && <div className="admAlert">{catalogError}</div>}
 
-              <div className="catalogMiniGrid">
-                <div className="admCard miniCard popIn">
-                  <div className="admCardTop">
-                    <div className="admCardTitle">Categories</div>
-                  </div>
-                  <div className="miniList">
-                    {categories.map((c) => (
-                      <div key={c.id} className="miniRow">
-                        <div>
-                          <div className="admName">{c.nom}</div>
-                          <div className="admRole">{c.description || "-"}</div>
-                        </div>
-                        <div className="admRowActions">
-                          <button className="admBtn mini" onClick={() => openEditCategory(c)}>Edit</button>
-                          <button className="admBtn mini danger" onClick={() => deleteCategory(c.id)}>Delete</button>
-                        </div>
-                      </div>
-                    ))}
-                    {!categories.length && <div className="admEmpty">No categories.</div>}
-                  </div>
-                </div>
-
-                <div className="admCard miniCard popIn delay1">
-                  <div className="admCardTop">
-                    <div className="admCardTitle">Colors</div>
-                  </div>
-                  <div className="miniList">
-                    {colors.map((c) => (
-                      <div key={c.id} className="miniRow">
-                        <div className="colorRow">
-                          <span className="colorDot" style={{ background: c.codeHex || "#000000" }} />
-                          <div>
-                            <div className="admName">{c.nom}</div>
-                            <div className="admRole">{c.codeHex}</div>
-                          </div>
-                        </div>
-                        <div className="admRowActions">
-                          <button className="admBtn mini" onClick={() => openEditColor(c)}>Edit</button>
-                          <button className="admBtn mini danger" onClick={() => deleteColor(c.id)}>Delete</button>
-                        </div>
-                      </div>
-                    ))}
-                    {!colors.length && <div className="admEmpty">No colors.</div>}
-                  </div>
-                </div>
-
-                <div className="admCard miniCard popIn delay2">
-                  <div className="admCardTop">
-                    <div className="admCardTitle">Sizes</div>
-                  </div>
-                  <div className="miniList">
-                    {sizes.map((s) => (
-                      <div key={s.id} className="miniRow">
-                        <div>
-                          <div className="admName">{s.pointure}</div>
-                        </div>
-                        <div className="admRowActions">
-                          <button className="admBtn mini" onClick={() => openEditSize(s)}>Edit</button>
-                          <button className="admBtn mini danger" onClick={() => deleteSize(s.id)}>Delete</button>
-                        </div>
-                      </div>
-                    ))}
-                    {!sizes.length && <div className="admEmpty">No sizes.</div>}
-                  </div>
-                </div>
-              </div>
-
               <div className="admGrid">
-                <div className="admCard popIn delay1">
+                <div className="admCard">
                   <div className="admCardTop">
                     <div className="admCardTitle">{filteredArticles.length} articles</div>
                   </div>
@@ -782,46 +658,54 @@ export default function AdminPage() {
                       <div style={{ textAlign: "right" }}>Actions</div>
                     </div>
 
-                    {filteredArticles.map((a) => (
-                      <div
-                        key={a.id}
-                        className={`admTr row articleRow ${selectedArticle?.id === a.id ? "active" : ""}`}
-                        onClick={() => loadArticleDetails(a.id).catch((e) => setCatalogError(e.message))}
-                        role="button"
-                        tabIndex={0}
-                      >
-                        <div>
-                          <div className="admName">{a.nom}</div>
-                          <div className="admRole">#{a.id}</div>
+                    {filteredArticles.map((a) => {
+                      const saleLive = isSaleActive(a);
+                      return (
+                        <div
+                          key={a.id}
+                          className={`admTr row articleRow ${selectedArticle?.id === a.id ? "active" : ""}`}
+                          onClick={() => loadArticleDetails(a.id).catch((e) => setCatalogError(e.message))}
+                        >
+                          <div className="articleCell">
+                            <div className="articleThumbWrap">
+                              {a.imageUrl ? <img src={fullImageUrl(a.imageUrl)} alt={a.nom} className="articleThumb" /> : <div className="articleThumb empty">No image</div>}
+                            </div>
+                            <div>
+                              <div className="admName">{a.nom}</div>
+                              <div className="admRole">
+                                #{a.id}
+                                {a.recommended ? " • Recommended" : ""}
+                                {saleLive ? ` • Sale -${salePercent(a)}%` : ""}
+                              </div>
+                            </div>
+                          </div>
+                          <div>{a.categorieNom}</div>
+                          <div>{saleLive ? `${fmtPrice(a.salePrice)} / ${fmtPrice(a.prix)}` : fmtPrice(a.prix)}</div>
+                          <div>
+                            <span className={`admBadge ${a.actif ? "ok" : "bad"}`}>{a.actif ? "ACTIVE" : "INACTIVE"}</span>
+                          </div>
+                          <div className="admRowActions" onClick={(e) => e.stopPropagation()}>
+                            <button className="admBtn mini" onClick={() => openEditArticle(a)}>Edit</button>
+                            <button className="admBtn mini danger" onClick={() => deleteArticle(a.id)}>Delete</button>
+                          </div>
                         </div>
-
-                        <div>{a.categorieNom}</div>
-                        <div>{fmtPrice(a.prix)}</div>
-                        <div>
-                          <span className={`admBadge ${a.actif ? "ok" : "bad"}`}>
-                            {a.actif ? "ACTIVE" : "INACTIVE"}
-                          </span>
-                        </div>
-
-                        <div className="admRowActions" onClick={(e) => e.stopPropagation()}>
-                          <button className="admBtn mini" onClick={() => openEditArticle(a)}>Edit</button>
-                          <button className="admBtn mini danger" onClick={() => deleteArticle(a.id)} disabled={busyCatalog}>
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-
-                    {!filteredArticles.length && <div className="admEmpty">No articles.</div>}
+                      );
+                    })}
                   </div>
                 </div>
 
-                <div className="admCard side popIn delay2">
+                <div className="admCard side">
                   {!selectedArticle ? (
                     <div className="admEmpty">Select an article</div>
                   ) : (
                     <>
-                      <div className="admSideTop">
+                      <div className="admSideTop articleSideTop">
+                        {selectedArticle.imageUrl ? (
+                          <img src={fullImageUrl(selectedArticle.imageUrl)} alt={selectedArticle.nom} className="selectedArticleImage" />
+                        ) : (
+                          <div className="selectedArticleImage empty">No image</div>
+                        )}
+
                         <div>
                           <div className="admSideName">{selectedArticle.nom}</div>
                           <div className="admSideRole">{selectedArticle.categorieNom}</div>
@@ -829,16 +713,19 @@ export default function AdminPage() {
                       </div>
 
                       <div className="admDivider" />
-
                       <div className="admInfo">
-                        <div className="admInfoRow"><span>ID</span><span className="mono">{selectedArticle.id}</span></div>
                         <div className="admInfoRow"><span>Price</span><span>{fmtPrice(selectedArticle.prix)}</span></div>
-                        <div className="admInfoRow"><span>Status</span><span>{selectedArticle.actif ? "ACTIVE" : "INACTIVE"}</span></div>
-                        <div className="admInfoRow"><span>Category</span><span>{selectedArticle.categorieNom}</span></div>
+                        <div className="admInfoRow"><span>Sale price</span><span>{fmtPrice(selectedArticle.salePrice)}</span></div>
+                        <div className="admInfoRow"><span>Sale start</span><span>{fmt(selectedArticle.saleStartAt)}</span></div>
+                        <div className="admInfoRow"><span>Sale end</span><span>{fmt(selectedArticle.saleEndAt)}</span></div>
+                        <div className="admInfoRow"><span>On sale now</span><span>{isSaleActive(selectedArticle) ? "YES" : "NO"}</span></div>
+                        <div className="admInfoRow"><span>Recommended</span><span>{selectedArticle.recommended ? "YES" : "NO"}</span></div>
+                        <div className="admInfoRow"><span>Brand</span><span>{selectedArticle.marque || "-"}</span></div>
+                        <div className="admInfoRow"><span>Material</span><span>{selectedArticle.matiere || "-"}</span></div>
+                        <div className="admInfoRow"><span>SKU</span><span>{selectedArticle.sku || "-"}</span></div>
                       </div>
 
                       <div className="admDivider" />
-
                       <div className="admCardTop">
                         <div className="admCardTitle">Variations</div>
                         <button className="admBtn mini primary" onClick={openCreateVariation}>Add variation</button>
@@ -858,75 +745,129 @@ export default function AdminPage() {
                             </div>
                           </div>
                         ))}
-                        {!variations.length && <div className="admEmpty">No variations.</div>}
-                      </div>
-
-                      <div className="admSideBtns">
-                        <button className="admBtn primary" onClick={() => openEditArticle(selectedArticle)}>Edit article</button>
-                        <button className="admBtn danger" onClick={() => deleteArticle(selectedArticle.id)}>Delete article</button>
+                        {!variations.length && <div className="admEmpty">No variations yet</div>}
                       </div>
                     </>
                   )}
                 </div>
               </div>
 
+              <div className="admGrid refsGrid">
+                <div className="admCard">
+                  <div className="admCardTop">
+                    <div className="admCardTitle">Categories</div>
+                    <button className="admBtn mini" onClick={openCreateCategory}>Add category</button>
+                  </div>
+                  <div className="admTable compact">
+                    {categories.map((c) => (
+                      <div key={c.id} className="admTr row">
+                        <div>
+                          <div className="admName">{c.nom}</div>
+                          <div className="admRole">{c.description || "-"}</div>
+                        </div>
+                        <div className="admRowActions">
+                          <button className="admBtn mini" onClick={() => openEditCategory(c)}>Edit</button>
+                          <button className="admBtn mini danger" onClick={() => deleteCategory(c.id)}>Delete</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="admCard">
+                  <div className="admCardTop">
+                    <div className="admCardTitle">Colors</div>
+                    <button className="admBtn mini" onClick={openCreateColor}>Add color</button>
+                  </div>
+                  <div className="admTable compact">
+                    {colors.map((c) => (
+                      <div key={c.id} className="admTr row">
+                        <div className="colorCell">
+                          <span className="colorDot" style={{ background: c.codeHex }} />
+                          <div>
+                            <div className="admName">{c.nom}</div>
+                            <div className="admRole">{c.codeHex}</div>
+                          </div>
+                        </div>
+                        <div className="admRowActions">
+                          <button className="admBtn mini" onClick={() => openEditColor(c)}>Edit</button>
+                          <button className="admBtn mini danger" onClick={() => deleteColor(c.id)}>Delete</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="admCard">
+                  <div className="admCardTop">
+                    <div className="admCardTitle">Sizes</div>
+                    <button className="admBtn mini" onClick={openCreateSize}>Add size</button>
+                  </div>
+                  <div className="admTable compact">
+                    {sizes.map((s) => (
+                      <div key={s.id} className="admTr row">
+                        <div>
+                          <div className="admName">{s.pointure}</div>
+                        </div>
+                        <div className="admRowActions">
+                          <button className="admBtn mini" onClick={() => openEditSize(s)}>Edit</button>
+                          <button className="admBtn mini danger" onClick={() => deleteSize(s.id)}>Delete</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               <dialog ref={articleDialogRef} className="admDialog productDialog">
                 <div className="admDialogHead">
                   <div className="admDialogTitle">{editingArticleId ? "Edit article" : "Add article"}</div>
-                  <button className="admBtn mini" onClick={closeArticleDialog}>Close</button>
+                  <button className="admBtn mini" type="button" onClick={() => articleDialogRef.current?.close()}>Close</button>
                 </div>
 
                 <form className="productForm admDialogBody" onSubmit={saveArticle}>
-                  <label>
-                    <span>Product name</span>
-                    <input
-                      value={articleForm.nom}
-                      onChange={(e) => setArticleForm({ ...articleForm, nom: e.target.value })}
-                      required
-                    />
-                  </label>
+                  <label><span>Product name</span><input value={articleForm.nom} onChange={(e) => setArticleForm({ ...articleForm, nom: e.target.value })} required /></label>
 
                   <label>
                     <span>Category</span>
-                    <select
-                      value={articleForm.categorieId}
-                      onChange={(e) => setArticleForm({ ...articleForm, categorieId: e.target.value })}
-                      required
-                    >
+                    <select value={articleForm.categorieId} onChange={(e) => setArticleForm({ ...articleForm, categorieId: e.target.value })} required>
                       <option value="">Select category</option>
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.id}>{c.nom}</option>
-                      ))}
+                      {categories.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
                     </select>
                   </label>
 
-                  <label>
-                    <span>Price</span>
-                    <input
-                      type="number"
-                      step="0.001"
-                      value={articleForm.prix}
-                      onChange={(e) => setArticleForm({ ...articleForm, prix: e.target.value })}
-                      required
-                    />
-                  </label>
+                  <label><span>Price</span><input type="number" step="0.001" value={articleForm.prix} onChange={(e) => setArticleForm({ ...articleForm, prix: e.target.value })} required /></label>
+                  <label><span>Sale price</span><input type="number" step="0.001" value={articleForm.salePrice} onChange={(e) => setArticleForm({ ...articleForm, salePrice: e.target.value })} /></label>
+                  <label><span>Sale start</span><input type="datetime-local" value={articleForm.saleStartAt} onChange={(e) => setArticleForm({ ...articleForm, saleStartAt: e.target.value })} /></label>
+                  <label><span>Sale end</span><input type="datetime-local" value={articleForm.saleEndAt} onChange={(e) => setArticleForm({ ...articleForm, saleEndAt: e.target.value })} /></label>
+
+                  <label><span>Brand</span><input value={articleForm.marque} onChange={(e) => setArticleForm({ ...articleForm, marque: e.target.value })} /></label>
+                  <label><span>Material</span><input value={articleForm.matiere} onChange={(e) => setArticleForm({ ...articleForm, matiere: e.target.value })} /></label>
+                  <label><span>SKU</span><input value={articleForm.sku} onChange={(e) => setArticleForm({ ...articleForm, sku: e.target.value })} /></label>
+
+                  <label><span>Image 1</span><input type="file" accept="image/*" onChange={(e) => setArticleForm({ ...articleForm, imageFile1: e.target.files?.[0] || null })} /></label>
+                  <label><span>Image 2</span><input type="file" accept="image/*" onChange={(e) => setArticleForm({ ...articleForm, imageFile2: e.target.files?.[0] || null })} /></label>
+                  <label><span>Image 3</span><input type="file" accept="image/*" onChange={(e) => setArticleForm({ ...articleForm, imageFile3: e.target.files?.[0] || null })} /></label>
+                  <label><span>Image 4</span><input type="file" accept="image/*" onChange={(e) => setArticleForm({ ...articleForm, imageFile4: e.target.files?.[0] || null })} /></label>
 
                   <label className="checkRow">
-                    <input
-                      type="checkbox"
-                      checked={articleForm.actif}
-                      onChange={(e) => setArticleForm({ ...articleForm, actif: e.target.checked })}
-                    />
+                    <input type="checkbox" checked={articleForm.actif} onChange={(e) => setArticleForm({ ...articleForm, actif: e.target.checked })} />
                     <span>Active product</span>
                   </label>
 
-                  <label>
-                    <span>Description</span>
-                    <textarea
-                      rows="5"
-                      value={articleForm.description}
-                      onChange={(e) => setArticleForm({ ...articleForm, description: e.target.value })}
-                    />
+                  <label className="checkRow">
+                    <input type="checkbox" checked={articleForm.recommended} onChange={(e) => setArticleForm({ ...articleForm, recommended: e.target.checked })} />
+                    <span>Best choice recommendation</span>
+                  </label>
+
+                  <label className="fullCol">
+                    <span>Short description</span>
+                    <textarea rows="4" value={articleForm.description} onChange={(e) => setArticleForm({ ...articleForm, description: e.target.value })} />
+                  </label>
+
+                  <label className="fullCol">
+                    <span>More information</span>
+                    <textarea rows="6" value={articleForm.details} onChange={(e) => setArticleForm({ ...articleForm, details: e.target.value })} />
                   </label>
 
                   <div className="admDialogActions">
@@ -940,58 +881,28 @@ export default function AdminPage() {
               <dialog ref={variationDialogRef} className="admDialog productDialog">
                 <div className="admDialogHead">
                   <div className="admDialogTitle">{editingVariationId ? "Edit variation" : "Add variation"}</div>
-                  <button className="admBtn mini" onClick={closeVariationDialog}>Close</button>
+                  <button className="admBtn mini" type="button" onClick={() => variationDialogRef.current?.close()}>Close</button>
                 </div>
 
                 <form className="productForm admDialogBody" onSubmit={saveVariation}>
                   <label>
                     <span>Color</span>
-                    <select
-                      value={variationForm.couleurId}
-                      onChange={(e) => setVariationForm({ ...variationForm, couleurId: e.target.value })}
-                      required
-                    >
+                    <select value={variationForm.couleurId} onChange={(e) => setVariationForm({ ...variationForm, couleurId: e.target.value })} required>
                       <option value="">Select color</option>
-                      {colors.map((c) => (
-                        <option key={c.id} value={c.id}>{c.nom}</option>
-                      ))}
+                      {colors.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
                     </select>
                   </label>
 
                   <label>
                     <span>Size</span>
-                    <select
-                      value={variationForm.tailleId}
-                      onChange={(e) => setVariationForm({ ...variationForm, tailleId: e.target.value })}
-                      required
-                    >
+                    <select value={variationForm.tailleId} onChange={(e) => setVariationForm({ ...variationForm, tailleId: e.target.value })} required>
                       <option value="">Select size</option>
-                      {sizes.map((s) => (
-                        <option key={s.id} value={s.id}>{s.pointure}</option>
-                      ))}
+                      {sizes.map((s) => <option key={s.id} value={s.id}>{s.pointure}</option>)}
                     </select>
                   </label>
 
-                  <label>
-                    <span>Price</span>
-                    <input
-                      type="number"
-                      step="0.001"
-                      value={variationForm.prix}
-                      onChange={(e) => setVariationForm({ ...variationForm, prix: e.target.value })}
-                      required
-                    />
-                  </label>
-
-                  <label>
-                    <span>Stock</span>
-                    <input
-                      type="number"
-                      value={variationForm.quantiteStock}
-                      onChange={(e) => setVariationForm({ ...variationForm, quantiteStock: e.target.value })}
-                      required
-                    />
-                  </label>
+                  <label><span>Price</span><input type="number" step="0.001" value={variationForm.prix} onChange={(e) => setVariationForm({ ...variationForm, prix: e.target.value })} required /></label>
+                  <label><span>Stock</span><input type="number" value={variationForm.quantiteStock} onChange={(e) => setVariationForm({ ...variationForm, quantiteStock: e.target.value })} required /></label>
 
                   <div className="admDialogActions">
                     <button type="submit" className="admBtn primary" disabled={busyCatalog}>
@@ -1004,95 +915,118 @@ export default function AdminPage() {
               <dialog ref={categoryDialogRef} className="admDialog productDialog">
                 <div className="admDialogHead">
                   <div className="admDialogTitle">{editingCategoryId ? "Edit category" : "Add category"}</div>
-                  <button className="admBtn mini" onClick={() => categoryDialogRef.current?.close()}>Close</button>
+                  <button className="admBtn mini" type="button" onClick={() => categoryDialogRef.current?.close()}>Close</button>
                 </div>
-
                 <form className="productForm admDialogBody" onSubmit={saveCategory}>
-                  <label>
-                    <span>Name</span>
-                    <input
-                      value={categoryForm.nom}
-                      onChange={(e) => setCategoryForm({ ...categoryForm, nom: e.target.value })}
-                      required
-                    />
-                  </label>
-
-                  <label>
-                    <span>Description</span>
-                    <textarea
-                      rows="4"
-                      value={categoryForm.description}
-                      onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
-                    />
-                  </label>
-
-                  <div className="admDialogActions">
-                    <button type="submit" className="admBtn primary" disabled={busyCatalog}>
-                      {editingCategoryId ? "Update category" : "Save category"}
-                    </button>
-                  </div>
+                  <label><span>Name</span><input value={categoryForm.nom} onChange={(e) => setCategoryForm({ ...categoryForm, nom: e.target.value })} required /></label>
+                  <label className="fullCol"><span>Description</span><textarea rows="4" value={categoryForm.description} onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} /></label>
+                  <div className="admDialogActions"><button type="submit" className="admBtn primary">{editingCategoryId ? "Update category" : "Save category"}</button></div>
                 </form>
               </dialog>
 
               <dialog ref={colorDialogRef} className="admDialog productDialog">
                 <div className="admDialogHead">
                   <div className="admDialogTitle">{editingColorId ? "Edit color" : "Add color"}</div>
-                  <button className="admBtn mini" onClick={() => colorDialogRef.current?.close()}>Close</button>
+                  <button className="admBtn mini" type="button" onClick={() => colorDialogRef.current?.close()}>Close</button>
                 </div>
-
                 <form className="productForm admDialogBody" onSubmit={saveColor}>
-                  <label>
-                    <span>Name</span>
-                    <input
-                      value={colorForm.nom}
-                      onChange={(e) => setColorForm({ ...colorForm, nom: e.target.value })}
-                      required
-                    />
-                  </label>
-
-                  <label>
-                    <span>Hex color</span>
-                    <input
-                      value={colorForm.codeHex}
-                      onChange={(e) => setColorForm({ ...colorForm, codeHex: e.target.value })}
-                      required
-                    />
-                  </label>
-
-                  <div className="admDialogActions">
-                    <button type="submit" className="admBtn primary" disabled={busyCatalog}>
-                      {editingColorId ? "Update color" : "Save color"}
-                    </button>
-                  </div>
+                  <label><span>Name</span><input value={colorForm.nom} onChange={(e) => setColorForm({ ...colorForm, nom: e.target.value })} required /></label>
+                  <label><span>Hex color</span><input value={colorForm.codeHex} onChange={(e) => setColorForm({ ...colorForm, codeHex: e.target.value })} required /></label>
+                  <div className="admDialogActions"><button type="submit" className="admBtn primary">{editingColorId ? "Update color" : "Save color"}</button></div>
                 </form>
               </dialog>
 
               <dialog ref={sizeDialogRef} className="admDialog productDialog">
                 <div className="admDialogHead">
                   <div className="admDialogTitle">{editingSizeId ? "Edit size" : "Add size"}</div>
-                  <button className="admBtn mini" onClick={() => sizeDialogRef.current?.close()}>Close</button>
+                  <button className="admBtn mini" type="button" onClick={() => sizeDialogRef.current?.close()}>Close</button>
                 </div>
-
                 <form className="productForm admDialogBody" onSubmit={saveSize}>
-                  <label>
-                    <span>Size</span>
-                    <input
-                      value={sizeForm.pointure}
-                      onChange={(e) => setSizeForm({ ...sizeForm, pointure: e.target.value })}
-                      required
-                    />
-                  </label>
-
-                  <div className="admDialogActions">
-                    <button type="submit" className="admBtn primary" disabled={busyCatalog}>
-                      {editingSizeId ? "Update size" : "Save size"}
-                    </button>
-                  </div>
+                  <label><span>Size</span><input value={sizeForm.pointure} onChange={(e) => setSizeForm({ ...sizeForm, pointure: e.target.value })} required /></label>
+                  <div className="admDialogActions"><button type="submit" className="admBtn primary">{editingSizeId ? "Update size" : "Save size"}</button></div>
                 </form>
+              </dialog>
+
+              <dialog ref={clientDialogRef} className="admDialog">
+                <div className="admDialogHead">
+                  <div className="admDialogTitle">Client profile</div>
+                  <button className="admBtn mini" type="button" onClick={() => clientDialogRef.current?.close()}>Close</button>
+                </div>
+                {!selected ? (
+                  <div className="admDialogBody">No client selected.</div>
+                ) : (
+                  <div className="admDialogBody">
+                    <div className="admSideTop">
+                      <div className="admAvatar big">{initials(selected.nom, selected.prenom)}</div>
+                      <div>
+                        <div className="admSideName">{selected.prenom} {selected.nom}</div>
+                        <div className="admSideRole">{selected.role} • {selected.statutCompte}</div>
+                      </div>
+                    </div>
+
+                    <div className="admDivider" />
+                    <div className="admInfo">
+                      <div className="admInfoRow"><span>Email</span><span className="mono">{selected.email}</span></div>
+                      <div className="admInfoRow"><span>Status</span><span>{selected.statutCompte}</span></div>
+                      <div className="admInfoRow"><span>Created</span><span>{fmt(selected.dateDeCreation)}</span></div>
+                      <div className="admInfoRow"><span>ID</span><span className="mono">{selected.id}</span></div>
+                    </div>
+                  </div>
+                )}
               </dialog>
             </div>
           </div>
         )}
+        {section === "dashboard" && (
+  <div className="fadeInUp">
+    <div className="admPage">
+      <div className="admHeader">
+        <div>
+          <div className="admH1">Statistics Dashboard</div>
+          <div className="admH2">Track products, customers, stock and sales</div>
+        </div>
+      </div>
+
+      <div className="admGrid dashboardTopGrid">
+        <div className="admCard statCard">
+          <div className="admCardTitle">Customers</div>
+          <div className="statValue">{rows.length}</div>
+        </div>
+
+        <div className="admCard statCard">
+          <div className="admCardTitle">Articles</div>
+          <div className="statValue">{articles.length}</div>
+        </div>
+
+        <div className="admCard statCard">
+          <div className="admCardTitle">Categories</div>
+          <div className="statValue">{categories.length}</div>
+        </div>
+
+        <div className="admCard statCard">
+          <div className="admCardTitle">Recommended</div>
+          <div className="statValue">{articles.filter((a) => !!a.recommended).length}</div>
+        </div>
+      </div>
+
+      <div className="admCard powerbiCard">
+        <div className="admCardTop">
+          <div className="admCardTitle">Power BI Report</div>
+        </div>
+
+        <iframe
+          title="Power BI Dashboard"
+          src="PASTE_YOUR_POWER_BI_EMBED_URL_HERE"
+          width="100%"
+          height="720"
+          frameBorder="0"
+          allowFullScreen
+        />
+      </div>
+    </div>
+  </div>
+)}
+
       </main>
     </div>
   );

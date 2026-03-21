@@ -229,4 +229,98 @@
   .adminShell{ grid-template-columns: 1fr; }
   .side{ display:none; }
 }
-    
+    .articleCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.articleThumbWrap {
+  width: 58px;
+  height: 58px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #f3f3f3;
+  flex: 0 0 58px;
+}
+
+.articleThumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.articleThumb.empty,
+.selectedArticleImage.empty {
+  display: grid;
+  place-items: center;
+  color: #777;
+  font-size: 12px;
+}
+
+.articleSideTop {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+.selectedArticleImage {
+  width: 96px;
+  height: 96px;
+  border-radius: 18px;
+  object-fit: cover;
+  background: #f3f3f3;
+}
+
+.productForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.productForm label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.productForm label input,
+.productForm label select,
+.productForm label textarea {
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  padding: 12px 14px;
+  outline: none;
+}
+
+.productForm .fullCol {
+  grid-column: 1 / -1;
+}
+
+.checkRow {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 10px !important;
+}
+
+.fadeInUp {
+  animation: fadeUp .6s ease both;
+}
+
+.popIn {
+  animation: popIn .45s ease both;
+}
+
+.delay1 { animation-delay: .08s; }
+.delay2 { animation-delay: .16s; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(.98); }
+  to { opacity: 1; transform: scale(1); }
+}

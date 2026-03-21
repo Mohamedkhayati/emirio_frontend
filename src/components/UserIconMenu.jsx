@@ -1,65 +1,69 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { clearToken, getToken } from "../lib/auth";
-import "../styles/menu.css";
+import { api } from "../lib/api";
 
-function initials() {
-  return "ME";
-}
-
-function SparkIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M12 2l1.2 6.2L20 10l-6.8 1.8L12 18l-1.2-6.2L4 10l6.8-1.8L12 2zm8 8l.6 3.1L24 14l-3.4.9L20 18l-.6-3.1L16 14l3.4-.9L20 10zM2 14l.6 3.1L6 18l-3.4.9L2 22l-.6-3.1L-2 18l3.4-.9L2 14z"
-      />
-    </svg>
-  );
-}
-
-export default function UserIconMenu() {
-  const nav = useNavigate();
-  const token = getToken();
-  const logged = !!token;
-
+export default function UserIconMenu({ me, setMe }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
-
-  const text = useMemo(() => initials(), []);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    function onDown(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    function onDocClick(e) {
+      if (!ref.current?.contains(e.target)) setOpen(false);
     }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
-  function clickMain() {
-    if (!logged) nav("/auth");
-    else setOpen((v) => !v);
+  const logout = async () => {
+    try {
+      await api.post("/api/auth/logout").catch(() => null);
+    } finally {
+      localStorage.removeItem("token");
+      sessionStorage.clear();
+      if (setMe) setMe(null);
+      setOpen(false);
+      navigate("/auth");
+    }
+  };
+
+  if (!me) {
+    return (
+      <Link to="/auth" className="userMenuLoginBtn">
+        Login
+      </Link>
+    );
   }
 
-  function logout() {
-    clearToken();
-    setOpen(false);
-    nav("/auth");
-  }
+  const initials = `${(me?.prenom || "").trim()[0] || ""}${(me?.nom || "").trim()[0] || ""}`.toUpperCase() || "U";
 
   return (
-    <div className="userMenu" ref={ref}>
-      <button className="fab" onClick={clickMain} aria-label="Account">
-        <span className="fabIcon"><SparkIcon /></span>
-        <span className="fabText">{logged ? text : "Start"}</span>
+    <div className="userMenuWrap" ref={ref}>
+      <button
+        type="button"
+        className="userMenuTrigger"
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Open user menu"
+      >
+        <span className="userAvatar">{initials}</span>
       </button>
 
-      {logged && open && (
-        <div className="dropdown">
-          <Link to="/profile" className="ddItem" onClick={() => setOpen(false)}>
-            My profile
+      {open && (
+        <div className="userDropdown">
+          <div className="userDropdownHead">
+            <div className="userDropdownName">{me.prenom} {me.nom}</div>
+            <div className="userDropdownEmail">{me.email}</div>
+          </div>
+
+          <Link to="/profile" className="userDropdownItem" onClick={() => setOpen(false)}>
+            Profile
           </Link>
-          <button className="ddItem danger" onClick={logout}>
+
+          <Link to="/favorites" className="userDropdownItem" onClick={() => setOpen(false)}>
+            Favorites
+          </Link>
+
+          <button type="button" className="userDropdownItem danger" onClick={logout}>
             Logout
           </button>
         </div>
