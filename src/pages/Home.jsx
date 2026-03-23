@@ -1,9 +1,10 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import "../styles/home.css";
-import { useTranslation } from "react-i18next";
 import UserIconMenu from "../components/UserIconMenu";
+import LanguageMenu from "../components/LanguageMenu";
 
 const toAbs = (path) => {
   if (!path) return "";
@@ -50,10 +51,10 @@ function getMainProductImage(p) {
   return images.length ? images[0] : null;
 }
 
-function formatCountdown(endAt, nowTick) {
-  if (!endAt) return "Limited offer";
+function formatCountdown(endAt, nowTick, t) {
+  if (!endAt) return t("home.limitedOffer", "Limited offer");
   const diff = new Date(endAt).getTime() - nowTick;
-  if (diff <= 0) return "Sale ended";
+  if (diff <= 0) return t("home.saleEnded", "Sale ended");
 
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
@@ -66,6 +67,7 @@ function formatCountdown(endAt, nowTick) {
 }
 
 function SaleHeroSlider({ articles, onOpen, nowTick }) {
+  const { t } = useTranslation();
   const saleItems = articles.filter((a) => isSaleActive(a));
   const heroItems = saleItems.length ? saleItems : articles;
   const [index, setIndex] = useState(0);
@@ -96,15 +98,17 @@ function SaleHeroSlider({ articles, onOpen, nowTick }) {
         <div className="saleHeroSplit fadeScale">
           <div className="saleHeroContent">
             <div className="saleBadge">EMIRIO</div>
-            <h1>Discover premium products</h1>
-            <p>Shop real products added from your admin dashboard.</p>
+            <h1>{t("home.discoverPremium", "Discover premium products")}</h1>
+            <p>{t("home.discoverCatalog", "Shop real products added from your admin dashboard.")}</p>
             <div className="heroButtons">
-              <a href="#new-arrivals" className="shopBtn">Shop Now</a>
+              <a href="#new-arrivals" className="shopBtn">
+                {t("home.shopNow", "Shop Now")}
+              </a>
             </div>
           </div>
 
           <div className="saleHeroVisual">
-            <div className="saleHeroImage emptyImage">No image</div>
+            <div className="saleHeroImage emptyImage">{t("common.noImage", "No image")}</div>
           </div>
         </div>
       </section>
@@ -124,7 +128,7 @@ function SaleHeroSlider({ articles, onOpen, nowTick }) {
         <div className="saleHeroContent">
           <div className="saleBadge">{onSale ? "EMIRIO SALE" : "EMIRIO"}</div>
           <h1>{current.nom}</h1>
-          <p>{current.description || "Discover products from your catalog."}</p>
+          <p>{current.description || t("home.discoverFromCatalog", "Discover products from your catalog.")}</p>
 
           <div className="heroPriceRow">
             <span className="heroPriceNow">{fmtPrice(getDisplayPrice(current))}</span>
@@ -134,13 +138,14 @@ function SaleHeroSlider({ articles, onOpen, nowTick }) {
 
           {onSale ? (
             <div className="heroCountdown">
-              Ends in <strong>{formatCountdown(current.saleEndAt, nowTick)}</strong>
+              {t("home.endsIn", "Ends in")}{" "}
+              <strong>{formatCountdown(current.saleEndAt, nowTick, t)}</strong>
             </div>
           ) : null}
 
           <div className="heroButtons">
             <button className="shopBtn" onClick={() => onOpen(current.id)}>
-              Shop Now
+              {t("home.shopNow", "Shop Now")}
             </button>
           </div>
         </div>
@@ -155,7 +160,7 @@ function SaleHeroSlider({ articles, onOpen, nowTick }) {
           {heroImage ? (
             <img src={heroImage} alt={current.nom} className="saleHeroImage" />
           ) : (
-            <div className="saleHeroImage emptyImage">No image</div>
+            <div className="saleHeroImage emptyImage">{t("common.noImage", "No image")}</div>
           )}
 
           {heroItems.length > 1 && (
@@ -179,6 +184,7 @@ function SaleHeroSlider({ articles, onOpen, nowTick }) {
 }
 
 function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
+  const { t } = useTranslation();
   const images = getProductImages(p);
   const [currentImage, setCurrentImage] = useState(0);
 
@@ -218,7 +224,7 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
             e.stopPropagation();
             toggleFavorite(p.id);
           }}
-          aria-label="Toggle favorite"
+          aria-label={t("catalog.toggleFavorite", "Toggle favorite")}
         >
           {fav ? "♥" : "♡"}
         </button>
@@ -230,7 +236,7 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
             className="productImage imageFade"
           />
         ) : (
-          <div className="productImage emptyImage">No image</div>
+          <div className="productImage emptyImage">{t("common.noImage", "No image")}</div>
         )}
 
         {images.length > 1 && (
@@ -252,12 +258,12 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
       <div className="productName">{p.nom}</div>
 
       <div className="productMeta">
-        {p.marque || "EMIRIO"} {p.recommended ? "• Best Choice" : ""}
+        {p.marque || "EMIRIO"} {p.recommended ? `• ${t("nav.bestChoice")}` : ""}
       </div>
 
       {onSale ? (
         <div className="saleCountdownMini">
-          Ends in {formatCountdown(p.saleEndAt, nowTick)}
+          {t("home.endsIn", "Ends in")} {formatCountdown(p.saleEndAt, nowTick, t)}
         </div>
       ) : null}
 
@@ -271,7 +277,7 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
 }
 
 export default function Home({ me, setMe }) {
-  const { i18n } = useTranslation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const [articles, setArticles] = useState([]);
@@ -288,11 +294,6 @@ export default function Home({ me, setMe }) {
       return [];
     }
   });
-
-  const setLang = (lng) => {
-    i18n.changeLanguage(lng);
-    localStorage.setItem("language", lng);
-  };
 
   useEffect(() => {
     const tick = setInterval(() => setNowTick(Date.now()), 1000);
@@ -358,18 +359,12 @@ export default function Home({ me, setMe }) {
   );
 
   const recommendedArticles = useMemo(
-    () =>
-      filteredArticles
-        .filter((a) => !!a.recommended)
-        .slice(0, 8),
+    () => filteredArticles.filter((a) => !!a.recommended).slice(0, 8),
     [filteredArticles]
   );
 
   const newArrivals = useMemo(
-    () =>
-      [...filteredArticles]
-        .sort((a, b) => Number(b.id) - Number(a.id))
-        .slice(0, 8),
+    () => [...filteredArticles].sort((a, b) => Number(b.id) - Number(a.id)).slice(0, 8),
     [filteredArticles]
   );
 
@@ -386,35 +381,30 @@ export default function Home({ me, setMe }) {
   return (
     <div className="homePage">
       <div className="topStrip">
-        <span>Best sale products available now on EMIRIO.</span>
+        <span>{t("home.topStrip")}</span>
       </div>
 
       <header className="storeHeader">
         <Link to="/" className="logo">EMIRIO</Link>
 
         <nav className="mainNav">
-          <a href="#sale-products">On Sale</a>
-          <a href="#recommended">Best Choice</a>
-          <a href="#new-arrivals">New Arrivals</a>
-          <a href="#categories">Categories</a>
+          <a href="#sale-products">{t("nav.sale")}</a>
+          <a href="#recommended">{t("nav.bestChoice")}</a>
+          <a href="#new-arrivals">{t("nav.newArrivals")}</a>
+          <a href="#categories">{t("nav.categories")}</a>
         </nav>
 
         <div className="headerActions">
           <div className="searchBar">
             <input
               type="text"
-              placeholder="Search for products..."
+              placeholder={t("common.searchProducts")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
 
-          <div className="langSwitcher">
-            <button type="button" onClick={() => setLang("en")}>EN</button>
-            <button type="button" onClick={() => setLang("fr")}>FR</button>
-            <button type="button" onClick={() => setLang("ar")}>AR</button>
-          </div>
-
+          <LanguageMenu />
           <UserIconMenu me={me} setMe={setMe} />
         </div>
       </header>
@@ -423,16 +413,18 @@ export default function Home({ me, setMe }) {
 
       <section className="productSection" id="sale-products">
         <div className="sectionTopRow">
-          <h2>ON SALE NOW</h2>
-          <button className="viewAllBtn" onClick={openCatalog}>View All</button>
+          <h2>{t("home.saleNow")}</h2>
+          <button className="viewAllBtn" onClick={openCatalog}>
+            {t("common.viewAll")}
+          </button>
         </div>
 
         {loadingArticles ? (
-          <div className="homeInfo">Loading sale products...</div>
+          <div className="homeInfo">{t("home.loadingSale")}</div>
         ) : error ? (
           <div className="homeInfo error">{error}</div>
         ) : !saleArticles.length ? (
-          <div className="homeInfo">No active sale products now.</div>
+          <div className="homeInfo">{t("home.noSale")}</div>
         ) : (
           <div className="productsGrid">
             {saleArticles.map((p) => (
@@ -451,16 +443,18 @@ export default function Home({ me, setMe }) {
 
       <section className="productSection withBorder" id="recommended">
         <div className="sectionTopRow">
-          <h2>BEST CHOICE</h2>
-          <button className="viewAllBtn" onClick={openCatalog}>View All</button>
+          <h2>{t("home.bestChoice")}</h2>
+          <button className="viewAllBtn" onClick={openCatalog}>
+            {t("common.viewAll")}
+          </button>
         </div>
 
         {loadingArticles ? (
-          <div className="homeInfo">Loading recommendations...</div>
+          <div className="homeInfo">{t("home.loadingRecommendations")}</div>
         ) : error ? (
           <div className="homeInfo error">{error}</div>
         ) : !recommendedArticles.length ? (
-          <div className="homeInfo">No recommended products yet.</div>
+          <div className="homeInfo">{t("home.noRecommended")}</div>
         ) : (
           <div className="productsGrid">
             {recommendedArticles.map((p) => (
@@ -479,8 +473,10 @@ export default function Home({ me, setMe }) {
 
       <section className="categoryBrowseSection" id="categories">
         <div className="sectionTopRow">
-          <h2>CATEGORIES</h2>
-          <button className="viewAllBtn" onClick={openCatalog}>Open Catalog</button>
+          <h2>{t("home.categories")}</h2>
+          <button className="viewAllBtn" onClick={openCatalog}>
+            {t("common.openCatalog")}
+          </button>
         </div>
 
         <div className="categoryChips">
@@ -488,7 +484,7 @@ export default function Home({ me, setMe }) {
             className={`categoryChip ${selectedCategoryId === null ? "active" : ""}`}
             onClick={() => setSelectedCategoryId(null)}
           >
-            All
+            {t("common.all")}
           </button>
 
           {categories.map((c) => (
@@ -505,16 +501,18 @@ export default function Home({ me, setMe }) {
 
       <section className="productSection withBorder" id="new-arrivals">
         <div className="sectionTopRow">
-          <h2>NEW ARRIVALS</h2>
-          <button className="viewAllBtn" onClick={openCatalog}>View All</button>
+          <h2>{t("home.newArrivals")}</h2>
+          <button className="viewAllBtn" onClick={openCatalog}>
+            {t("common.viewAll")}
+          </button>
         </div>
 
         {loadingArticles ? (
-          <div className="homeInfo">Loading products...</div>
+          <div className="homeInfo">{t("home.loadingProducts")}</div>
         ) : error ? (
           <div className="homeInfo error">{error}</div>
         ) : !newArrivals.length ? (
-          <div className="homeInfo">No products found.</div>
+          <div className="homeInfo">{t("home.noProducts")}</div>
         ) : (
           <div className="productsGrid">
             {newArrivals.map((p) => (

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import { setToken } from "../lib/auth";
 import rightImg from "../assets/auth-right.jpg";
 import "../styles/auth-swap.css";
 
-const API_BASE = "http://localhost:8080";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 function GoogleIcon() {
   return (
@@ -33,8 +34,10 @@ function startSocialLogin(provider) {
   window.location.href = `${API_BASE}/oauth2/authorization/${provider}`;
 }
 
-export default function Auth() {
+export default function Auth({ setMe }) {
   const nav = useNavigate();
+  const { t } = useTranslation();
+
   const [mode, setMode] = useState("login");
 
   const [loginEmail, setLoginEmail] = useState("");
@@ -51,11 +54,26 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
 
   const isLogin = mode === "login";
-  const title = useMemo(() => (isLogin ? "Welcome back!" : "Get Started Now"), [isLogin]);
-  const subtitle = useMemo(
-    () => (isLogin ? "Enter your credentials to access your account" : "Create your account in seconds"),
-    [isLogin]
+
+  const title = useMemo(
+    () => (isLogin ? t("auth.welcomeBack") : t("auth.getStarted")),
+    [isLogin, t]
   );
+
+  const subtitle = useMemo(
+    () => (isLogin ? t("auth.loginSubtitle") : t("auth.signupSubtitle")),
+    [isLogin, t]
+  );
+
+  async function syncMeAndGo() {
+    try {
+      const res = await api.get("/api/profile");
+      setMe?.(res.data);
+    } catch {
+      setMe?.(null);
+    }
+    nav("/profile", { replace: true });
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -71,9 +89,9 @@ export default function Auth() {
     if (socialToken) {
       setToken(decodeURIComponent(socialToken));
       window.history.replaceState({}, "", "/profile");
-      nav("/profile", { replace: true });
+      syncMeAndGo();
     }
-  }, [nav]);
+  }, [nav, setMe]);
 
   function switchMode(next) {
     setErr("");
@@ -93,17 +111,19 @@ export default function Auth() {
           email: loginEmail,
           password: loginPassword,
         });
+
         setToken(res.data.token);
-        nav("/profile", { replace: true });
+        await syncMeAndGo();
       } else {
         if (!agree) {
-          setErr("Please accept terms & policy.");
+          setErr(t("auth.acceptTerms"));
           setLoading(false);
           return;
         }
 
         await api.post("/api/auth/signup", { nom, prenom, email, password });
-        setOk("Account created. Switch to login.");
+
+        setOk(t("auth.accountCreated"));
         setMode("login");
         setLoginEmail(email);
         setLoginPassword(password);
@@ -116,7 +136,7 @@ export default function Auth() {
         data?.error ||
         `Request failed (${e2?.response?.status || "no status"})`;
 
-      setErr(msg || "Signup failed");
+      setErr(msg || t("auth.signupFailed"));
     } finally {
       setLoading(false);
     }
@@ -134,129 +154,151 @@ export default function Auth() {
           {err && <div className="alert error">{err}</div>}
           {ok && <div className="alert ok">{ok}</div>}
 
-          <form className="form" onSubmit={submit}>
+          <form className="authFormReal" onSubmit={submit}>
             {isLogin ? (
               <>
-                <label className="label">Email address</label>
+                <label className="authLabelReal">{t("auth.email")}</label>
                 <input
-                  className="input"
+                  className="authInputReal"
+                  type="email"
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="name@example.com"
+                  placeholder={t("auth.emailPlaceholder")}
                 />
 
-                <label className="label">Password</label>
+                <label className="authLabelReal">{t("auth.password")}</label>
                 <input
-                  className="input"
+                  className="authInputReal"
                   type="password"
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="Enter your password"
+                  placeholder={t("auth.passwordPlaceholder")}
                 />
 
-                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-                  <Link to="/forgot-password" className="linkBtn" style={{ padding: 0 }}>
-                    Mot de passe oublié ?
+                <div className="forgotRowReal">
+                  <Link to="/forgot-password" className="linkBtnReal">
+                    {t("auth.forgotPassword")}
                   </Link>
                 </div>
 
-                <button className="btnPrimary" disabled={loading}>
-                  {loading ? "Logging in..." : "Login"}
+                <button type="submit" className="btnPrimaryReal" disabled={loading}>
+                  {loading ? t("auth.loggingIn") : t("auth.login")}
                 </button>
 
-                <div className="divider">
-                  <span>or</span>
+                <div className="dividerReal">
+                  <span>{t("auth.or")}</span>
                 </div>
 
-                <div className="socialRow">
+                <div className="socialRowReal">
                   <button
                     type="button"
-                    className="btnSocial"
+                    className="btnSocialReal"
                     onClick={() => startSocialLogin("google")}
                   >
                     <GoogleIcon />
-                    <span>Continue with Google</span>
+                    <span>{t("auth.continueGoogle")}</span>
                   </button>
 
                   <button
                     type="button"
-                    className="btnSocial"
+                    className="btnSocialReal"
                     onClick={() => startSocialLogin("facebook")}
                   >
                     <FacebookIcon />
-                    <span>Continue with Facebook</span>
+                    <span>{t("auth.continueFacebook")}</span>
                   </button>
                 </div>
 
-                <div className="switchLine">
-                  Don’t have an account?{" "}
-                  <button type="button" className="linkBtn" onClick={() => switchMode("signup")}>
-                    Sign up
+                <div className="switchLineReal">
+                  {t("auth.noAccount")}{" "}
+                  <button
+                    type="button"
+                    className="linkBtnReal inlineBtnReal"
+                    onClick={() => switchMode("signup")}
+                  >
+                    {t("auth.signUp")}
                   </button>
                 </div>
               </>
             ) : (
               <>
-                <label className="label">Nom</label>
-                <input className="input" value={nom} onChange={(e) => setNom(e.target.value)} />
-
-                <label className="label">Prenom</label>
-                <input className="input" value={prenom} onChange={(e) => setPrenom(e.target.value)} />
-
-                <label className="label">Email address</label>
+                <label className="authLabelReal">{t("auth.nom")}</label>
                 <input
-                  className="input"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
+                  className="authInputReal"
+                  value={nom}
+                  onChange={(e) => setNom(e.target.value)}
                 />
 
-                <label className="label">Password</label>
+                <label className="authLabelReal">{t("auth.prenom")}</label>
                 <input
-                  className="input"
+                  className="authInputReal"
+                  value={prenom}
+                  onChange={(e) => setPrenom(e.target.value)}
+                />
+
+                <label className="authLabelReal">{t("auth.email")}</label>
+                <input
+                  className="authInputReal"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={t("auth.emailPlaceholder")}
+                />
+
+                <label className="authLabelReal">{t("auth.password")}</label>
+                <input
+                  className="authInputReal"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min 6 characters"
+                  placeholder={t("auth.passwordMin")}
                 />
 
-                <label className="checkRow">
-                  <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
-                  <span>I agree to the terms & policy</span>
+                <label className="checkRowReal">
+                  <input
+                    type="checkbox"
+                    checked={agree}
+                    onChange={(e) => setAgree(e.target.checked)}
+                  />
+                  <span>{t("auth.agreeTerms")}</span>
                 </label>
 
-                <button className="btnPrimary" disabled={loading}>
-                  {loading ? "Creating..." : "Signup"}
+                <button type="submit" className="btnPrimaryReal" disabled={loading}>
+                  {loading ? t("auth.creating") : t("auth.signup")}
                 </button>
 
-                <div className="divider">
-                  <span>or</span>
+                <div className="dividerReal">
+                  <span>{t("auth.or")}</span>
                 </div>
 
-                <div className="socialRow">
+                <div className="socialRowReal">
                   <button
                     type="button"
-                    className="btnSocial"
+                    className="btnSocialReal"
                     onClick={() => startSocialLogin("google")}
                   >
                     <GoogleIcon />
-                    <span>Continue with Google</span>
+                    <span>{t("auth.continueGoogle")}</span>
                   </button>
 
                   <button
                     type="button"
-                    className="btnSocial"
+                    className="btnSocialReal"
                     onClick={() => startSocialLogin("facebook")}
                   >
                     <FacebookIcon />
-                    <span>Continue with Facebook</span>
+                    <span>{t("auth.continueFacebook")}</span>
                   </button>
                 </div>
 
-                <div className="switchLine">
-                  Have an account?{" "}
-                  <button type="button" className="linkBtn" onClick={() => switchMode("login")}>
-                    Sign in
+                <div className="switchLineReal">
+                  {t("auth.haveAccount")}{" "}
+                  <button
+                    type="button"
+                    className="linkBtnReal inlineBtnReal"
+                    onClick={() => switchMode("login")}
+                  >
+                    {t("auth.signIn")}
                   </button>
                 </div>
               </>
@@ -265,7 +307,11 @@ export default function Auth() {
         </div>
 
         <div className="panel imagePanel" aria-hidden="true">
-          <img className="heroImg" src={rightImg} alt="" />
+          <img className="heroImg" src={rightImg} alt="EMIRIO" />
+          <div className="imageOverlayBrand">
+            <div className="brandMini">emirio</div>
+            <div className="brandMiniText">Un pas d'avance...un pas d'élégance!</div>
+          </div>
         </div>
       </div>
     </div>

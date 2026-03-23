@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import "../styles/product-details.css";
 import UserIconMenu from "../components/UserIconMenu";
+import LanguageMenu from "../components/LanguageMenu";
 
 const toAbs = (path) => {
   if (!path) return "";
@@ -19,7 +21,7 @@ const fmtPrice = (v) => {
 const starsText = (n) => "★".repeat(n) + "☆".repeat(5 - n);
 
 function hasValidSaleFields(p) {
-  return p && (p.salePrice !== null && p.salePrice !== undefined && p.salePrice !== "");
+  return p && p.salePrice !== null && p.salePrice !== undefined && p.salePrice !== "";
 }
 
 function isSaleActive(p) {
@@ -45,10 +47,10 @@ function getDisplayPrice(p) {
   return isSaleActive(p) ? Number(p.salePrice) : Number(p.prix);
 }
 
-function formatCountdown(endAt, nowTick) {
-  if (!endAt) return "Limited offer";
+function formatCountdown(endAt, nowTick, t) {
+  if (!endAt) return t("home.limitedOffer", "Limited offer");
   const diff = new Date(endAt).getTime() - nowTick;
-  if (diff <= 0) return "Sale ended";
+  if (diff <= 0) return t("home.saleEnded", "Sale ended");
 
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
@@ -66,38 +68,26 @@ function mergeSaleFields(detailProduct, listProduct) {
 
   return {
     ...detailProduct,
-    salePrice:
-      detailProduct.salePrice ?? listProduct.salePrice ?? null,
-    saleStartAt:
-      detailProduct.saleStartAt ?? listProduct.saleStartAt ?? null,
-    saleEndAt:
-      detailProduct.saleEndAt ?? listProduct.saleEndAt ?? null,
-    prix:
-      detailProduct.prix ?? listProduct.prix ?? null,
-    categorieNom:
-      detailProduct.categorieNom ?? listProduct.categorieNom ?? "",
-    categorieId:
-      detailProduct.categorieId ?? listProduct.categorieId ?? null,
-    marque:
-      detailProduct.marque ?? listProduct.marque ?? "",
-    matiere:
-      detailProduct.matiere ?? listProduct.matiere ?? "",
-    sku:
-      detailProduct.sku ?? listProduct.sku ?? "",
-    imageUrl:
-      detailProduct.imageUrl ?? listProduct.imageUrl ?? "",
-    imageUrl2:
-      detailProduct.imageUrl2 ?? listProduct.imageUrl2 ?? "",
-    imageUrl3:
-      detailProduct.imageUrl3 ?? listProduct.imageUrl3 ?? "",
-    imageUrl4:
-      detailProduct.imageUrl4 ?? listProduct.imageUrl4 ?? "",
+    salePrice: detailProduct.salePrice ?? listProduct.salePrice ?? null,
+    saleStartAt: detailProduct.saleStartAt ?? listProduct.saleStartAt ?? null,
+    saleEndAt: detailProduct.saleEndAt ?? listProduct.saleEndAt ?? null,
+    prix: detailProduct.prix ?? listProduct.prix ?? null,
+    categorieNom: detailProduct.categorieNom ?? listProduct.categorieNom ?? "",
+    categorieId: detailProduct.categorieId ?? listProduct.categorieId ?? null,
+    marque: detailProduct.marque ?? listProduct.marque ?? "",
+    matiere: detailProduct.matiere ?? listProduct.matiere ?? "",
+    sku: detailProduct.sku ?? listProduct.sku ?? "",
+    imageUrl: detailProduct.imageUrl ?? listProduct.imageUrl ?? "",
+    imageUrl2: detailProduct.imageUrl2 ?? listProduct.imageUrl2 ?? "",
+    imageUrl3: detailProduct.imageUrl3 ?? listProduct.imageUrl3 ?? "",
+    imageUrl4: detailProduct.imageUrl4 ?? listProduct.imageUrl4 ?? "",
   };
 }
 
 export default function ProductDetailsPage({ me, setMe }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [article, setArticle] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -155,10 +145,10 @@ export default function ProductDetailsPage({ me, setMe }) {
     loadData()
       .catch((e) => {
         console.error(e);
-        setError(e?.response?.data?.message || "Cannot load product");
+        setError(e?.response?.data?.message || t("product.cannotLoad", "Cannot load product"));
       })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     const tick = setInterval(() => setNowTick(Date.now()), 1000);
@@ -179,7 +169,7 @@ export default function ProductDetailsPage({ me, setMe }) {
     e.preventDefault();
 
     if (!me) {
-      alert("Login first");
+      alert(t("auth.loginFirst", "Login first"));
       return;
     }
 
@@ -217,12 +207,12 @@ export default function ProductDetailsPage({ me, setMe }) {
       : [...existing, item];
 
     localStorage.setItem("cart", JSON.stringify(next));
-    alert("Added to cart");
+    alert(t("product.addedToCart", "Added to cart"));
   }
 
-  if (loading) return <div className="pdInfo">Loading...</div>;
+  if (loading) return <div className="pdInfo">{t("common.loading")}</div>;
   if (error) return <div className="pdInfo error">{error}</div>;
-  if (!article) return <div className="pdInfo error">Product not found.</div>;
+  if (!article) return <div className="pdInfo error">{t("product.notFound", "Product not found.")}</div>;
 
   const onSale = isSaleActive(article);
   const discount = getDiscountPercent(article);
@@ -233,27 +223,28 @@ export default function ProductDetailsPage({ me, setMe }) {
         <Link to="/" className="logo">EMIRIO</Link>
 
         <nav className="mainNav">
-          <Link to="/">Home</Link>
-          <Link to="/catalog">Catalog</Link>
-          <a href="#pd-reviews">Reviews</a>
-          <a href="#pd-related">Related</a>
+          <Link to="/">{t("nav.home")}</Link>
+          <Link to="/catalog">{t("nav.catalog")}</Link>
+          <a href="#pd-reviews">{t("product.reviews", "Reviews")}</a>
+          <a href="#pd-related">{t("product.related", "Related")}</a>
         </nav>
 
         <div className="headerActions">
           <button type="button" className="viewAllBtn" onClick={() => navigate("/catalog")}>
-            Shop
+            {t("product.shop", "Shop")}
           </button>
+          <LanguageMenu />
           <UserIconMenu me={me} setMe={setMe} />
         </div>
       </header>
 
       <div className="pdContainer">
         <div className="pdBreadcrumb">
-          <Link to="/">Home</Link>
+          <Link to="/">{t("nav.home")}</Link>
           <span>/</span>
-          <Link to="/catalog">Shop</Link>
+          <Link to="/catalog">{t("product.shop", "Shop")}</Link>
           <span>/</span>
-          <span>{article.categorieNom || "Product"}</span>
+          <span>{article.categorieNom || t("product.product", "Product")}</span>
           <span>/</span>
           <strong>{article.nom}</strong>
         </div>
@@ -281,7 +272,7 @@ export default function ProductDetailsPage({ me, setMe }) {
                   className="pdMainImage"
                 />
               ) : (
-                <div className="pdEmptyImage">No image</div>
+                <div className="pdEmptyImage">{t("common.noImage", "No image")}</div>
               )}
 
               {onSale && discount ? (
@@ -297,7 +288,7 @@ export default function ProductDetailsPage({ me, setMe }) {
             <div className="pdRatingLine">
               <span className="stars">{starsText(Math.round(avg || 0))}</span>
               <span>{avg ? avg.toFixed(1) : "0.0"}/5</span>
-              <span>({reviews.length} reviews)</span>
+              <span>({reviews.length} {t("product.reviewsLower", "reviews")})</span>
             </div>
 
             <div className="pdPriceLine">
@@ -309,50 +300,53 @@ export default function ProductDetailsPage({ me, setMe }) {
             {onSale ? (
               <div className="pdSaleInfo">
                 <div className="pdSaleLine">
-                  <span className="pdSaleLabel">Sale price</span>
+                  <span className="pdSaleLabel">{t("product.salePrice", "Sale price")}</span>
                   <strong>{fmtPrice(article.salePrice)}</strong>
                 </div>
                 <div className="pdSaleLine">
-                  <span className="pdSaleLabel">Ends in</span>
-                  <strong>{formatCountdown(article.saleEndAt, nowTick)}</strong>
+                  <span className="pdSaleLabel">{t("home.endsIn", "Ends in")}</span>
+                  <strong>{formatCountdown(article.saleEndAt, nowTick, t)}</strong>
                 </div>
               </div>
             ) : null}
 
             {!onSale && hasValidSaleFields(article) ? (
               <div className="pdInfo error" style={{ margin: "16px 0 0", width: "100%" }}>
-                Sale exists but is not active now. Check sale dates and price.
+                {t(
+                  "product.saleInactive",
+                  "Sale exists but is not active now. Check sale dates and price."
+                )}
               </div>
             ) : null}
 
             <p className="pdDesc">
-              {article.description || "No description available for this product."}
+              {article.description || t("product.noDescription", "No description available for this product.")}
             </p>
 
             <div className="pdDivider" />
 
             <div className="pdMetaGrid">
               <div>
-                <span>Category</span>
+                <span>{t("catalog.category")}</span>
                 <strong>{article.categorieNom || "-"}</strong>
               </div>
               <div>
-                <span>Brand</span>
+                <span>{t("catalog.brand")}</span>
                 <strong>{article.marque || "-"}</strong>
               </div>
               <div>
-                <span>Material</span>
+                <span>{t("catalog.material")}</span>
                 <strong>{article.matiere || "-"}</strong>
               </div>
               <div>
-                <span>SKU</span>
+                <span>{t("catalog.sku")}</span>
                 <strong>{article.sku || "-"}</strong>
               </div>
             </div>
 
             <div className="pdDivider" />
 
-            <div className="pdLabel">Quantity</div>
+            <div className="pdLabel">{t("product.quantity", "Quantity")}</div>
 
             <div className="pdCartRow">
               <div className="qtyBox">
@@ -362,7 +356,7 @@ export default function ProductDetailsPage({ me, setMe }) {
               </div>
 
               <button type="button" className="addCartBtn" onClick={addToCart}>
-                Add to Cart
+                {t("product.addToCart", "Add to Cart")}
               </button>
             </div>
           </div>
@@ -370,35 +364,54 @@ export default function ProductDetailsPage({ me, setMe }) {
 
         <section className="pdTabsBlock">
           <div className="pdTabs">
-            <button type="button" className={tab === "details" ? "active" : ""} onClick={() => setTab("details")}>
-              Product Details
+            <button
+              type="button"
+              className={tab === "details" ? "active" : ""}
+              onClick={() => setTab("details")}
+            >
+              {t("product.productDetails", "Product Details")}
             </button>
-            <button type="button" className={tab === "reviews" ? "active" : ""} onClick={() => setTab("reviews")}>
-              Rating & Reviews
+            <button
+              type="button"
+              className={tab === "reviews" ? "active" : ""}
+              onClick={() => setTab("reviews")}
+            >
+              {t("product.ratingReviews", "Rating & Reviews")}
             </button>
-            <button type="button" className={tab === "shipping" ? "active" : ""} onClick={() => setTab("shipping")}>
-              Info
+            <button
+              type="button"
+              className={tab === "shipping" ? "active" : ""}
+              onClick={() => setTab("shipping")}
+            >
+              {t("product.info", "Info")}
             </button>
           </div>
 
           {tab === "details" && (
             <div className="pdLongInfo">
-              <h3>Product details</h3>
-              <p>{article.details || "No more details."}</p>
+              <h3>{t("product.productDetailsLower", "Product details")}</h3>
+              <p>{article.details || t("product.noMoreDetails", "No more details.")}</p>
             </div>
           )}
 
           {tab === "shipping" && (
             <div className="pdLongInfo">
-              <h3>Delivery information</h3>
-              <p>Orders are prepared as quickly as possible. Delivery timing depends on your location and stock availability.</p>
+              <h3>{t("product.deliveryInfo", "Delivery information")}</h3>
+              <p>
+                {t(
+                  "product.deliveryText",
+                  "Orders are prepared as quickly as possible. Delivery timing depends on your location and stock availability."
+                )}
+              </p>
             </div>
           )}
 
           {tab === "reviews" && (
             <div className="pdLongInfo" id="pd-reviews">
               <div className="pdReviewsHead">
-                <h3>All Reviews ({reviews.length})</h3>
+                <h3>
+                  {t("product.allReviews", "All Reviews")} ({reviews.length})
+                </h3>
               </div>
 
               <form className="reviewForm" onSubmit={submitReview}>
@@ -418,13 +431,13 @@ export default function ProductDetailsPage({ me, setMe }) {
                 <textarea
                   value={reviewText}
                   onChange={(e) => setReviewText(e.target.value)}
-                  placeholder="Write your review..."
+                  placeholder={t("product.writeReviewPlaceholder", "Write your review...")}
                   rows="4"
                   required
                 />
 
                 <button type="submit" className="submitReviewBtn">
-                  Write a Review
+                  {t("product.writeReview", "Write a Review")}
                 </button>
               </form>
 
@@ -432,7 +445,7 @@ export default function ProductDetailsPage({ me, setMe }) {
                 {reviews.map((r) => (
                   <div key={r.id} className="pdReviewCard">
                     <div className="reviewStars">{starsText(Number(r.rating || 0))}</div>
-                    <h4>{r.userFullName || "User"}</h4>
+                    <h4>{r.userFullName || t("product.user", "User")}</h4>
                     <div className="reviewDate">{r.createdAtText}</div>
                     <p>{r.comment}</p>
                   </div>
@@ -443,7 +456,7 @@ export default function ProductDetailsPage({ me, setMe }) {
         </section>
 
         <section className="pdRelated" id="pd-related">
-          <h2>YOU MIGHT ALSO LIKE</h2>
+          <h2>{t("product.youMightAlsoLike", "YOU MIGHT ALSO LIKE")}</h2>
 
           <div className="pdRelatedGrid">
             {related.map((p) => {
@@ -457,7 +470,7 @@ export default function ProductDetailsPage({ me, setMe }) {
                     {relatedImage ? (
                       <img src={toAbs(relatedImage)} alt={p.nom} className="pdProductImage" />
                     ) : (
-                      <div className="pdEmptySmall">No image</div>
+                      <div className="pdEmptySmall">{t("common.noImage", "No image")}</div>
                     )}
                     {relatedSale && relatedDiscount ? (
                       <div className="pdMiniSale">-{relatedDiscount}%</div>

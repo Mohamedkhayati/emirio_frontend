@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import { clearToken } from "../lib/auth";
 import "../styles/profile.css";
@@ -10,8 +11,10 @@ function initials(nom, prenom) {
   return (a + b) || "U";
 }
 
-export default function Profile() {
+export default function Profile({ setMe }) {
   const nav = useNavigate();
+  const { t } = useTranslation();
+
   const [data, setData] = useState(null);
   const [edit, setEdit] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -37,13 +40,13 @@ export default function Profile() {
     }));
   }
 
-useEffect(() => {
-  load().catch(() => {
-    clearToken();
-    nav("/auth", { replace: true });
-  });
-}, [nav]);
-
+  useEffect(() => {
+    load().catch(() => {
+      clearToken();
+      setMe?.(null);
+      nav("/auth", { replace: true });
+    });
+  }, [nav, setMe]);
 
   const avatarText = useMemo(
     () => initials(form.nom, form.prenom),
@@ -56,35 +59,43 @@ useEffect(() => {
     setMsg("");
 
     try {
-await api.put("/api/profile", { nom: form.nom, prenom: form.prenom });
-      setMsg("Profile updated");
+      await api.put("/api/profile", {
+        nom: form.nom,
+        prenom: form.prenom,
+      });
+
+      setMsg(t("profile.updated"));
       setEdit(false);
       await load();
     } catch (e2) {
-      setErr(e2?.response?.data?.message || "Save failed");
+      setErr(e2?.response?.data?.message || t("profile.saveFailed"));
     } finally {
       setSaving(false);
     }
   }
 
-function logout() {
-  clearToken();
-  nav("/auth", { replace: true });
-}
+  function logout() {
+    clearToken();
+    setMe?.(null);
+    nav("/auth", { replace: true });
+  }
 
-
-  if (!data) return <div className="pagePad">Loading...</div>;
+  if (!data) return <div className="pagePad">{t("common.loading")}</div>;
 
   return (
     <div className="pagePad">
       <div className="topBar">
         <div>
-          <div className="hello">Welcome, {data.prenom}</div>
-          <div className="sub">Manage your personal information</div>
+          <div className="hello">
+            {t("profile.welcome")}, {data.prenom}
+          </div>
+          <div className="sub">{t("profile.manage")}</div>
         </div>
 
         <div className="topActions">
-          <button className="btnGhost" onClick={logout}>Logout</button>
+          <button className="btnGhost" onClick={logout}>
+            {t("common.logout")}
+          </button>
           <div className="miniAvatar">{avatarText}</div>
         </div>
       </div>
@@ -94,7 +105,9 @@ function logout() {
           <div className="profileRow">
             <div className="avatar">{avatarText}</div>
             <div>
-              <div className="name">{form.prenom} {form.nom}</div>
+              <div className="name">
+                {form.prenom} {form.nom}
+              </div>
               <div className="email">{data.email}</div>
             </div>
           </div>
@@ -104,7 +117,11 @@ function logout() {
             onClick={() => (edit ? save() : setEdit(true))}
             disabled={saving}
           >
-            {edit ? (saving ? "Saving..." : "Save") : "Edit"}
+            {edit
+              ? saving
+                ? t("profile.saving", "Saving...")
+                : t("common.save")
+              : t("common.edit")}
           </button>
         </div>
 
@@ -117,7 +134,7 @@ function logout() {
 
         <div className="grid">
           <div className="field">
-            <label>Nom</label>
+            <label>{t("auth.nom")}</label>
             <input
               value={form.nom}
               onChange={(e) => setForm({ ...form, nom: e.target.value })}
@@ -126,7 +143,7 @@ function logout() {
           </div>
 
           <div className="field">
-            <label>Prenom</label>
+            <label>{t("auth.prenom")}</label>
             <input
               value={form.prenom}
               onChange={(e) => setForm({ ...form, prenom: e.target.value })}
@@ -135,7 +152,7 @@ function logout() {
           </div>
 
           <div className="field">
-            <label>Numéro téléphone</label>
+            <label>{t("profile.phone", "Phone number")}</label>
             <input
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
@@ -145,7 +162,7 @@ function logout() {
           </div>
 
           <div className="field">
-            <label>Date</label>
+            <label>{t("profile.date", "Date")}</label>
             <input
               value={form.birthday}
               onChange={(e) => setForm({ ...form, birthday: e.target.value })}
@@ -155,7 +172,7 @@ function logout() {
           </div>
 
           <div className="field">
-            <label>Pays</label>
+            <label>{t("profile.country", "Country")}</label>
             <select
               value={form.country}
               onChange={(e) => setForm({ ...form, country: e.target.value })}
@@ -168,7 +185,7 @@ function logout() {
           </div>
 
           <div className="field">
-            <label>Ville</label>
+            <label>{t("profile.city", "City")}</label>
             <select
               value={form.city}
               onChange={(e) => setForm({ ...form, city: e.target.value })}
@@ -182,7 +199,10 @@ function logout() {
         </div>
 
         <div className="note">
-          Only <b>Nom</b> and <b>Prenom</b> are saved to backend in Sprint 1.
+          {t(
+            "profile.note",
+            "Only Nom and Prenom are saved to backend in Sprint 1."
+          )}
         </div>
       </div>
     </div>

@@ -1,8 +1,11 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
+import "../styles/home.css";
 import "../styles/catalog.css";
 import UserIconMenu from "../components/UserIconMenu";
+import LanguageMenu from "../components/LanguageMenu";
 
 const toAbs = (path) => {
   if (!path) return "";
@@ -11,7 +14,10 @@ const toAbs = (path) => {
   return `${base}${path}`;
 };
 
-const fmtPrice = (v) => `${Number(v || 0).toFixed(3)} TND`;
+const fmtPrice = (v) => {
+  if (v === null || v === undefined || v === "") return "-";
+  return `${Number(v).toFixed(3)} TND`;
+};
 
 function isSaleActive(p) {
   if (!p?.salePrice || Number(p.salePrice) >= Number(p.prix || 0)) return false;
@@ -41,13 +47,135 @@ function getProductImages(p) {
     .map((img) => toAbs(img));
 }
 
+function formatCountdown(endAt, nowTick, t) {
+  if (!endAt) return t("home.limitedOffer", "Limited offer");
+  const diff = new Date(endAt).getTime() - nowTick;
+  if (diff <= 0) return t("home.saleEnded", "Sale ended");
+
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+  const minutes = Math.floor((diff / (1000 * 60)) % 60);
+  const seconds = Math.floor((diff / 1000) % 60);
+
+  if (days > 0) return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  return `${minutes}m ${seconds}s`;
+}
+
+function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
+  const { t } = useTranslation();
+  const images = getProductImages(p);
+  const [currentImage, setCurrentImage] = useState(0);
+
+  const onSale = isSaleActive(p);
+  const discount = getDiscountPercent(p);
+  const fav = favorites.includes(p.id);
+
+  useEffect(() => {
+    setCurrentImage(0);
+  }, [p.id]);
+
+  useEffect(() => {
+    if (images.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setCurrentImage((prev) => (prev + 1) % images.length);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [images.length]);
+
+  return (
+    <div
+      className="productCard fadeUp"
+      onClick={() => onOpen(p.id)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === "Enter" && onOpen(p.id)}
+    >
+      <div className="productImageWrap">
+        {onSale ? <div className="saleRibbon pulse">SALE -{discount}%</div> : null}
+
+        <button
+          type="button"
+          className={`favoriteBtn ${fav ? "active" : ""}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleFavorite(p.id);
+          }}
+          aria-label={t("catalog.toggleFavorite", "Toggle favorite")}
+        >
+          {fav ? "♥" : "♡"}
+        </button>
+
+        {images.length > 0 ? (
+          <img
+            src={images[currentImage]}
+            alt={p.nom}
+            className="productImage imageFade"
+          />
+        ) : (
+          <div className="productImage emptyImage">{t("common.noImage", "No image")}</div>
+        )}
+
+        {images.length > 1 && (
+          <div className="sliderDots">
+            {images.map((_, index) => (
+              <span
+                key={index}
+                className={`sliderDot ${index === currentImage ? "active" : ""}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentImage(index);
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="productName">{p.nom}</div>
+
+      <div className="productMeta">
+        {p.marque || "EMIRIO"} {p.recommended ? `• ${t("nav.bestChoice")}` : ""}
+      </div>
+
+      {onSale ? (
+        <div className="saleCountdownMini">
+          {t("home.endsIn", "Ends in")} {formatCountdown(p.saleEndAt, nowTick, t)}
+        </div>
+      ) : null}
+
+      <div className="productPriceRow">
+        <span className="priceNow">{fmtPrice(getDisplayPrice(p))}</span>
+        {onSale ? <span className="priceOld">{fmtPrice(p.prix)}</span> : null}
+        {onSale && discount ? <span className="discountTag">-{discount}%</span> : null}
+      </div>
+
+      <button
+        type="button"
+        className="catalogOpenBtn"
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen(p.id);
+        }}
+      >
+        {t("catalog.viewProduct")}
+      </button>
+    </div>
+  );
+}
+
 export default function CatalogPage({ me, setMe }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const [articles, setArticles] = useState([]);
   const [categories, setCategories] = useState([]);
   const [colors, setColors] = useState([]);
   const [sizes, setSizes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -58,24 +186,52 @@ export default function CatalogPage({ me, setMe }) {
   const [sizeId, setSizeId] = useState("");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [nowTick, setNowTick] = useState(Date.now());
+
+  const [favorites, setFavorites] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("favorites") || "[]");
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    const tick = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(tick);
+  }, []);
 
   useEffect(() => {
     async function load() {
-      const [aRes, cRes, colorRes, sizeRes] = await Promise.all([
-        api.get("/api/articles"),
-        api.get("/api/categories"),
-        api.get("/api/admin/colors"),
-        api.get("/api/admin/sizes"),
-      ]);
+      try {
+        setLoading(true);
+        setError("");
 
-      setArticles((aRes.data || []).filter((a) => a.actif !== false));
-      setCategories(cRes.data || []);
-      setColors(colorRes.data || []);
-      setSizes(sizeRes.data || []);
+        const [aRes, cRes, colorRes, sizeRes] = await Promise.all([
+          api.get("/api/articles"),
+          api.get("/api/categories"),
+          api.get("/api/admin/colors"),
+          api.get("/api/admin/sizes"),
+        ]);
+
+        setArticles((aRes.data || []).filter((a) => a.actif !== false));
+        setCategories(cRes.data || []);
+        setColors(colorRes.data || []);
+        setSizes(sizeRes.data || []);
+      } catch (e) {
+        setError(e?.response?.data?.message || "Cannot load catalog");
+      } finally {
+        setLoading(false);
+      }
     }
 
-    load().catch(console.error);
+    load();
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem("favorites", JSON.stringify(favorites));
+  }, [favorites]);
 
   const filtered = useMemo(() => {
     return articles.filter((a) => {
@@ -89,7 +245,8 @@ export default function CatalogPage({ me, setMe }) {
 
       const matchesCategory = !categoryId || String(a.categorieId) === String(categoryId);
       const matchesBrand = !brand || (a.marque || "").toLowerCase().includes(brand.toLowerCase());
-      const matchesMaterial = !material || (a.matiere || "").toLowerCase().includes(material.toLowerCase());
+      const matchesMaterial =
+        !material || (a.matiere || "").toLowerCase().includes(material.toLowerCase());
       const matchesSku = !sku || (a.sku || "").toLowerCase().includes(sku.toLowerCase());
 
       const price = Number(getDisplayPrice(a) || 0);
@@ -99,6 +256,7 @@ export default function CatalogPage({ me, setMe }) {
       const vars = a.variations || [];
       const matchesColor = !colorId || vars.some((v) => String(v.couleurId) === String(colorId));
       const matchesSize = !sizeId || vars.some((v) => String(v.tailleId) === String(sizeId));
+      const matchesFavorites = !favoritesOnly || favorites.includes(a.id);
 
       return (
         matchesSearch &&
@@ -109,10 +267,24 @@ export default function CatalogPage({ me, setMe }) {
         matchesMin &&
         matchesMax &&
         matchesColor &&
-        matchesSize
+        matchesSize &&
+        matchesFavorites
       );
     });
-  }, [articles, search, categoryId, brand, material, sku, minPrice, maxPrice, colorId, sizeId]);
+  }, [
+    articles,
+    search,
+    categoryId,
+    brand,
+    material,
+    sku,
+    minPrice,
+    maxPrice,
+    colorId,
+    sizeId,
+    favoritesOnly,
+    favorites,
+  ]);
 
   function resetFilters() {
     setSearch("");
@@ -124,74 +296,83 @@ export default function CatalogPage({ me, setMe }) {
     setSizeId("");
     setMinPrice("");
     setMaxPrice("");
+    setFavoritesOnly(false);
   }
 
-  return (
-    <div className="catalogShell">
-      <header className="catalogNavbar">
-        <Link to="/" className="catalogLogo">EMIRIO</Link>
+  function toggleFavorite(id) {
+    setFavorites((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
 
-        <nav className="catalogNavLinks">
-          <Link to="/">Home</Link>
-          <a href="#catalog-grid">Shop</a>
-          <a href="#filters">Filters</a>
+  const openProduct = (id) => navigate(`/product/${id}`);
+
+  return (
+    <div className="homePage catalogPageWrap">
+      <div className="topStrip">
+        <span>{t("home.topStrip")}</span>
+      </div>
+
+      <header className="storeHeader">
+        <Link to="/" className="logo">EMIRIO</Link>
+
+        <nav className="mainNav">
+          <Link to="/">{t("nav.home")}</Link>
+          <a href="#catalog-grid">{t("nav.catalog")}</a>
+          <a href="#filters">{t("nav.filters")}</a>
+          <button
+            type="button"
+            className="catalogNavFavBtn"
+            onClick={() => setFavoritesOnly((v) => !v)}
+          >
+            {t("nav.favorites")} ({favorites.length})
+          </button>
         </nav>
 
-        <div className="catalogNavRight">
-          <div className="catalogSearchTop">
+        <div className="headerActions">
+          <div className="searchBar">
             <input
               type="text"
-              placeholder="Search products..."
+              placeholder={t("common.searchProducts")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
 
+          <LanguageMenu />
           <UserIconMenu me={me} setMe={setMe} />
         </div>
       </header>
 
-      <div className="catalogHero fadeInUp">
-        <div>
-          <div className="catalogEyebrow">PREMIUM COLLECTION</div>
-          <h1>Discover your next favorite pair</h1>
-          <p>Browse premium products, active sales, best brands and filtered results in one place.</p>
-        </div>
-        <div className="catalogHeroStats">
-          <div className="heroStatCard">
-            <span>{filtered.length}</span>
-            <small>Products found</small>
-          </div>
-          <div className="heroStatCard">
-            <span>{articles.filter((a) => isSaleActive(a)).length}</span>
-            <small>On sale</small>
-          </div>
-        </div>
-      </div>
-
-      <div className="catalogPage">
+      <div className="catalogLayout">
         <aside className="filterSidebar slideInLeft" id="filters">
           <div className="filterHead">
-            <h2>Filters</h2>
+            <h2>{t("catalog.filters")}</h2>
           </div>
 
           <div className="filterBlock">
             <input
               className="searchBox"
-              placeholder="Search anything..."
+              placeholder={t("common.searchAnything")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
 
           <div className="filterBlock">
-            <div className="filterTitle">Category</div>
+            <div className="filterTitle">{t("catalog.category")}</div>
             <div className="stackBtns">
-              <button className={!categoryId ? "catBtn active" : "catBtn"} onClick={() => setCategoryId("")}>
-                All
+              <button
+                type="button"
+                className={!categoryId ? "catBtn active" : "catBtn"}
+                onClick={() => setCategoryId("")}
+              >
+                {t("common.all")}
               </button>
+
               {categories.map((c) => (
                 <button
+                  type="button"
                   key={c.id}
                   className={String(categoryId) === String(c.id) ? "catBtn active" : "catBtn"}
                   onClick={() => setCategoryId(c.id)}
@@ -203,15 +384,25 @@ export default function CatalogPage({ me, setMe }) {
           </div>
 
           <div className="filterBlock">
-            <div className="filterTitle">Price</div>
+            <div className="filterTitle">{t("catalog.price")}</div>
             <div className="rangeGrid">
-              <input type="number" placeholder="Min" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} />
-              <input type="number" placeholder="Max" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} />
+              <input
+                type="number"
+                placeholder={t("catalog.min")}
+                value={minPrice}
+                onChange={(e) => setMinPrice(e.target.value)}
+              />
+              <input
+                type="number"
+                placeholder={t("catalog.max")}
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+              />
             </div>
           </div>
 
           <div className="filterBlock">
-            <div className="filterTitle">Brand</div>
+            <div className="filterTitle">{t("catalog.brand")}</div>
             <input
               className="searchBox"
               placeholder="Nike, Adidas..."
@@ -221,7 +412,7 @@ export default function CatalogPage({ me, setMe }) {
           </div>
 
           <div className="filterBlock">
-            <div className="filterTitle">Material</div>
+            <div className="filterTitle">{t("catalog.material")}</div>
             <input
               className="searchBox"
               placeholder="Leather, Cotton..."
@@ -231,7 +422,7 @@ export default function CatalogPage({ me, setMe }) {
           </div>
 
           <div className="filterBlock">
-            <div className="filterTitle">SKU</div>
+            <div className="filterTitle">{t("catalog.sku")}</div>
             <input
               className="searchBox"
               placeholder="Search SKU..."
@@ -241,13 +432,19 @@ export default function CatalogPage({ me, setMe }) {
           </div>
 
           <div className="filterBlock">
-            <div className="filterTitle">Colors</div>
+            <div className="filterTitle">{t("catalog.colors")}</div>
             <div className="colorGrid">
-              <button className={!colorId ? "allFilterBtn active" : "allFilterBtn"} onClick={() => setColorId("")}>
-                All
+              <button
+                type="button"
+                className={!colorId ? "allFilterBtn active" : "allFilterBtn"}
+                onClick={() => setColorId("")}
+              >
+                {t("common.all")}
               </button>
+
               {colors.map((c) => (
                 <button
+                  type="button"
                   key={c.id}
                   className={`colorPick ${String(colorId) === String(c.id) ? "selected" : ""}`}
                   style={{ background: c.codeHex }}
@@ -259,13 +456,19 @@ export default function CatalogPage({ me, setMe }) {
           </div>
 
           <div className="filterBlock">
-            <div className="filterTitle">Size</div>
+            <div className="filterTitle">{t("catalog.size")}</div>
             <div className="sizeGrid">
-              <button className={!sizeId ? "sizeBtn active" : "sizeBtn"} onClick={() => setSizeId("")}>
-                All
+              <button
+                type="button"
+                className={!sizeId ? "sizeBtn active" : "sizeBtn"}
+                onClick={() => setSizeId("")}
+              >
+                {t("common.all")}
               </button>
+
               {sizes.map((s) => (
                 <button
+                  type="button"
                   key={s.id}
                   className={String(sizeId) === String(s.id) ? "sizeBtn active" : "sizeBtn"}
                   onClick={() => setSizeId(s.id)}
@@ -277,77 +480,49 @@ export default function CatalogPage({ me, setMe }) {
           </div>
 
           <div className="filterBlock">
-            <button className="applyBtn" onClick={resetFilters}>Reset Filters</button>
+            <button
+              type="button"
+              className={`favoriteFilterBtn ${favoritesOnly ? "active" : ""}`}
+              onClick={() => setFavoritesOnly((v) => !v)}
+            >
+              {favoritesOnly ? t("catalog.favoritesOnlyActive") : t("catalog.favoritesOnly")}
+            </button>
+          </div>
+
+          <div className="filterBlock">
+            <button type="button" className="applyBtn" onClick={resetFilters}>
+              {t("common.resetFilters")}
+            </button>
           </div>
         </aside>
 
         <section className="catalogContent fadeInUp">
           <div className="catalogTop">
             <div>
-              <h2>Shop catalog</h2>
-              <p>{filtered.length} products found</p>
+              <h2>{t("catalog.title")}</h2>
+              <p>{filtered.length} {t("catalog.found")}</p>
             </div>
           </div>
 
-          <div className="catalogGrid" id="catalog-grid">
-            {filtered.map((a, i) => {
-              const images = getProductImages(a);
-              const mainImage = images[0] || "";
-              const onSale = isSaleActive(a);
-              const discount = getDiscountPercent(a);
-
-              return (
-                <div
-                  key={a.id}
-                  className="catalogCard fadeInUp"
-                  style={{ animationDelay: `${i * 0.04}s` }}
-                  onClick={() => navigate(`/product/${a.id}`)}
-                >
-                  <div className="catalogImageWrap">
-                    {onSale ? <div className="catalogSaleBadge">SALE -{discount}%</div> : null}
-                    <button
-                      className="catalogFavBtn"
-                      type="button"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      ♡
-                    </button>
-
-                    {mainImage ? (
-                      <img src={mainImage} alt={a.nom} className="catalogImage" />
-                    ) : (
-                      <div className="catalogImage empty">No image</div>
-                    )}
-                  </div>
-
-                  <div className="catalogBody">
-                    <div className="catalogName">{a.nom}</div>
-                    <div className="catalogMeta">{a.marque || "EMIRIO"}</div>
-                    <div className="catalogMeta">{a.categorieNom || "-"}</div>
-
-                    <div className="catalogPriceRow">
-                      <span className="catalogPriceNow">{fmtPrice(getDisplayPrice(a))}</span>
-                      {onSale ? <span className="catalogPriceOld">{fmtPrice(a.prix)}</span> : null}
-                    </div>
-
-                    <button
-                      className="catalogViewBtn"
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/product/${a.id}`);
-                      }}
-                    >
-                      View Product
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {!filtered.length && (
-            <div className="catalogEmpty">No products match your filters.</div>
+          {loading ? (
+            <div className="homeInfo">{t("home.loadingProducts")}</div>
+          ) : error ? (
+            <div className="homeInfo error">{error}</div>
+          ) : !filtered.length ? (
+            <div className="homeInfo">{t("catalog.noMatch")}</div>
+          ) : (
+            <div className="productsGrid catalogProductsGrid" id="catalog-grid">
+              {filtered.map((p) => (
+                <ProductCard
+                  key={p.id}
+                  p={p}
+                  onOpen={openProduct}
+                  favorites={favorites}
+                  toggleFavorite={toggleFavorite}
+                  nowTick={nowTick}
+                />
+              ))}
+            </div>
           )}
         </section>
       </div>

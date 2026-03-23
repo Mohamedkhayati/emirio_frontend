@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../../lib/api";
 import "./admin.css";
 
@@ -84,6 +85,8 @@ const emptyColorForm = { nom: "", codeHex: "#000000" };
 const emptySizeForm = { pointure: "" };
 
 export default function AdminPage() {
+  const { t, i18n } = useTranslation();
+
   const [section, setSection] = useState("customers");
 
   const [rows, setRows] = useState([]);
@@ -122,6 +125,24 @@ export default function AdminPage() {
   const colorDialogRef = useRef(null);
   const sizeDialogRef = useRef(null);
 
+  const currentLang = useMemo(() => {
+    const lng =
+      i18n.resolvedLanguage ||
+      i18n.language ||
+      localStorage.getItem("language") ||
+      "en";
+    if (lng.startsWith("fr")) return "fr";
+    if (lng.startsWith("ar")) return "ar";
+    return "en";
+  }, [i18n.language, i18n.resolvedLanguage]);
+
+  async function changeLang(lng) {
+    await i18n.changeLanguage(lng);
+    localStorage.setItem("language", lng);
+    document.documentElement.lang = lng;
+    document.documentElement.dir = i18n.dir(lng);
+  }
+
   async function loadList(pickFirst = false) {
     setError("");
     const res = await api.get("/api/admin/clients");
@@ -151,14 +172,14 @@ export default function AdminPage() {
       setSelected(d.data);
       await loadList(false);
     } catch (e) {
-      setError(e?.response?.data?.message || "Update failed");
+      setError(e?.response?.data?.message || t("admin.messages.updateFailed"));
     } finally {
       setBusyId(null);
     }
   }
 
   async function deleteClient(id) {
-    if (!window.confirm("Delete this client?")) return;
+    if (!window.confirm(t("admin.confirm.deleteClient"))) return;
     setError("");
     setBusyId(id);
     try {
@@ -167,7 +188,7 @@ export default function AdminPage() {
       setSelected(null);
       await loadList(true);
     } catch (e) {
-      setError(e?.response?.data?.message || "Delete failed");
+      setError(e?.response?.data?.message || t("admin.messages.deleteFailed"));
     } finally {
       setBusyId(null);
     }
@@ -304,14 +325,14 @@ export default function AdminPage() {
       articleDialogRef.current?.close();
       await refreshCatalog(true);
     } catch (e2) {
-      setCatalogError(e2?.response?.data?.message || "Save article failed");
+      setCatalogError(e2?.response?.data?.message || t("admin.messages.saveArticleFailed"));
     } finally {
       setBusyCatalog(false);
     }
   }
 
   async function deleteArticle(id) {
-    if (!window.confirm("Delete this article?")) return;
+    if (!window.confirm(t("admin.confirm.deleteArticle"))) return;
     setBusyCatalog(true);
     try {
       await api.delete(`/api/admin/articles/${id}`);
@@ -319,7 +340,7 @@ export default function AdminPage() {
       setVariations([]);
       await refreshCatalog(true);
     } catch (e) {
-      setCatalogError(e?.response?.data?.message || "Delete article failed");
+      setCatalogError(e?.response?.data?.message || t("admin.messages.deleteArticleFailed"));
     } finally {
       setBusyCatalog(false);
     }
@@ -365,20 +386,20 @@ export default function AdminPage() {
       variationDialogRef.current?.close();
       await loadArticleDetails(selectedArticle.id);
     } catch (e) {
-      setCatalogError(e?.response?.data?.message || "Save variation failed");
+      setCatalogError(e?.response?.data?.message || t("admin.messages.saveVariationFailed"));
     } finally {
       setBusyCatalog(false);
     }
   }
 
   async function deleteVariation(id) {
-    if (!window.confirm("Delete this variation?")) return;
+    if (!window.confirm(t("admin.confirm.deleteVariation"))) return;
     setBusyCatalog(true);
     try {
       await api.delete(`/api/admin/variations/${id}`);
       await loadArticleDetails(selectedArticle.id);
     } catch (e) {
-      setCatalogError(e?.response?.data?.message || "Delete variation failed");
+      setCatalogError(e?.response?.data?.message || t("admin.messages.deleteVariationFailed"));
     } finally {
       setBusyCatalog(false);
     }
@@ -400,25 +421,28 @@ export default function AdminPage() {
     e.preventDefault();
     setBusyCatalog(true);
     try {
-      if (editingCategoryId) await api.put(`/api/admin/categories/${editingCategoryId}`, categoryForm);
-      else await api.post("/api/admin/categories", categoryForm);
+      if (editingCategoryId) {
+        await api.put(`/api/admin/categories/${editingCategoryId}`, categoryForm);
+      } else {
+        await api.post("/api/admin/categories", categoryForm);
+      }
       categoryDialogRef.current?.close();
       await refreshCatalog(false);
     } catch (e) {
-      setCatalogError(e?.response?.data?.message || "Save category failed");
+      setCatalogError(e?.response?.data?.message || t("admin.messages.saveCategoryFailed"));
     } finally {
       setBusyCatalog(false);
     }
   }
 
   async function deleteCategory(id) {
-    if (!window.confirm("Delete this category?")) return;
+    if (!window.confirm(t("admin.confirm.deleteCategory"))) return;
     setBusyCatalog(true);
     try {
       await api.delete(`/api/admin/categories/${id}`);
       await refreshCatalog(false);
     } catch (e) {
-      setCatalogError(e?.response?.data?.message || "Delete category failed");
+      setCatalogError(e?.response?.data?.message || t("admin.messages.deleteCategoryFailed"));
     } finally {
       setBusyCatalog(false);
     }
@@ -440,25 +464,28 @@ export default function AdminPage() {
     e.preventDefault();
     setBusyCatalog(true);
     try {
-      if (editingColorId) await api.put(`/api/admin/colors/${editingColorId}`, colorForm);
-      else await api.post("/api/admin/colors", colorForm);
+      if (editingColorId) {
+        await api.put(`/api/admin/colors/${editingColorId}`, colorForm);
+      } else {
+        await api.post("/api/admin/colors", colorForm);
+      }
       colorDialogRef.current?.close();
       await refreshCatalog(false);
     } catch (e) {
-      setCatalogError(e?.response?.data?.message || "Save color failed");
+      setCatalogError(e?.response?.data?.message || t("admin.messages.saveColorFailed"));
     } finally {
       setBusyCatalog(false);
     }
   }
 
   async function deleteColor(id) {
-    if (!window.confirm("Delete this color?")) return;
+    if (!window.confirm(t("admin.confirm.deleteColor"))) return;
     setBusyCatalog(true);
     try {
       await api.delete(`/api/admin/colors/${id}`);
       await refreshCatalog(false);
     } catch (e) {
-      setCatalogError(e?.response?.data?.message || "Delete color failed");
+      setCatalogError(e?.response?.data?.message || t("admin.messages.deleteColorFailed"));
     } finally {
       setBusyCatalog(false);
     }
@@ -480,25 +507,28 @@ export default function AdminPage() {
     e.preventDefault();
     setBusyCatalog(true);
     try {
-      if (editingSizeId) await api.put(`/api/admin/sizes/${editingSizeId}`, sizeForm);
-      else await api.post("/api/admin/sizes", sizeForm);
+      if (editingSizeId) {
+        await api.put(`/api/admin/sizes/${editingSizeId}`, sizeForm);
+      } else {
+        await api.post("/api/admin/sizes", sizeForm);
+      }
       sizeDialogRef.current?.close();
       await refreshCatalog(false);
     } catch (e) {
-      setCatalogError(e?.response?.data?.message || "Save size failed");
+      setCatalogError(e?.response?.data?.message || t("admin.messages.saveSizeFailed"));
     } finally {
       setBusyCatalog(false);
     }
   }
 
   async function deleteSize(id) {
-    if (!window.confirm("Delete this size?")) return;
+    if (!window.confirm(t("admin.confirm.deleteSize"))) return;
     setBusyCatalog(true);
     try {
       await api.delete(`/api/admin/sizes/${id}`);
       await refreshCatalog(false);
     } catch (e) {
-      setCatalogError(e?.response?.data?.message || "Delete size failed");
+      setCatalogError(e?.response?.data?.message || t("admin.messages.deleteSizeFailed"));
     } finally {
       setBusyCatalog(false);
     }
@@ -507,20 +537,50 @@ export default function AdminPage() {
   return (
     <div className="adminLayout">
       <aside className="adminSidebar clean">
-        <div className="adminMenu onlyMenu">
-          <button className={`adminMenuItem ${section === "customers" ? "active" : ""}`} onClick={() => setSection("customers")}>
-            Customers List
-          </button>
-          <button className={`adminMenuItem ${section === "catalog" ? "active" : ""}`} onClick={() => setSection("catalog")}>
-            Catalog Manager
-          </button>
-          <button
-  className={`adminMenuItem ${section === "dashboard" ? "active" : ""}`}
-  onClick={() => setSection("dashboard")}
->
-  Dashboard
-</button>
+        <div className="adminSidebarTop">
+          <div className="adminBrandBlock">
+            <div className="adminBrandTitle">EMIRIO</div>
+            <div className="adminBrandSub">{t("admin.sidebar.panel")}</div>
+          </div>
 
+          <div className="adminLangBox">
+            <label className="adminLangLabel" htmlFor="admin-language">
+              {t("admin.language")}
+            </label>
+            <select
+              id="admin-language"
+              className="adminLangSelect"
+              value={currentLang}
+              onChange={(e) => changeLang(e.target.value)}
+            >
+              <option value="en">English</option>
+              <option value="fr">Français</option>
+              <option value="ar">العربية</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="adminMenu onlyMenu">
+          <button
+            className={`adminMenuItem ${section === "customers" ? "active" : ""}`}
+            onClick={() => setSection("customers")}
+          >
+            {t("admin.sidebar.customers")}
+          </button>
+
+          <button
+            className={`adminMenuItem ${section === "catalog" ? "active" : ""}`}
+            onClick={() => setSection("catalog")}
+          >
+            {t("admin.sidebar.catalog")}
+          </button>
+
+          <button
+            className={`adminMenuItem ${section === "dashboard" ? "active" : ""}`}
+            onClick={() => setSection("dashboard")}
+          >
+            {t("admin.sidebar.dashboard")}
+          </button>
         </div>
       </aside>
 
@@ -530,16 +590,25 @@ export default function AdminPage() {
             <div className="admPage">
               <div className="admHeader">
                 <div>
-                  <div className="admH1">Customer List</div>
-                  <div className="admH2">Manage client accounts</div>
+                  <div className="admH1">{t("admin.customers.title")}</div>
+                  <div className="admH2">{t("admin.customers.subtitle")}</div>
                 </div>
 
                 <div className="admHeaderRight">
                   <div className="admSearchWrap">
-                    <input className="admSearch" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name / email..." />
+                    <input
+                      className="admSearch"
+                      value={q}
+                      onChange={(e) => setQ(e.target.value)}
+                      placeholder={t("admin.customers.searchPlaceholder")}
+                    />
                   </div>
-                  <button className="admBtn primary" onClick={() => selected && clientDialogRef.current?.showModal()} disabled={!selected}>
-                    See profile
+                  <button
+                    className="admBtn primary"
+                    onClick={() => selected && clientDialogRef.current?.showModal()}
+                    disabled={!selected}
+                  >
+                    {t("admin.common.seeProfile")}
                   </button>
                 </div>
               </div>
@@ -549,16 +618,20 @@ export default function AdminPage() {
               <div className="admGrid">
                 <div className="admCard">
                   <div className="admCardTop">
-                    <div className="admCardTitle">{filteredCustomers.length} customers</div>
-                    <button className="admBtn" onClick={() => loadList(false)}>Refresh</button>
+                    <div className="admCardTitle">
+                      {filteredCustomers.length} {t("admin.common.customersCount")}
+                    </div>
+                    <button className="admBtn" onClick={() => loadList(false)}>
+                      {t("admin.common.refresh")}
+                    </button>
                   </div>
 
                   <div className="admTable">
                     <div className="admTr head">
-                      <div>Name</div>
-                      <div>Email</div>
-                      <div>Status</div>
-                      <div style={{ textAlign: "right" }}>Actions</div>
+                      <div>{t("admin.table.name")}</div>
+                      <div>{t("admin.table.email")}</div>
+                      <div>{t("admin.table.status")}</div>
+                      <div style={{ textAlign: "right" }}>{t("admin.table.actions")}</div>
                     </div>
 
                     {filteredCustomers.map((u) => (
@@ -570,7 +643,9 @@ export default function AdminPage() {
                         <div className="admNameCell">
                           <div className="admAvatar">{initials(u.nom, u.prenom)}</div>
                           <div>
-                            <div className="admName">{u.prenom} {u.nom}</div>
+                            <div className="admName">
+                              {u.prenom} {u.nom}
+                            </div>
                             <div className="admRole">{u.role}</div>
                           </div>
                         </div>
@@ -584,9 +659,27 @@ export default function AdminPage() {
                         </div>
 
                         <div className="admRowActions" onClick={(e) => e.stopPropagation()}>
-                          <button className="admBtn mini" disabled={busyId === u.id} onClick={() => setStatus(u.id, "ACTIVE")}>Enable</button>
-                          <button className="admBtn mini" disabled={busyId === u.id} onClick={() => setStatus(u.id, "BLOCKED")}>Block</button>
-                          <button className="admBtn mini danger" disabled={busyId === u.id} onClick={() => deleteClient(u.id)}>Delete</button>
+                          <button
+                            className="admBtn mini"
+                            disabled={busyId === u.id}
+                            onClick={() => setStatus(u.id, "ACTIVE")}
+                          >
+                            {t("admin.common.enable")}
+                          </button>
+                          <button
+                            className="admBtn mini"
+                            disabled={busyId === u.id}
+                            onClick={() => setStatus(u.id, "BLOCKED")}
+                          >
+                            {t("admin.common.block")}
+                          </button>
+                          <button
+                            className="admBtn mini danger"
+                            disabled={busyId === u.id}
+                            onClick={() => deleteClient(u.id)}
+                          >
+                            {t("admin.common.delete")}
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -595,22 +688,33 @@ export default function AdminPage() {
 
                 <div className="admCard side">
                   {!selected ? (
-                    <div className="admEmpty">Select a client</div>
+                    <div className="admEmpty">{t("admin.customers.selectClient")}</div>
                   ) : (
                     <>
                       <div className="admSideTop">
                         <div className="admAvatar big">{initials(selected.nom, selected.prenom)}</div>
                         <div>
-                          <div className="admSideName">{selected.prenom} {selected.nom}</div>
+                          <div className="admSideName">
+                            {selected.prenom} {selected.nom}
+                          </div>
                           <div className="admSideRole">{selected.role}</div>
                         </div>
                       </div>
 
                       <div className="admDivider" />
                       <div className="admInfo">
-                        <div className="admInfoRow"><span>Email</span><span className="mono">{selected.email}</span></div>
-                        <div className="admInfoRow"><span>Status</span><span>{selected.statutCompte}</span></div>
-                        <div className="admInfoRow"><span>Created</span><span>{fmt(selected.dateDeCreation)}</span></div>
+                        <div className="admInfoRow">
+                          <span>{t("admin.table.email")}</span>
+                          <span className="mono">{selected.email}</span>
+                        </div>
+                        <div className="admInfoRow">
+                          <span>{t("admin.table.status")}</span>
+                          <span>{selected.statutCompte}</span>
+                        </div>
+                        <div className="admInfoRow">
+                          <span>{t("admin.common.created")}</span>
+                          <span>{fmt(selected.dateDeCreation)}</span>
+                        </div>
                       </div>
                     </>
                   )}
@@ -625,19 +729,34 @@ export default function AdminPage() {
             <div className="admPage">
               <div className="admHeader">
                 <div>
-                  <div className="admH1">Catalog Manager</div>
-                  <div className="admH2">Manage articles, sales, recommendations, variations and references</div>
+                  <div className="admH1">{t("admin.catalog.title")}</div>
+                  <div className="admH2">{t("admin.catalog.subtitle")}</div>
                 </div>
 
                 <div className="admHeaderRight">
                   <div className="admSearchWrap">
-                    <input className="admSearch" value={catalogQ} onChange={(e) => setCatalogQ(e.target.value)} placeholder="Search article / category / brand..." />
+                    <input
+                      className="admSearch"
+                      value={catalogQ}
+                      onChange={(e) => setCatalogQ(e.target.value)}
+                      placeholder={t("admin.catalog.searchPlaceholder")}
+                    />
                   </div>
-                  <button className="admBtn" onClick={() => refreshCatalog(false)}>Refresh</button>
-                  <button className="admBtn" onClick={openCreateCategory}>Add category</button>
-                  <button className="admBtn" onClick={openCreateColor}>Add color</button>
-                  <button className="admBtn" onClick={openCreateSize}>Add size</button>
-                  <button className="admBtn primary" onClick={openCreateArticle}>Add article</button>
+                  <button className="admBtn" onClick={() => refreshCatalog(false)}>
+                    {t("admin.common.refresh")}
+                  </button>
+                  <button className="admBtn" onClick={openCreateCategory}>
+                    {t("admin.catalog.addCategory")}
+                  </button>
+                  <button className="admBtn" onClick={openCreateColor}>
+                    {t("admin.catalog.addColor")}
+                  </button>
+                  <button className="admBtn" onClick={openCreateSize}>
+                    {t("admin.catalog.addSize")}
+                  </button>
+                  <button className="admBtn primary" onClick={openCreateArticle}>
+                    {t("admin.catalog.addArticle")}
+                  </button>
                 </div>
               </div>
 
@@ -646,16 +765,18 @@ export default function AdminPage() {
               <div className="admGrid">
                 <div className="admCard">
                   <div className="admCardTop">
-                    <div className="admCardTitle">{filteredArticles.length} articles</div>
+                    <div className="admCardTitle">
+                      {filteredArticles.length} {t("admin.common.articlesCount")}
+                    </div>
                   </div>
 
                   <div className="admTable">
                     <div className="admTr head articleRow">
-                      <div>Article</div>
-                      <div>Category</div>
-                      <div>Price</div>
-                      <div>Status</div>
-                      <div style={{ textAlign: "right" }}>Actions</div>
+                      <div>{t("admin.table.article")}</div>
+                      <div>{t("admin.table.category")}</div>
+                      <div>{t("admin.table.price")}</div>
+                      <div>{t("admin.table.status")}</div>
+                      <div style={{ textAlign: "right" }}>{t("admin.table.actions")}</div>
                     </div>
 
                     {filteredArticles.map((a) => {
@@ -668,25 +789,38 @@ export default function AdminPage() {
                         >
                           <div className="articleCell">
                             <div className="articleThumbWrap">
-                              {a.imageUrl ? <img src={fullImageUrl(a.imageUrl)} alt={a.nom} className="articleThumb" /> : <div className="articleThumb empty">No image</div>}
+                              {a.imageUrl ? (
+                                <img src={fullImageUrl(a.imageUrl)} alt={a.nom} className="articleThumb" />
+                              ) : (
+                                <div className="articleThumb empty">{t("admin.common.noImage")}</div>
+                              )}
                             </div>
                             <div>
                               <div className="admName">{a.nom}</div>
                               <div className="admRole">
                                 #{a.id}
-                                {a.recommended ? " • Recommended" : ""}
+                                {a.recommended ? ` • ${t("admin.catalog.recommended")}` : ""}
                                 {saleLive ? ` • Sale -${salePercent(a)}%` : ""}
                               </div>
                             </div>
                           </div>
+
                           <div>{a.categorieNom}</div>
                           <div>{saleLive ? `${fmtPrice(a.salePrice)} / ${fmtPrice(a.prix)}` : fmtPrice(a.prix)}</div>
+
                           <div>
-                            <span className={`admBadge ${a.actif ? "ok" : "bad"}`}>{a.actif ? "ACTIVE" : "INACTIVE"}</span>
+                            <span className={`admBadge ${a.actif ? "ok" : "bad"}`}>
+                              {a.actif ? "ACTIVE" : "INACTIVE"}
+                            </span>
                           </div>
+
                           <div className="admRowActions" onClick={(e) => e.stopPropagation()}>
-                            <button className="admBtn mini" onClick={() => openEditArticle(a)}>Edit</button>
-                            <button className="admBtn mini danger" onClick={() => deleteArticle(a.id)}>Delete</button>
+                            <button className="admBtn mini" onClick={() => openEditArticle(a)}>
+                              {t("admin.common.edit")}
+                            </button>
+                            <button className="admBtn mini danger" onClick={() => deleteArticle(a.id)}>
+                              {t("admin.common.delete")}
+                            </button>
                           </div>
                         </div>
                       );
@@ -696,14 +830,18 @@ export default function AdminPage() {
 
                 <div className="admCard side">
                   {!selectedArticle ? (
-                    <div className="admEmpty">Select an article</div>
+                    <div className="admEmpty">{t("admin.catalog.selectArticle")}</div>
                   ) : (
                     <>
                       <div className="admSideTop articleSideTop">
                         {selectedArticle.imageUrl ? (
-                          <img src={fullImageUrl(selectedArticle.imageUrl)} alt={selectedArticle.nom} className="selectedArticleImage" />
+                          <img
+                            src={fullImageUrl(selectedArticle.imageUrl)}
+                            alt={selectedArticle.nom}
+                            className="selectedArticleImage"
+                          />
                         ) : (
-                          <div className="selectedArticleImage empty">No image</div>
+                          <div className="selectedArticleImage empty">{t("admin.common.noImage")}</div>
                         )}
 
                         <div>
@@ -714,21 +852,23 @@ export default function AdminPage() {
 
                       <div className="admDivider" />
                       <div className="admInfo">
-                        <div className="admInfoRow"><span>Price</span><span>{fmtPrice(selectedArticle.prix)}</span></div>
-                        <div className="admInfoRow"><span>Sale price</span><span>{fmtPrice(selectedArticle.salePrice)}</span></div>
-                        <div className="admInfoRow"><span>Sale start</span><span>{fmt(selectedArticle.saleStartAt)}</span></div>
-                        <div className="admInfoRow"><span>Sale end</span><span>{fmt(selectedArticle.saleEndAt)}</span></div>
-                        <div className="admInfoRow"><span>On sale now</span><span>{isSaleActive(selectedArticle) ? "YES" : "NO"}</span></div>
-                        <div className="admInfoRow"><span>Recommended</span><span>{selectedArticle.recommended ? "YES" : "NO"}</span></div>
-                        <div className="admInfoRow"><span>Brand</span><span>{selectedArticle.marque || "-"}</span></div>
-                        <div className="admInfoRow"><span>Material</span><span>{selectedArticle.matiere || "-"}</span></div>
-                        <div className="admInfoRow"><span>SKU</span><span>{selectedArticle.sku || "-"}</span></div>
+                        <div className="admInfoRow"><span>{t("admin.catalog.price")}</span><span>{fmtPrice(selectedArticle.prix)}</span></div>
+                        <div className="admInfoRow"><span>{t("admin.catalog.salePrice")}</span><span>{fmtPrice(selectedArticle.salePrice)}</span></div>
+                        <div className="admInfoRow"><span>{t("admin.catalog.saleStart")}</span><span>{fmt(selectedArticle.saleStartAt)}</span></div>
+                        <div className="admInfoRow"><span>{t("admin.catalog.saleEnd")}</span><span>{fmt(selectedArticle.saleEndAt)}</span></div>
+                        <div className="admInfoRow"><span>{t("admin.catalog.onSaleNow")}</span><span>{isSaleActive(selectedArticle) ? t("admin.common.yes") : t("admin.common.no")}</span></div>
+                        <div className="admInfoRow"><span>{t("admin.catalog.recommended")}</span><span>{selectedArticle.recommended ? t("admin.common.yes") : t("admin.common.no")}</span></div>
+                        <div className="admInfoRow"><span>{t("admin.catalog.brand")}</span><span>{selectedArticle.marque || "-"}</span></div>
+                        <div className="admInfoRow"><span>{t("admin.catalog.material")}</span><span>{selectedArticle.matiere || "-"}</span></div>
+                        <div className="admInfoRow"><span>{t("admin.catalog.sku")}</span><span>{selectedArticle.sku || "-"}</span></div>
                       </div>
 
                       <div className="admDivider" />
                       <div className="admCardTop">
-                        <div className="admCardTitle">Variations</div>
-                        <button className="admBtn mini primary" onClick={openCreateVariation}>Add variation</button>
+                        <div className="admCardTitle">{t("admin.catalog.variations")}</div>
+                        <button className="admBtn mini primary" onClick={openCreateVariation}>
+                          {t("admin.catalog.addVariation")}
+                        </button>
                       </div>
 
                       <div className="admTable compact">
@@ -736,16 +876,20 @@ export default function AdminPage() {
                           <div key={v.id} className="admTr row varRow">
                             <div>
                               <div className="admName">{v.couleurNom} / {v.taillePointure}</div>
-                              <div className="admRole">Stock: {v.quantiteStock}</div>
+                              <div className="admRole">{t("admin.catalog.stock")}: {v.quantiteStock}</div>
                             </div>
                             <div>{fmtPrice(v.prix)}</div>
                             <div className="admRowActions">
-                              <button className="admBtn mini" onClick={() => openEditVariation(v)}>Edit</button>
-                              <button className="admBtn mini danger" onClick={() => deleteVariation(v.id)}>Delete</button>
+                              <button className="admBtn mini" onClick={() => openEditVariation(v)}>
+                                {t("admin.common.edit")}
+                              </button>
+                              <button className="admBtn mini danger" onClick={() => deleteVariation(v.id)}>
+                                {t("admin.common.delete")}
+                              </button>
                             </div>
                           </div>
                         ))}
-                        {!variations.length && <div className="admEmpty">No variations yet</div>}
+                        {!variations.length && <div className="admEmpty">{t("admin.catalog.noVariations")}</div>}
                       </div>
                     </>
                   )}
@@ -755,8 +899,10 @@ export default function AdminPage() {
               <div className="admGrid refsGrid">
                 <div className="admCard">
                   <div className="admCardTop">
-                    <div className="admCardTitle">Categories</div>
-                    <button className="admBtn mini" onClick={openCreateCategory}>Add category</button>
+                    <div className="admCardTitle">{t("admin.catalog.categories")}</div>
+                    <button className="admBtn mini" onClick={openCreateCategory}>
+                      {t("admin.catalog.addCategory")}
+                    </button>
                   </div>
                   <div className="admTable compact">
                     {categories.map((c) => (
@@ -766,8 +912,12 @@ export default function AdminPage() {
                           <div className="admRole">{c.description || "-"}</div>
                         </div>
                         <div className="admRowActions">
-                          <button className="admBtn mini" onClick={() => openEditCategory(c)}>Edit</button>
-                          <button className="admBtn mini danger" onClick={() => deleteCategory(c.id)}>Delete</button>
+                          <button className="admBtn mini" onClick={() => openEditCategory(c)}>
+                            {t("admin.common.edit")}
+                          </button>
+                          <button className="admBtn mini danger" onClick={() => deleteCategory(c.id)}>
+                            {t("admin.common.delete")}
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -776,8 +926,10 @@ export default function AdminPage() {
 
                 <div className="admCard">
                   <div className="admCardTop">
-                    <div className="admCardTitle">Colors</div>
-                    <button className="admBtn mini" onClick={openCreateColor}>Add color</button>
+                    <div className="admCardTitle">{t("admin.catalog.colors")}</div>
+                    <button className="admBtn mini" onClick={openCreateColor}>
+                      {t("admin.catalog.addColor")}
+                    </button>
                   </div>
                   <div className="admTable compact">
                     {colors.map((c) => (
@@ -790,8 +942,12 @@ export default function AdminPage() {
                           </div>
                         </div>
                         <div className="admRowActions">
-                          <button className="admBtn mini" onClick={() => openEditColor(c)}>Edit</button>
-                          <button className="admBtn mini danger" onClick={() => deleteColor(c.id)}>Delete</button>
+                          <button className="admBtn mini" onClick={() => openEditColor(c)}>
+                            {t("admin.common.edit")}
+                          </button>
+                          <button className="admBtn mini danger" onClick={() => deleteColor(c.id)}>
+                            {t("admin.common.delete")}
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -800,8 +956,10 @@ export default function AdminPage() {
 
                 <div className="admCard">
                   <div className="admCardTop">
-                    <div className="admCardTitle">Sizes</div>
-                    <button className="admBtn mini" onClick={openCreateSize}>Add size</button>
+                    <div className="admCardTitle">{t("admin.catalog.sizes")}</div>
+                    <button className="admBtn mini" onClick={openCreateSize}>
+                      {t("admin.catalog.addSize")}
+                    </button>
                   </div>
                   <div className="admTable compact">
                     {sizes.map((s) => (
@@ -810,8 +968,12 @@ export default function AdminPage() {
                           <div className="admName">{s.pointure}</div>
                         </div>
                         <div className="admRowActions">
-                          <button className="admBtn mini" onClick={() => openEditSize(s)}>Edit</button>
-                          <button className="admBtn mini danger" onClick={() => deleteSize(s.id)}>Delete</button>
+                          <button className="admBtn mini" onClick={() => openEditSize(s)}>
+                            {t("admin.common.edit")}
+                          </button>
+                          <button className="admBtn mini danger" onClick={() => deleteSize(s.id)}>
+                            {t("admin.common.delete")}
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -821,58 +983,110 @@ export default function AdminPage() {
 
               <dialog ref={articleDialogRef} className="admDialog productDialog">
                 <div className="admDialogHead">
-                  <div className="admDialogTitle">{editingArticleId ? "Edit article" : "Add article"}</div>
-                  <button className="admBtn mini" type="button" onClick={() => articleDialogRef.current?.close()}>Close</button>
+                  <div className="admDialogTitle">
+                    {editingArticleId ? t("admin.catalog.articleDialogEdit") : t("admin.catalog.articleDialogAdd")}
+                  </div>
+                  <button className="admBtn mini" type="button" onClick={() => articleDialogRef.current?.close()}>
+                    {t("admin.common.close")}
+                  </button>
                 </div>
 
                 <form className="productForm admDialogBody" onSubmit={saveArticle}>
-                  <label><span>Product name</span><input value={articleForm.nom} onChange={(e) => setArticleForm({ ...articleForm, nom: e.target.value })} required /></label>
+                  <label>
+                    <span>{t("admin.catalog.productName")}</span>
+                    <input value={articleForm.nom} onChange={(e) => setArticleForm({ ...articleForm, nom: e.target.value })} required />
+                  </label>
 
                   <label>
-                    <span>Category</span>
-                    <select value={articleForm.categorieId} onChange={(e) => setArticleForm({ ...articleForm, categorieId: e.target.value })} required>
-                      <option value="">Select category</option>
+                    <span>{t("admin.catalog.category")}</span>
+                    <select
+                      value={articleForm.categorieId}
+                      onChange={(e) => setArticleForm({ ...articleForm, categorieId: e.target.value })}
+                      required
+                    >
+                      <option value="">{t("admin.common.selectCategory")}</option>
                       {categories.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
                     </select>
                   </label>
 
-                  <label><span>Price</span><input type="number" step="0.001" value={articleForm.prix} onChange={(e) => setArticleForm({ ...articleForm, prix: e.target.value })} required /></label>
-                  <label><span>Sale price</span><input type="number" step="0.001" value={articleForm.salePrice} onChange={(e) => setArticleForm({ ...articleForm, salePrice: e.target.value })} /></label>
-                  <label><span>Sale start</span><input type="datetime-local" value={articleForm.saleStartAt} onChange={(e) => setArticleForm({ ...articleForm, saleStartAt: e.target.value })} /></label>
-                  <label><span>Sale end</span><input type="datetime-local" value={articleForm.saleEndAt} onChange={(e) => setArticleForm({ ...articleForm, saleEndAt: e.target.value })} /></label>
+                  <label>
+                    <span>{t("admin.catalog.price")}</span>
+                    <input type="number" step="0.001" value={articleForm.prix} onChange={(e) => setArticleForm({ ...articleForm, prix: e.target.value })} required />
+                  </label>
 
-                  <label><span>Brand</span><input value={articleForm.marque} onChange={(e) => setArticleForm({ ...articleForm, marque: e.target.value })} /></label>
-                  <label><span>Material</span><input value={articleForm.matiere} onChange={(e) => setArticleForm({ ...articleForm, matiere: e.target.value })} /></label>
-                  <label><span>SKU</span><input value={articleForm.sku} onChange={(e) => setArticleForm({ ...articleForm, sku: e.target.value })} /></label>
+                  <label>
+                    <span>{t("admin.catalog.salePrice")}</span>
+                    <input type="number" step="0.001" value={articleForm.salePrice} onChange={(e) => setArticleForm({ ...articleForm, salePrice: e.target.value })} />
+                  </label>
 
-                  <label><span>Image 1</span><input type="file" accept="image/*" onChange={(e) => setArticleForm({ ...articleForm, imageFile1: e.target.files?.[0] || null })} /></label>
-                  <label><span>Image 2</span><input type="file" accept="image/*" onChange={(e) => setArticleForm({ ...articleForm, imageFile2: e.target.files?.[0] || null })} /></label>
-                  <label><span>Image 3</span><input type="file" accept="image/*" onChange={(e) => setArticleForm({ ...articleForm, imageFile3: e.target.files?.[0] || null })} /></label>
-                  <label><span>Image 4</span><input type="file" accept="image/*" onChange={(e) => setArticleForm({ ...articleForm, imageFile4: e.target.files?.[0] || null })} /></label>
+                  <label>
+                    <span>{t("admin.catalog.saleStart")}</span>
+                    <input type="datetime-local" value={articleForm.saleStartAt} onChange={(e) => setArticleForm({ ...articleForm, saleStartAt: e.target.value })} />
+                  </label>
+
+                  <label>
+                    <span>{t("admin.catalog.saleEnd")}</span>
+                    <input type="datetime-local" value={articleForm.saleEndAt} onChange={(e) => setArticleForm({ ...articleForm, saleEndAt: e.target.value })} />
+                  </label>
+
+                  <label>
+                    <span>{t("admin.catalog.brand")}</span>
+                    <input value={articleForm.marque} onChange={(e) => setArticleForm({ ...articleForm, marque: e.target.value })} />
+                  </label>
+
+                  <label>
+                    <span>{t("admin.catalog.material")}</span>
+                    <input value={articleForm.matiere} onChange={(e) => setArticleForm({ ...articleForm, matiere: e.target.value })} />
+                  </label>
+
+                  <label>
+                    <span>{t("admin.catalog.sku")}</span>
+                    <input value={articleForm.sku} onChange={(e) => setArticleForm({ ...articleForm, sku: e.target.value })} />
+                  </label>
+
+                  <label>
+                    <span>{t("admin.catalog.image1")}</span>
+                    <input type="file" accept="image/*" onChange={(e) => setArticleForm({ ...articleForm, imageFile1: e.target.files?.[0] || null })} />
+                  </label>
+
+                  <label>
+                    <span>{t("admin.catalog.image2")}</span>
+                    <input type="file" accept="image/*" onChange={(e) => setArticleForm({ ...articleForm, imageFile2: e.target.files?.[0] || null })} />
+                  </label>
+
+                  <label>
+                    <span>{t("admin.catalog.image3")}</span>
+                    <input type="file" accept="image/*" onChange={(e) => setArticleForm({ ...articleForm, imageFile3: e.target.files?.[0] || null })} />
+                  </label>
+
+                  <label>
+                    <span>{t("admin.catalog.image4")}</span>
+                    <input type="file" accept="image/*" onChange={(e) => setArticleForm({ ...articleForm, imageFile4: e.target.files?.[0] || null })} />
+                  </label>
 
                   <label className="checkRow">
                     <input type="checkbox" checked={articleForm.actif} onChange={(e) => setArticleForm({ ...articleForm, actif: e.target.checked })} />
-                    <span>Active product</span>
+                    <span>{t("admin.catalog.activeProduct")}</span>
                   </label>
 
                   <label className="checkRow">
                     <input type="checkbox" checked={articleForm.recommended} onChange={(e) => setArticleForm({ ...articleForm, recommended: e.target.checked })} />
-                    <span>Best choice recommendation</span>
+                    <span>{t("admin.catalog.bestChoice")}</span>
                   </label>
 
                   <label className="fullCol">
-                    <span>Short description</span>
+                    <span>{t("admin.catalog.shortDescription")}</span>
                     <textarea rows="4" value={articleForm.description} onChange={(e) => setArticleForm({ ...articleForm, description: e.target.value })} />
                   </label>
 
                   <label className="fullCol">
-                    <span>More information</span>
+                    <span>{t("admin.catalog.moreInformation")}</span>
                     <textarea rows="6" value={articleForm.details} onChange={(e) => setArticleForm({ ...articleForm, details: e.target.value })} />
                   </label>
 
                   <div className="admDialogActions">
                     <button type="submit" className="admBtn primary" disabled={busyCatalog}>
-                      {editingArticleId ? "Update article" : "Save article"}
+                      {editingArticleId ? t("admin.common.updateArticle") : t("admin.common.saveArticle")}
                     </button>
                   </div>
                 </form>
@@ -880,33 +1094,52 @@ export default function AdminPage() {
 
               <dialog ref={variationDialogRef} className="admDialog productDialog">
                 <div className="admDialogHead">
-                  <div className="admDialogTitle">{editingVariationId ? "Edit variation" : "Add variation"}</div>
-                  <button className="admBtn mini" type="button" onClick={() => variationDialogRef.current?.close()}>Close</button>
+                  <div className="admDialogTitle">
+                    {editingVariationId ? t("admin.catalog.variationDialogEdit") : t("admin.catalog.variationDialogAdd")}
+                  </div>
+                  <button className="admBtn mini" type="button" onClick={() => variationDialogRef.current?.close()}>
+                    {t("admin.common.close")}
+                  </button>
                 </div>
 
                 <form className="productForm admDialogBody" onSubmit={saveVariation}>
                   <label>
-                    <span>Color</span>
-                    <select value={variationForm.couleurId} onChange={(e) => setVariationForm({ ...variationForm, couleurId: e.target.value })} required>
-                      <option value="">Select color</option>
+                    <span>{t("admin.catalog.color")}</span>
+                    <select
+                      value={variationForm.couleurId}
+                      onChange={(e) => setVariationForm({ ...variationForm, couleurId: e.target.value })}
+                      required
+                    >
+                      <option value="">{t("admin.common.selectColor")}</option>
                       {colors.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
                     </select>
                   </label>
 
                   <label>
-                    <span>Size</span>
-                    <select value={variationForm.tailleId} onChange={(e) => setVariationForm({ ...variationForm, tailleId: e.target.value })} required>
-                      <option value="">Select size</option>
+                    <span>{t("admin.catalog.size")}</span>
+                    <select
+                      value={variationForm.tailleId}
+                      onChange={(e) => setVariationForm({ ...variationForm, tailleId: e.target.value })}
+                      required
+                    >
+                      <option value="">{t("admin.common.selectSize")}</option>
                       {sizes.map((s) => <option key={s.id} value={s.id}>{s.pointure}</option>)}
                     </select>
                   </label>
 
-                  <label><span>Price</span><input type="number" step="0.001" value={variationForm.prix} onChange={(e) => setVariationForm({ ...variationForm, prix: e.target.value })} required /></label>
-                  <label><span>Stock</span><input type="number" value={variationForm.quantiteStock} onChange={(e) => setVariationForm({ ...variationForm, quantiteStock: e.target.value })} required /></label>
+                  <label>
+                    <span>{t("admin.catalog.price")}</span>
+                    <input type="number" step="0.001" value={variationForm.prix} onChange={(e) => setVariationForm({ ...variationForm, prix: e.target.value })} required />
+                  </label>
+
+                  <label>
+                    <span>{t("admin.catalog.stock")}</span>
+                    <input type="number" value={variationForm.quantiteStock} onChange={(e) => setVariationForm({ ...variationForm, quantiteStock: e.target.value })} required />
+                  </label>
 
                   <div className="admDialogActions">
                     <button type="submit" className="admBtn primary" disabled={busyCatalog}>
-                      {editingVariationId ? "Update variation" : "Save variation"}
+                      {editingVariationId ? t("admin.common.updateVariation") : t("admin.common.saveVariation")}
                     </button>
                   </div>
                 </form>
@@ -914,61 +1147,115 @@ export default function AdminPage() {
 
               <dialog ref={categoryDialogRef} className="admDialog productDialog">
                 <div className="admDialogHead">
-                  <div className="admDialogTitle">{editingCategoryId ? "Edit category" : "Add category"}</div>
-                  <button className="admBtn mini" type="button" onClick={() => categoryDialogRef.current?.close()}>Close</button>
+                  <div className="admDialogTitle">
+                    {editingCategoryId ? t("admin.catalog.categoryDialogEdit") : t("admin.catalog.categoryDialogAdd")}
+                  </div>
+                  <button className="admBtn mini" type="button" onClick={() => categoryDialogRef.current?.close()}>
+                    {t("admin.common.close")}
+                  </button>
                 </div>
+
                 <form className="productForm admDialogBody" onSubmit={saveCategory}>
-                  <label><span>Name</span><input value={categoryForm.nom} onChange={(e) => setCategoryForm({ ...categoryForm, nom: e.target.value })} required /></label>
-                  <label className="fullCol"><span>Description</span><textarea rows="4" value={categoryForm.description} onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} /></label>
-                  <div className="admDialogActions"><button type="submit" className="admBtn primary">{editingCategoryId ? "Update category" : "Save category"}</button></div>
+                  <label>
+                    <span>{t("admin.catalog.name")}</span>
+                    <input value={categoryForm.nom} onChange={(e) => setCategoryForm({ ...categoryForm, nom: e.target.value })} required />
+                  </label>
+
+                  <label className="fullCol">
+                    <span>{t("admin.catalog.description")}</span>
+                    <textarea rows="4" value={categoryForm.description} onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} />
+                  </label>
+
+                  <div className="admDialogActions">
+                    <button type="submit" className="admBtn primary">
+                      {editingCategoryId ? t("admin.common.updateCategory") : t("admin.common.saveCategory")}
+                    </button>
+                  </div>
                 </form>
               </dialog>
 
               <dialog ref={colorDialogRef} className="admDialog productDialog">
                 <div className="admDialogHead">
-                  <div className="admDialogTitle">{editingColorId ? "Edit color" : "Add color"}</div>
-                  <button className="admBtn mini" type="button" onClick={() => colorDialogRef.current?.close()}>Close</button>
+                  <div className="admDialogTitle">
+                    {editingColorId ? t("admin.catalog.colorDialogEdit") : t("admin.catalog.colorDialogAdd")}
+                  </div>
+                  <button className="admBtn mini" type="button" onClick={() => colorDialogRef.current?.close()}>
+                    {t("admin.common.close")}
+                  </button>
                 </div>
+
                 <form className="productForm admDialogBody" onSubmit={saveColor}>
-                  <label><span>Name</span><input value={colorForm.nom} onChange={(e) => setColorForm({ ...colorForm, nom: e.target.value })} required /></label>
-                  <label><span>Hex color</span><input value={colorForm.codeHex} onChange={(e) => setColorForm({ ...colorForm, codeHex: e.target.value })} required /></label>
-                  <div className="admDialogActions"><button type="submit" className="admBtn primary">{editingColorId ? "Update color" : "Save color"}</button></div>
+                  <label>
+                    <span>{t("admin.catalog.name")}</span>
+                    <input value={colorForm.nom} onChange={(e) => setColorForm({ ...colorForm, nom: e.target.value })} required />
+                  </label>
+
+                  <label>
+                    <span>{t("admin.catalog.hexColor")}</span>
+                    <input value={colorForm.codeHex} onChange={(e) => setColorForm({ ...colorForm, codeHex: e.target.value })} required />
+                  </label>
+
+                  <div className="admDialogActions">
+                    <button type="submit" className="admBtn primary">
+                      {editingColorId ? t("admin.common.updateColor") : t("admin.common.saveColor")}
+                    </button>
+                  </div>
                 </form>
               </dialog>
 
               <dialog ref={sizeDialogRef} className="admDialog productDialog">
                 <div className="admDialogHead">
-                  <div className="admDialogTitle">{editingSizeId ? "Edit size" : "Add size"}</div>
-                  <button className="admBtn mini" type="button" onClick={() => sizeDialogRef.current?.close()}>Close</button>
+                  <div className="admDialogTitle">
+                    {editingSizeId ? t("admin.catalog.sizeDialogEdit") : t("admin.catalog.sizeDialogAdd")}
+                  </div>
+                  <button className="admBtn mini" type="button" onClick={() => sizeDialogRef.current?.close()}>
+                    {t("admin.common.close")}
+                  </button>
                 </div>
+
                 <form className="productForm admDialogBody" onSubmit={saveSize}>
-                  <label><span>Size</span><input value={sizeForm.pointure} onChange={(e) => setSizeForm({ ...sizeForm, pointure: e.target.value })} required /></label>
-                  <div className="admDialogActions"><button type="submit" className="admBtn primary">{editingSizeId ? "Update size" : "Save size"}</button></div>
+                  <label>
+                    <span>{t("admin.catalog.size")}</span>
+                    <input value={sizeForm.pointure} onChange={(e) => setSizeForm({ ...sizeForm, pointure: e.target.value })} required />
+                  </label>
+
+                  <div className="admDialogActions">
+                    <button type="submit" className="admBtn primary">
+                      {editingSizeId ? t("admin.common.updateSize") : t("admin.common.saveSize")}
+                    </button>
+                  </div>
                 </form>
               </dialog>
 
               <dialog ref={clientDialogRef} className="admDialog">
                 <div className="admDialogHead">
-                  <div className="admDialogTitle">Client profile</div>
-                  <button className="admBtn mini" type="button" onClick={() => clientDialogRef.current?.close()}>Close</button>
+                  <div className="admDialogTitle">{t("admin.customers.profileTitle")}</div>
+                  <button className="admBtn mini" type="button" onClick={() => clientDialogRef.current?.close()}>
+                    {t("admin.common.close")}
+                  </button>
                 </div>
+
                 {!selected ? (
-                  <div className="admDialogBody">No client selected.</div>
+                  <div className="admDialogBody">{t("admin.customers.noClientSelected")}</div>
                 ) : (
                   <div className="admDialogBody">
                     <div className="admSideTop">
                       <div className="admAvatar big">{initials(selected.nom, selected.prenom)}</div>
                       <div>
-                        <div className="admSideName">{selected.prenom} {selected.nom}</div>
-                        <div className="admSideRole">{selected.role} • {selected.statutCompte}</div>
+                        <div className="admSideName">
+                          {selected.prenom} {selected.nom}
+                        </div>
+                        <div className="admSideRole">
+                          {selected.role} • {selected.statutCompte}
+                        </div>
                       </div>
                     </div>
 
                     <div className="admDivider" />
                     <div className="admInfo">
-                      <div className="admInfoRow"><span>Email</span><span className="mono">{selected.email}</span></div>
-                      <div className="admInfoRow"><span>Status</span><span>{selected.statutCompte}</span></div>
-                      <div className="admInfoRow"><span>Created</span><span>{fmt(selected.dateDeCreation)}</span></div>
+                      <div className="admInfoRow"><span>{t("admin.table.email")}</span><span className="mono">{selected.email}</span></div>
+                      <div className="admInfoRow"><span>{t("admin.table.status")}</span><span>{selected.statutCompte}</span></div>
+                      <div className="admInfoRow"><span>{t("admin.common.created")}</span><span>{fmt(selected.dateDeCreation)}</span></div>
                       <div className="admInfoRow"><span>ID</span><span className="mono">{selected.id}</span></div>
                     </div>
                   </div>
@@ -977,56 +1264,56 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
         {section === "dashboard" && (
-  <div className="fadeInUp">
-    <div className="admPage">
-      <div className="admHeader">
-        <div>
-          <div className="admH1">Statistics Dashboard</div>
-          <div className="admH2">Track products, customers, stock and sales</div>
-        </div>
-      </div>
+          <div className="fadeInUp">
+            <div className="admPage">
+              <div className="admHeader">
+                <div>
+                  <div className="admH1">{t("admin.dashboard.title")}</div>
+                  <div className="admH2">{t("admin.dashboard.subtitle")}</div>
+                </div>
+              </div>
 
-      <div className="admGrid dashboardTopGrid">
-        <div className="admCard statCard">
-          <div className="admCardTitle">Customers</div>
-          <div className="statValue">{rows.length}</div>
-        </div>
+              <div className="admGrid dashboardTopGrid">
+                <div className="admCard statCard">
+                  <div className="admCardTitle">{t("admin.dashboard.customers")}</div>
+                  <div className="statValue">{rows.length}</div>
+                </div>
 
-        <div className="admCard statCard">
-          <div className="admCardTitle">Articles</div>
-          <div className="statValue">{articles.length}</div>
-        </div>
+                <div className="admCard statCard">
+                  <div className="admCardTitle">{t("admin.dashboard.articles")}</div>
+                  <div className="statValue">{articles.length}</div>
+                </div>
 
-        <div className="admCard statCard">
-          <div className="admCardTitle">Categories</div>
-          <div className="statValue">{categories.length}</div>
-        </div>
+                <div className="admCard statCard">
+                  <div className="admCardTitle">{t("admin.dashboard.categories")}</div>
+                  <div className="statValue">{categories.length}</div>
+                </div>
 
-        <div className="admCard statCard">
-          <div className="admCardTitle">Recommended</div>
-          <div className="statValue">{articles.filter((a) => !!a.recommended).length}</div>
-        </div>
-      </div>
+                <div className="admCard statCard">
+                  <div className="admCardTitle">{t("admin.dashboard.recommended")}</div>
+                  <div className="statValue">{articles.filter((a) => !!a.recommended).length}</div>
+                </div>
+              </div>
 
-      <div className="admCard powerbiCard">
-        <div className="admCardTop">
-          <div className="admCardTitle">Power BI Report</div>
-        </div>
+              <div className="admCard powerbiCard">
+                <div className="admCardTop">
+                  <div className="admCardTitle">{t("admin.dashboard.powerBi")}</div>
+                </div>
 
-        <iframe
-          title="Power BI Dashboard"
-          src="PASTE_YOUR_POWER_BI_EMBED_URL_HERE"
-          width="100%"
-          height="720"
-          frameBorder="0"
-          allowFullScreen
-        />
-      </div>
-    </div>
-  </div>
-)}
-
+                <iframe
+                  title="Power BI Dashboard"
+                  src="PASTE_YOUR_POWER_BI_EMBED_URL_HERE"
+                  width="100%"
+                  height="720"
+                  frameBorder="0"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

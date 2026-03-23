@@ -926,3 +926,68 @@ select {
 .productImage.emptyImage {
   min-height: 260px;
 }
+.langMenuWrap {
+  position: relative;
+}
+
+.langMenuBtn {
+  height: 46px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.langDropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 200px;
+  background: #fff;
+  border: 1px solid #ececec;
+  border-radius: 18px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.12);
+  padding: 8px;
+  z-index: 100;
+}
+
+.langOption {
+  width: 100%;
+  border: none;
+  background: transparent;
+  border-radius: 12px;
+  padding: 11px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  text-align: left;
+  font-weight: 700;
+}
+
+.langOption:hover,
+.langOption.active {
+  background: #f3f4f6;
+}
+
+.langFlag {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.langArrow {
+  transition: transform 0.2s ease;
+}
+
+.langArrow.open {
+  transform: rotate(180deg);
+}
+
+html[dir="rtl"] body {
+  direction: rtl;
+}
