@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
+import "../styles/home.css";
 import "../styles/product-details.css";
 import UserIconMenu from "../components/UserIconMenu";
 import LanguageMenu from "../components/LanguageMenu";
@@ -19,6 +20,16 @@ const fmtPrice = (v) => {
 };
 
 const starsText = (n) => "★".repeat(n) + "☆".repeat(5 - n);
+
+function getCartCount() {
+  try {
+    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
+    if (!Array.isArray(cart)) return 0;
+    return cart.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  } catch {
+    return 0;
+  }
+}
 
 function hasValidSaleFields(p) {
   return p && p.salePrice !== null && p.salePrice !== undefined && p.salePrice !== "";
@@ -38,50 +49,64 @@ function isSaleActive(p) {
   return true;
 }
 
-function getDiscountPercent(p) {
-  if (!isSaleActive(p)) return null;
-  return Math.round(((Number(p.prix) - Number(p.salePrice)) / Number(p.prix)) * 100);
+function normalizeId(v) {
+  if (v === null || v === undefined || v === "") return "";
+  return String(v);
 }
 
-function getDisplayPrice(p) {
-  return isSaleActive(p) ? Number(p.salePrice) : Number(p.prix);
+function getColorId(obj) {
+  return normalizeId(obj?.couleurId ?? obj?.colorId ?? obj?.id);
 }
 
-function formatCountdown(endAt, nowTick, t) {
-  if (!endAt) return t("home.limitedOffer", "Limited offer");
-  const diff = new Date(endAt).getTime() - nowTick;
-  if (diff <= 0) return t("home.saleEnded", "Sale ended");
-
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
-  const minutes = Math.floor((diff / (1000 * 60)) % 60);
-  const seconds = Math.floor((diff / 1000) % 60);
-
-  if (days > 0) return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
-  return `${minutes}m ${seconds}s`;
+function getColorName(obj) {
+  return obj?.couleurNom ?? obj?.colorName ?? obj?.nom ?? "";
 }
 
-function mergeSaleFields(detailProduct, listProduct) {
-  if (!detailProduct) return null;
-  if (!listProduct) return detailProduct;
+function getColorHex(obj) {
+  return obj?.couleurCodeHex ?? obj?.colorCodeHex ?? obj?.codeHex ?? obj?.codehex ?? "#ddd";
+}
 
-  return {
-    ...detailProduct,
-    salePrice: detailProduct.salePrice ?? listProduct.salePrice ?? null,
-    saleStartAt: detailProduct.saleStartAt ?? listProduct.saleStartAt ?? null,
-    saleEndAt: detailProduct.saleEndAt ?? listProduct.saleEndAt ?? null,
-    prix: detailProduct.prix ?? listProduct.prix ?? null,
-    categorieNom: detailProduct.categorieNom ?? listProduct.categorieNom ?? "",
-    categorieId: detailProduct.categorieId ?? listProduct.categorieId ?? null,
-    marque: detailProduct.marque ?? listProduct.marque ?? "",
-    matiere: detailProduct.matiere ?? listProduct.matiere ?? "",
-    sku: detailProduct.sku ?? listProduct.sku ?? "",
-    imageUrl: detailProduct.imageUrl ?? listProduct.imageUrl ?? "",
-    imageUrl2: detailProduct.imageUrl2 ?? listProduct.imageUrl2 ?? "",
-    imageUrl3: detailProduct.imageUrl3 ?? listProduct.imageUrl3 ?? "",
-    imageUrl4: detailProduct.imageUrl4 ?? listProduct.imageUrl4 ?? "",
-  };
+function getSizeId(obj) {
+  return normalizeId(obj?.tailleId ?? obj?.sizeId ?? obj?.id);
+}
+
+function getSizeLabel(obj) {
+  return obj?.taillePointure ?? obj?.pointure ?? obj?.sizeLabel ?? "";
+}
+
+function getVariationColorId(v) {
+  return normalizeId(v?.couleurId ?? v?.colorId ?? v?.couleur?.id ?? v?.color?.id);
+}
+
+function getVariationColorName(v) {
+  return v?.couleurNom ?? v?.colorName ?? v?.couleur?.nom ?? v?.color?.nom ?? "";
+}
+
+function getVariationColorHex(v) {
+  return v?.couleurCodeHex ?? v?.colorCodeHex ?? v?.couleur?.codeHex ?? v?.couleur?.codehex ?? "#ddd";
+}
+
+function getVariationSizeId(v) {
+  return normalizeId(v?.tailleId ?? v?.sizeId ?? v?.taille?.id ?? v?.size?.id);
+}
+
+function getVariationSizeLabel(v) {
+  return v?.taillePointure ?? v?.pointure ?? v?.taille?.pointure ?? v?.size?.pointure ?? "";
+}
+
+function getVariationStock(v) {
+  return Number(v?.quantiteStock ?? v?.stock ?? 0);
+}
+
+function getVariationPrice(v, article) {
+  const val = v?.prix ?? article?.prix;
+  return Number(val || 0);
+}
+
+function getVariationImages(v, article) {
+  const variationImages = [v?.imageUrl, v?.imageUrl2, v?.imageUrl3, v?.imageUrl4].filter(Boolean);
+  if (variationImages.length) return variationImages;
+  return [article?.imageUrl, article?.imageUrl2, article?.imageUrl3, article?.imageUrl4].filter(Boolean);
 }
 
 export default function ProductDetailsPage({ me, setMe }) {
@@ -98,8 +123,26 @@ export default function ProductDetailsPage({ me, setMe }) {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("details");
   const [qty, setQty] = useState(1);
-  const [nowTick, setNowTick] = useState(Date.now());
   const [error, setError] = useState("");
+  const [selectedColorId, setSelectedColorId] = useState("");
+  const [selectedSizeId, setSelectedSizeId] = useState("");
+  const [cartCount, setCartCount] = useState(getCartCount);
+  const [cartMessage, setCartMessage] = useState("");
+
+  useEffect(() => {
+    const syncCart = () => setCartCount(getCartCount());
+    syncCart();
+
+    window.addEventListener("storage", syncCart);
+    window.addEventListener("focus", syncCart);
+    window.addEventListener("cart-updated", syncCart);
+
+    return () => {
+      window.removeEventListener("storage", syncCart);
+      window.removeEventListener("focus", syncCart);
+      window.removeEventListener("cart-updated", syncCart);
+    };
+  }, []);
 
   async function loadData() {
     setError("");
@@ -112,27 +155,16 @@ export default function ProductDetailsPage({ me, setMe }) {
 
     const detailProduct = detailRes.data;
     const all = Array.isArray(listRes.data) ? listRes.data : [];
-    const listProduct = all.find((a) => Number(a.id) === Number(id));
-    const mergedProduct = mergeSaleFields(detailProduct, listProduct);
 
-    setArticle(mergedProduct);
+    setArticle(detailProduct);
     setReviews(Array.isArray(reviewsRes.data) ? reviewsRes.data : []);
-
-    const imgs = [
-      mergedProduct?.imageUrl,
-      mergedProduct?.imageUrl2,
-      mergedProduct?.imageUrl3,
-      mergedProduct?.imageUrl4,
-    ].filter(Boolean);
-
-    setActiveImage(imgs[0] || "");
 
     const rel = all
       .filter((a) => a.actif !== false)
       .filter((a) => Number(a.id) !== Number(id))
       .filter((a) =>
-        mergedProduct?.categorieId
-          ? Number(a.categorieId) === Number(mergedProduct.categorieId)
+        detailProduct?.categorieId
+          ? Number(a.categorieId) === Number(detailProduct.categorieId)
           : true
       )
       .slice(0, 4);
@@ -150,15 +182,118 @@ export default function ProductDetailsPage({ me, setMe }) {
       .finally(() => setLoading(false));
   }, [id, t]);
 
+  const variations = useMemo(() => {
+    return Array.isArray(article?.variations) ? article.variations : [];
+  }, [article]);
+
+  const colors = useMemo(() => {
+    const map = new Map();
+
+    variations.forEach((v) => {
+      const colorId = getVariationColorId(v);
+      if (!colorId) return;
+
+      if (!map.has(colorId)) {
+        map.set(colorId, {
+          couleurId: colorId,
+          couleurNom: getVariationColorName(v),
+          couleurCodeHex: getVariationColorHex(v),
+          totalStock: 0,
+          previewImage: v?.imageUrl || "",
+        });
+      }
+
+      const row = map.get(colorId);
+      row.totalStock += getVariationStock(v);
+
+      if (!row.couleurNom) row.couleurNom = getVariationColorName(v);
+      if (!row.couleurCodeHex || row.couleurCodeHex === "#ddd") {
+        row.couleurCodeHex = getVariationColorHex(v);
+      }
+      if (!row.previewImage && v?.imageUrl) row.previewImage = v.imageUrl;
+    });
+
+    if (Array.isArray(article?.colors)) {
+      article.colors.forEach((c) => {
+        const colorId = getColorId(c);
+        if (!colorId) return;
+
+        if (!map.has(colorId)) {
+          map.set(colorId, {
+            couleurId: colorId,
+            couleurNom: getColorName(c),
+            couleurCodeHex: getColorHex(c),
+            totalStock: 0,
+            previewImage: "",
+          });
+        } else {
+          const row = map.get(colorId);
+          if (!row.couleurNom) row.couleurNom = getColorName(c);
+          if (!row.couleurCodeHex || row.couleurCodeHex === "#ddd") {
+            row.couleurCodeHex = getColorHex(c);
+          }
+        }
+      });
+    }
+
+    return Array.from(map.values());
+  }, [article, variations]);
+
   useEffect(() => {
-    const tick = setInterval(() => setNowTick(Date.now()), 1000);
-    return () => clearInterval(tick);
-  }, []);
+    if (!colors.length) {
+      setSelectedColorId("");
+      return;
+    }
+
+    const stillExists = colors.some((c) => String(c.couleurId) === String(selectedColorId));
+    if (stillExists) return;
+
+    const firstAvailableColor = colors.find((c) => Number(c.totalStock || 0) > 0) || colors[0];
+    setSelectedColorId(String(firstAvailableColor.couleurId));
+  }, [colors, selectedColorId]);
+
+  const sizeOptions = useMemo(() => {
+    return variations
+      .filter((v) => String(getVariationColorId(v)) === String(selectedColorId))
+      .sort((a, b) =>
+        String(getVariationSizeLabel(a)).localeCompare(String(getVariationSizeLabel(b)), undefined, {
+          numeric: true,
+        })
+      );
+  }, [variations, selectedColorId]);
+
+  useEffect(() => {
+    if (!sizeOptions.length) {
+      setSelectedSizeId("");
+      setQty(1);
+      return;
+    }
+
+    const stillExists = sizeOptions.some((v) => String(getVariationSizeId(v)) === String(selectedSizeId));
+    if (stillExists) return;
+
+    const firstAvailable = sizeOptions.find((v) => getVariationStock(v) > 0) || sizeOptions[0];
+    setSelectedSizeId(String(getVariationSizeId(firstAvailable)));
+    setQty(1);
+  }, [sizeOptions, selectedSizeId]);
+
+  const selectedVariation = useMemo(() => {
+    return sizeOptions.find((v) => String(getVariationSizeId(v)) === String(selectedSizeId)) || null;
+  }, [sizeOptions, selectedSizeId]);
 
   const gallery = useMemo(() => {
-    if (!article) return [];
-    return [article.imageUrl, article.imageUrl2, article.imageUrl3, article.imageUrl4].filter(Boolean);
-  }, [article]);
+    if (selectedVariation) return getVariationImages(selectedVariation, article);
+
+    const colorPreviewVariation = variations.find(
+      (v) => String(getVariationColorId(v)) === String(selectedColorId)
+    );
+
+    return getVariationImages(colorPreviewVariation, article);
+  }, [selectedVariation, article, variations, selectedColorId]);
+
+  useEffect(() => {
+    setActiveImage(gallery[0] || "");
+  }, [gallery]);
 
   const avg = useMemo(() => {
     if (!reviews.length) return 0;
@@ -185,37 +320,71 @@ export default function ProductDetailsPage({ me, setMe }) {
   }
 
   function addToCart() {
-    if (!article) return;
+    if (!article || !selectedVariation) return;
+
+    if (getVariationStock(selectedVariation) <= 0) {
+      alert(t("product.soldOut", "Sold out"));
+      return;
+    }
+
+    const limitedQty = Math.min(qty, Math.max(1, getVariationStock(selectedVariation)));
 
     const item = {
       id: article.id,
+      variationId: selectedVariation.id,
       nom: article.nom,
-      prix: getDisplayPrice(article),
-      qty,
-      imageUrl: article.imageUrl || "",
+      prix: isSaleActive(article)
+        ? Number(article.salePrice)
+        : getVariationPrice(selectedVariation, article),
+      qty: limitedQty,
+      imageUrl: gallery[0] || "",
+      couleurId: getVariationColorId(selectedVariation),
+      couleurNom: getVariationColorName(selectedVariation),
+      tailleId: getVariationSizeId(selectedVariation),
+      taillePointure: getVariationSizeLabel(selectedVariation),
     };
 
     const existing = JSON.parse(localStorage.getItem("cart") || "[]");
-    const found = existing.find((x) => Number(x.id) === Number(article.id));
+
+    const found = existing.find(
+      (x) => Number(x.id) === Number(item.id) && Number(x.variationId) === Number(item.variationId)
+    );
 
     const next = found
       ? existing.map((x) =>
-          Number(x.id) === Number(article.id)
-            ? { ...x, qty: Number(x.qty || 0) + qty }
+          Number(x.id) === Number(item.id) && Number(x.variationId) === Number(item.variationId)
+            ? {
+                ...x,
+                qty: Math.min(
+                  Number(x.qty || 0) + limitedQty,
+                  Math.max(1, getVariationStock(selectedVariation))
+                ),
+              }
             : x
         )
       : [...existing, item];
 
     localStorage.setItem("cart", JSON.stringify(next));
-    alert(t("product.addedToCart", "Added to cart"));
+    window.dispatchEvent(new Event("cart-updated"));
+    setCartCount(getCartCount());
+    setCartMessage(t("product.addedToCart", "Added to cart"));
+    setQty(1);
+
+    setTimeout(() => {
+      setCartMessage("");
+    }, 2000);
   }
 
-  if (loading) return <div className="pdInfo">{t("common.loading")}</div>;
+  if (loading) return <div className="pdInfo">{t("common.loading", "Loading...")}</div>;
   if (error) return <div className="pdInfo error">{error}</div>;
   if (!article) return <div className="pdInfo error">{t("product.notFound", "Product not found.")}</div>;
 
   const onSale = isSaleActive(article);
-  const discount = getDiscountPercent(article);
+  const currentPrice = onSale
+    ? Number(article.salePrice)
+    : Number(selectedVariation ? getVariationPrice(selectedVariation, article) : article.prix);
+
+  const currentStock = selectedVariation ? getVariationStock(selectedVariation) : 0;
 
   return (
     <div className="pdPage">
@@ -223,16 +392,24 @@ export default function ProductDetailsPage({ me, setMe }) {
         <Link to="/" className="logo">EMIRIO</Link>
 
         <nav className="mainNav">
-          <Link to="/">{t("nav.home")}</Link>
-          <Link to="/catalog">{t("nav.catalog")}</Link>
+          <Link to="/">{t("nav.home", "Home")}</Link>
+          <Link to="/catalog">{t("nav.catalog", "Catalog")}</Link>
+          <Link to="/cart">{t("nav.cart", "Cart")}</Link>
           <a href="#pd-reviews">{t("product.reviews", "Reviews")}</a>
           <a href="#pd-related">{t("product.related", "Related")}</a>
         </nav>
 
         <div className="headerActions">
+          <button type="button" className="cartHeaderBtn" onClick={() => navigate("/cart")}>
+            <span>🛒</span>
+            <span>{t("nav.cart", "Cart")}</span>
+            {cartCount > 0 ? <span className="cartBadge">{cartCount}</span> : null}
+          </button>
+
           <button type="button" className="viewAllBtn" onClick={() => navigate("/catalog")}>
             {t("product.shop", "Shop")}
           </button>
+
           <LanguageMenu />
           <UserIconMenu me={me} setMe={setMe} />
         </div>
@@ -240,7 +417,7 @@ export default function ProductDetailsPage({ me, setMe }) {
 
       <div className="pdContainer">
         <div className="pdBreadcrumb">
-          <Link to="/">{t("nav.home")}</Link>
+          <Link to="/">{t("nav.home", "Home")}</Link>
           <span>/</span>
           <Link to="/catalog">{t("product.shop", "Shop")}</Link>
           <span>/</span>
@@ -265,19 +442,11 @@ export default function ProductDetailsPage({ me, setMe }) {
             </div>
 
             <div className="pdMainImageWrap">
-              {activeImage || gallery[0] ? (
-                <img
-                  src={toAbs(activeImage || gallery[0])}
-                  alt={article.nom}
-                  className="pdMainImage"
-                />
+              {activeImage ? (
+                <img src={toAbs(activeImage)} alt={article.nom} className="pdMainImage" />
               ) : (
                 <div className="pdEmptyImage">{t("common.noImage", "No image")}</div>
               )}
-
-              {onSale && discount ? (
-                <div className="pdSaleBadge">SALE -{discount}%</div>
-              ) : null}
             </div>
           </div>
 
@@ -292,32 +461,13 @@ export default function ProductDetailsPage({ me, setMe }) {
             </div>
 
             <div className="pdPriceLine">
-              <span className="pdPriceNow">{fmtPrice(getDisplayPrice(article))}</span>
-              {onSale ? <span className="pdPriceOld">{fmtPrice(article.prix)}</span> : null}
-              {onSale && discount ? <span className="pdDiscountChip">-{discount}%</span> : null}
+              <span className="pdPriceNow">{fmtPrice(currentPrice)}</span>
+              {onSale ? (
+                <span className="pdPriceOld">
+                  {fmtPrice(selectedVariation ? getVariationPrice(selectedVariation, article) : article.prix)}
+                </span>
+              ) : null}
             </div>
-
-            {onSale ? (
-              <div className="pdSaleInfo">
-                <div className="pdSaleLine">
-                  <span className="pdSaleLabel">{t("product.salePrice", "Sale price")}</span>
-                  <strong>{fmtPrice(article.salePrice)}</strong>
-                </div>
-                <div className="pdSaleLine">
-                  <span className="pdSaleLabel">{t("home.endsIn", "Ends in")}</span>
-                  <strong>{formatCountdown(article.saleEndAt, nowTick, t)}</strong>
-                </div>
-              </div>
-            ) : null}
-
-            {!onSale && hasValidSaleFields(article) ? (
-              <div className="pdInfo error" style={{ margin: "16px 0 0", width: "100%" }}>
-                {t(
-                  "product.saleInactive",
-                  "Sale exists but is not active now. Check sale dates and price."
-                )}
-              </div>
-            ) : null}
 
             <p className="pdDesc">
               {article.description || t("product.noDescription", "No description available for this product.")}
@@ -327,21 +477,75 @@ export default function ProductDetailsPage({ me, setMe }) {
 
             <div className="pdMetaGrid">
               <div>
-                <span>{t("catalog.category")}</span>
+                <span>{t("catalog.category", "Category")}</span>
                 <strong>{article.categorieNom || "-"}</strong>
               </div>
               <div>
-                <span>{t("catalog.brand")}</span>
+                <span>{t("catalog.brand", "Brand")}</span>
                 <strong>{article.marque || "-"}</strong>
               </div>
               <div>
-                <span>{t("catalog.material")}</span>
+                <span>{t("catalog.material", "Material")}</span>
                 <strong>{article.matiere || "-"}</strong>
               </div>
               <div>
-                <span>{t("catalog.sku")}</span>
+                <span>{t("catalog.sku", "SKU")}</span>
                 <strong>{article.sku || "-"}</strong>
               </div>
+            </div>
+
+            <div className="pdDivider" />
+
+            <div className="pdLabel">{t("product.color", "Color")}</div>
+            <div className="pdColorRow">
+              {colors.map((c) => {
+                const active = String(c.couleurId) === String(selectedColorId);
+                const soldOut = Number(c.totalStock || 0) <= 0;
+
+                return (
+                  <button
+                    key={c.couleurId}
+                    type="button"
+                    className={`pdColorCard ${active ? "active" : ""} ${soldOut ? "sold" : ""}`}
+                    onClick={() => setSelectedColorId(String(c.couleurId))}
+                  >
+                    <span className="pdColorSwatch" style={{ background: c.couleurCodeHex || "#ddd" }} />
+                    <span className="pdColorName">{c.couleurNom || "-"}</span>
+                    <span className="pdColorStock">
+                      {soldOut ? "Sold out" : `${c.totalStock} in stock`}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="pdLabel" style={{ marginTop: 18 }}>{t("product.size", "Size")}</div>
+            <div className="pdSizeRow">
+              {sizeOptions.map((v) => {
+                const sizeId = getVariationSizeId(v);
+                const active = String(sizeId) === String(selectedSizeId);
+                const soldOut = getVariationStock(v) <= 0;
+
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    className={`pdSizeBtn ${active ? "active" : ""} ${soldOut ? "sold" : ""}`}
+                    onClick={() => setSelectedSizeId(String(sizeId))}
+                  >
+                    <span>{getVariationSizeLabel(v)}</span>
+                    <small>{soldOut ? "Sold out" : `${getVariationStock(v)} left`}</small>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className={`pdStockNotice ${currentStock > 0 ? "ok" : "bad"}`}>
+              {selectedVariation
+                ? currentStock > 0
+                  ? `Selected: ${getVariationColorName(selectedVariation)} / ${getVariationSizeLabel(selectedVariation)} · ${currentStock} in stock`
+                  : `Selected: ${getVariationColorName(selectedVariation)} / ${getVariationSizeLabel(selectedVariation)} · Sold out`
+                : "Select color and size"}
             </div>
 
             <div className="pdDivider" />
@@ -352,37 +556,38 @@ export default function ProductDetailsPage({ me, setMe }) {
               <div className="qtyBox">
                 <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))}>-</button>
                 <strong>{qty}</strong>
-                <button type="button" onClick={() => setQty((q) => q + 1)}>+</button>
+                <button
+                  type="button"
+                  onClick={() => setQty((q) => Math.min(q + 1, Math.max(1, currentStock)))}
+                  disabled={currentStock <= qty}
+                >
+                  +
+                </button>
               </div>
 
-              <button type="button" className="addCartBtn" onClick={addToCart}>
-                {t("product.addToCart", "Add to Cart")}
+              <button
+                type="button"
+                className="addCartBtn"
+                onClick={addToCart}
+                disabled={!selectedVariation || currentStock <= 0}
+              >
+                {currentStock > 0 ? t("product.addToCart", "Add to Cart") : t("product.soldOut", "Sold out")}
               </button>
             </div>
+
+            {cartMessage ? <div className="cartSuccessMsg">{cartMessage}</div> : null}
           </div>
         </section>
 
         <section className="pdTabsBlock">
           <div className="pdTabs">
-            <button
-              type="button"
-              className={tab === "details" ? "active" : ""}
-              onClick={() => setTab("details")}
-            >
+            <button type="button" className={tab === "details" ? "active" : ""} onClick={() => setTab("details")}>
               {t("product.productDetails", "Product Details")}
             </button>
-            <button
-              type="button"
-              className={tab === "reviews" ? "active" : ""}
-              onClick={() => setTab("reviews")}
-            >
+            <button type="button" className={tab === "reviews" ? "active" : ""} onClick={() => setTab("reviews")}>
               {t("product.ratingReviews", "Rating & Reviews")}
             </button>
-            <button
-              type="button"
-              className={tab === "shipping" ? "active" : ""}
-              onClick={() => setTab("shipping")}
-            >
+            <button type="button" className={tab === "shipping" ? "active" : ""} onClick={() => setTab("shipping")}>
               {t("product.info", "Info")}
             </button>
           </div>
@@ -409,9 +614,7 @@ export default function ProductDetailsPage({ me, setMe }) {
           {tab === "reviews" && (
             <div className="pdLongInfo" id="pd-reviews">
               <div className="pdReviewsHead">
-                <h3>
-                  {t("product.allReviews", "All Reviews")} ({reviews.length})
-                </h3>
+                <h3>{t("product.allReviews", "All Reviews")} ({reviews.length})</h3>
               </div>
 
               <form className="reviewForm" onSubmit={submitReview}>
@@ -450,6 +653,10 @@ export default function ProductDetailsPage({ me, setMe }) {
                     <p>{r.comment}</p>
                   </div>
                 ))}
+
+                {!reviews.length ? (
+                  <div className="pdInfo">{t("product.noReviews", "No reviews yet.")}</div>
+                ) : null}
               </div>
             </div>
           )}
@@ -460,8 +667,6 @@ export default function ProductDetailsPage({ me, setMe }) {
 
           <div className="pdRelatedGrid">
             {related.map((p) => {
-              const relatedSale = isSaleActive(p);
-              const relatedDiscount = getDiscountPercent(p);
               const relatedImage = [p.imageUrl, p.imageUrl2, p.imageUrl3, p.imageUrl4].filter(Boolean)[0];
 
               return (
@@ -472,16 +677,11 @@ export default function ProductDetailsPage({ me, setMe }) {
                     ) : (
                       <div className="pdEmptySmall">{t("common.noImage", "No image")}</div>
                     )}
-                    {relatedSale && relatedDiscount ? (
-                      <div className="pdMiniSale">-{relatedDiscount}%</div>
-                    ) : null}
                   </div>
 
                   <div className="pdProductName">{p.nom}</div>
-
                   <div className="pdProductPriceRow">
-                    <strong>{fmtPrice(getDisplayPrice(p))}</strong>
-                    {relatedSale ? <span className="pdOldInline">{fmtPrice(p.prix)}</span> : null}
+                    <strong>{fmtPrice(p.salePrice && isSaleActive(p) ? p.salePrice : p.prix)}</strong>
                   </div>
                 </Link>
               );

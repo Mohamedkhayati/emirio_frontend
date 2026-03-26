@@ -220,3 +220,15 @@
     gap: 10px;
   }
 }
+.catalogPageWrap .catalogContent {
+  width: 100%;
+}
+
+.catalogPageWrap .catalogProductsGrid {
+  justify-content: flex-start;
+  align-items: stretch;
+}
+
+.catalogPageWrap .productCard {
+  width: 255px;
+}

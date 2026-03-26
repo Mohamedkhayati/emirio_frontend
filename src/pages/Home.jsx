@@ -18,6 +18,25 @@ const fmtPrice = (v) => {
   return `${Number(v).toFixed(3)} TND`;
 };
 
+function readFavorites() {
+  try {
+    const value = JSON.parse(localStorage.getItem("favorites") || "[]");
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+
+function getCartCount() {
+  try {
+    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
+    if (!Array.isArray(cart)) return 0;
+    return cart.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  } catch {
+    return 0;
+  }
+}
+
 function isSaleActive(p) {
   if (!p?.salePrice || Number(p.salePrice) >= Number(p.prix || 0)) return false;
 
@@ -138,8 +157,7 @@ function SaleHeroSlider({ articles, onOpen, nowTick }) {
 
           {onSale ? (
             <div className="heroCountdown">
-              {t("home.endsIn", "Ends in")}{" "}
-              <strong>{formatCountdown(current.saleEndAt, nowTick, t)}</strong>
+              {t("home.endsIn", "Ends in")} <strong>{formatCountdown(current.saleEndAt, nowTick, t)}</strong>
             </div>
           ) : null}
 
@@ -258,7 +276,7 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
       <div className="productName">{p.nom}</div>
 
       <div className="productMeta">
-        {p.marque || "EMIRIO"} {p.recommended ? `• ${t("nav.bestChoice")}` : ""}
+        {p.marque || "EMIRIO"} {p.recommended ? `• ${t("nav.bestChoice", "Best choice")}` : ""}
       </div>
 
       {onSale ? (
@@ -287,13 +305,8 @@ export default function Home({ me, setMe }) {
   const [search, setSearch] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [nowTick, setNowTick] = useState(Date.now());
-  const [favorites, setFavorites] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("favorites") || "[]");
-    } catch {
-      return [];
-    }
-  });
+  const [favorites, setFavorites] = useState(readFavorites);
+  const [cartCount, setCartCount] = useState(getCartCount);
 
   useEffect(() => {
     const tick = setInterval(() => setNowTick(Date.now()), 1000);
@@ -327,6 +340,21 @@ export default function Home({ me, setMe }) {
   useEffect(() => {
     localStorage.setItem("favorites", JSON.stringify(favorites));
   }, [favorites]);
+
+  useEffect(() => {
+    const syncCart = () => setCartCount(getCartCount());
+    syncCart();
+
+    window.addEventListener("storage", syncCart);
+    window.addEventListener("focus", syncCart);
+    window.addEventListener("cart-updated", syncCart);
+
+    return () => {
+      window.removeEventListener("storage", syncCart);
+      window.removeEventListener("focus", syncCart);
+      window.removeEventListener("cart-updated", syncCart);
+    };
+  }, []);
 
   const filteredArticles = useMemo(() => {
     let list = [...articles];
@@ -372,6 +400,8 @@ export default function Home({ me, setMe }) {
   const openCatalog = () =>
     navigate(selectedCategoryId ? `/catalog?categorieId=${selectedCategoryId}` : "/catalog");
 
+  const openCart = () => navigate("/cart");
+
   const toggleFavorite = (id) => {
     setFavorites((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
@@ -388,21 +418,27 @@ export default function Home({ me, setMe }) {
         <Link to="/" className="logo">EMIRIO</Link>
 
         <nav className="mainNav">
-          <a href="#sale-products">{t("nav.sale")}</a>
-          <a href="#recommended">{t("nav.bestChoice")}</a>
-          <a href="#new-arrivals">{t("nav.newArrivals")}</a>
-          <a href="#categories">{t("nav.categories")}</a>
+          <a href="#sale-products">{t("nav.sale", "Sale")}</a>
+          <a href="#recommended">{t("nav.bestChoice", "Best Choice")}</a>
+          <a href="#new-arrivals">{t("nav.newArrivals", "New Arrivals")}</a>
+          <a href="#categories">{t("nav.categories", "Categories")}</a>
         </nav>
 
         <div className="headerActions">
           <div className="searchBar">
             <input
               type="text"
-              placeholder={t("common.searchProducts")}
+              placeholder={t("common.searchProducts", "Search products")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+
+          <button type="button" className="cartHeaderBtn" onClick={openCart}>
+            <span>🛒</span>
+            <span>{t("nav.cart", "Cart")}</span>
+            {cartCount > 0 ? <span className="cartBadge">{cartCount}</span> : null}
+          </button>
 
           <LanguageMenu />
           <UserIconMenu me={me} setMe={setMe} />
@@ -413,18 +449,18 @@ export default function Home({ me, setMe }) {
 
       <section className="productSection" id="sale-products">
         <div className="sectionTopRow">
-          <h2>{t("home.saleNow")}</h2>
+          <h2>{t("home.saleNow", "Sale now")}</h2>
           <button className="viewAllBtn" onClick={openCatalog}>
-            {t("common.viewAll")}
+            {t("common.viewAll", "View all")}
           </button>
         </div>
 
         {loadingArticles ? (
-          <div className="homeInfo">{t("home.loadingSale")}</div>
+          <div className="homeInfo">{t("home.loadingSale", "Loading sale products...")}</div>
         ) : error ? (
           <div className="homeInfo error">{error}</div>
         ) : !saleArticles.length ? (
-          <div className="homeInfo">{t("home.noSale")}</div>
+          <div className="homeInfo">{t("home.noSale", "No sale products found")}</div>
         ) : (
           <div className="productsGrid">
             {saleArticles.map((p) => (
@@ -443,18 +479,18 @@ export default function Home({ me, setMe }) {
 
       <section className="productSection withBorder" id="recommended">
         <div className="sectionTopRow">
-          <h2>{t("home.bestChoice")}</h2>
+          <h2>{t("home.bestChoice", "Best choice")}</h2>
           <button className="viewAllBtn" onClick={openCatalog}>
-            {t("common.viewAll")}
+            {t("common.viewAll", "View all")}
           </button>
         </div>
 
         {loadingArticles ? (
-          <div className="homeInfo">{t("home.loadingRecommendations")}</div>
+          <div className="homeInfo">{t("home.loadingRecommendations", "Loading recommendations...")}</div>
         ) : error ? (
           <div className="homeInfo error">{error}</div>
         ) : !recommendedArticles.length ? (
-          <div className="homeInfo">{t("home.noRecommended")}</div>
+          <div className="homeInfo">{t("home.noRecommended", "No recommended products found")}</div>
         ) : (
           <div className="productsGrid">
             {recommendedArticles.map((p) => (
@@ -473,9 +509,9 @@ export default function Home({ me, setMe }) {
 
       <section className="categoryBrowseSection" id="categories">
         <div className="sectionTopRow">
-          <h2>{t("home.categories")}</h2>
+          <h2>{t("home.categories", "Categories")}</h2>
           <button className="viewAllBtn" onClick={openCatalog}>
-            {t("common.openCatalog")}
+            {t("common.openCatalog", "Open catalog")}
           </button>
         </div>
 
@@ -484,7 +520,7 @@ export default function Home({ me, setMe }) {
             className={`categoryChip ${selectedCategoryId === null ? "active" : ""}`}
             onClick={() => setSelectedCategoryId(null)}
           >
-            {t("common.all")}
+            {t("common.all", "All")}
           </button>
 
           {categories.map((c) => (
@@ -501,18 +537,18 @@ export default function Home({ me, setMe }) {
 
       <section className="productSection withBorder" id="new-arrivals">
         <div className="sectionTopRow">
-          <h2>{t("home.newArrivals")}</h2>
+          <h2>{t("home.newArrivals", "New arrivals")}</h2>
           <button className="viewAllBtn" onClick={openCatalog}>
-            {t("common.viewAll")}
+            {t("common.viewAll", "View all")}
           </button>
         </div>
 
         {loadingArticles ? (
-          <div className="homeInfo">{t("home.loadingProducts")}</div>
+          <div className="homeInfo">{t("home.loadingProducts", "Loading products...")}</div>
         ) : error ? (
           <div className="homeInfo error">{error}</div>
         ) : !newArrivals.length ? (
-          <div className="homeInfo">{t("home.noProducts")}</div>
+          <div className="homeInfo">{t("home.noProducts", "No products found")}</div>
         ) : (
           <div className="productsGrid">
             {newArrivals.map((p) => (

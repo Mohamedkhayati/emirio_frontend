@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
@@ -7,11 +7,20 @@ import "../styles/catalog.css";
 import UserIconMenu from "../components/UserIconMenu";
 import LanguageMenu from "../components/LanguageMenu";
 
-const toAbs = (path) => {
+const toAbs = (path, mimeType) => {
   if (!path) return "";
-  if (path.startsWith("http")) return path;
+
+  const value = String(path);
+
+  if (value.startsWith("data:")) return value;
+  if (value.startsWith("http")) return value;
+
+  if (mimeType && !value.startsWith("/")) {
+    return `data:${mimeType};base64,${value}`;
+  }
+
   const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
-  return `${base}${path}`;
+  return `${base}${value}`;
 };
 
 const fmtPrice = (v) => {
@@ -19,8 +28,28 @@ const fmtPrice = (v) => {
   return `${Number(v).toFixed(3)} TND`;
 };
 
+function readFavorites() {
+  try {
+    const value = JSON.parse(localStorage.getItem("favorites") || "[]");
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+
+function getCartCount() {
+  try {
+    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
+    if (!Array.isArray(cart)) return 0;
+    return cart.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  } catch {
+    return 0;
+  }
+}
+
 function isSaleActive(p) {
-  if (!p?.salePrice || Number(p.salePrice) >= Number(p.prix || 0)) return false;
+  if (p?.salePrice === null || p?.salePrice === undefined || p?.salePrice === "") return false;
+  if (Number(p.salePrice) >= Number(p.prix || 0)) return false;
 
   const now = Date.now();
   const start = p.saleStartAt ? new Date(p.saleStartAt).getTime() : null;
@@ -34,21 +63,19 @@ function isSaleActive(p) {
 
 function getDiscountPercent(p) {
   if (!isSaleActive(p)) return null;
-  return Math.round(((Number(p.prix) - Number(p.salePrice)) / Number(p.prix)) * 100);
+  const base = Number(p.prix || 0);
+  const sale = Number(p.salePrice || 0);
+  if (!base || sale >= base) return null;
+  return Math.round(((base - sale) / base) * 100);
 }
 
 function getDisplayPrice(p) {
   return isSaleActive(p) ? Number(p.salePrice) : Number(p.prix);
 }
 
-function getProductImages(p) {
-  return [p?.imageUrl, p?.imageUrl2, p?.imageUrl3, p?.imageUrl4]
-    .filter(Boolean)
-    .map((img) => toAbs(img));
-}
-
 function formatCountdown(endAt, nowTick, t) {
   if (!endAt) return t("home.limitedOffer", "Limited offer");
+
   const diff = new Date(endAt).getTime() - nowTick;
   if (diff <= 0) return t("home.saleEnded", "Sale ended");
 
@@ -62,9 +89,133 @@ function formatCountdown(endAt, nowTick, t) {
   return `${minutes}m ${seconds}s`;
 }
 
-function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
+function normalizeId(v) {
+  if (v === null || v === undefined || v === "") return "";
+  return String(v);
+}
+
+function getVariationColorId(v) {
+  return normalizeId(
+    v?.couleurId ??
+      v?.couleurid ??
+      v?.colorId ??
+      v?.colorid ??
+      v?.couleur?.id ??
+      v?.color?.id ??
+      v?.couleur?.value ??
+      v?.color?.value
+  );
+}
+
+function getVariationSizeId(v) {
+  return normalizeId(
+    v?.tailleId ??
+      v?.tailleid ??
+      v?.sizeId ??
+      v?.sizeid ??
+      v?.taille?.id ??
+      v?.size?.id ??
+      v?.taille?.value ??
+      v?.size?.value
+  );
+}
+
+function getArticleColorIds(a) {
+  const ids = new Set();
+
+  (a?.variations || []).forEach((v) => {
+    const id = getVariationColorId(v);
+    if (id) ids.add(id);
+  });
+
+  (a?.colors || []).forEach((c) => {
+    const id = normalizeId(c?.id ?? c?.couleurId ?? c?.couleurid ?? c?.colorId ?? c?.colorid);
+    if (id) ids.add(id);
+  });
+
+  return [...ids];
+}
+
+function getArticleSizeIds(a) {
+  const ids = new Set();
+
+  (a?.variations || []).forEach((v) => {
+    const id = getVariationSizeId(v);
+    if (id) ids.add(id);
+  });
+
+  (a?.sizes || []).forEach((s) => {
+    const id = normalizeId(s?.id ?? s?.tailleId ?? s?.tailleid ?? s?.sizeId ?? s?.sizeid);
+    if (id) ids.add(id);
+  });
+
+  return [...ids];
+}
+
+function articleMatchesColor(a, colorId) {
+  if (!colorId) return true;
+  return getArticleColorIds(a).includes(normalizeId(colorId));
+}
+
+function articleMatchesSize(a, sizeId) {
+  if (!sizeId) return true;
+  return getArticleSizeIds(a).includes(normalizeId(sizeId));
+}
+
+function getImagesFromObject(obj) {
+  if (!obj) return [];
+
+  const images = [
+    obj?.imageUrl,
+    obj?.imageUrl2,
+    obj?.imageUrl3,
+    obj?.imageUrl4,
+
+    obj?.imageData1 ? toAbs(obj.imageData1, obj?.imageType1 ?? obj?.imagetype1) : "",
+    obj?.imageData2 ? toAbs(obj.imageData2, obj?.imageType2 ?? obj?.imagetype2) : "",
+    obj?.imageData3 ? toAbs(obj.imageData3, obj?.imageType3 ?? obj?.imagetype3) : "",
+    obj?.imageData4 ? toAbs(obj.imageData4, obj?.imageType4 ?? obj?.imagetype4) : "",
+
+    obj?.imagedata1 ? toAbs(obj.imagedata1, obj?.imagetype1 ?? obj?.imageType1) : "",
+    obj?.imagedata2 ? toAbs(obj.imagedata2, obj?.imagetype2 ?? obj?.imageType2) : "",
+    obj?.imagedata3 ? toAbs(obj.imagedata3, obj?.imagetype3 ?? obj?.imageType3) : "",
+    obj?.imagedata4 ? toAbs(obj.imagedata4, obj?.imagetype4 ?? obj?.imageType4) : "",
+  ].filter(Boolean);
+
+  return [...new Set(images.map((img) => toAbs(img)))];
+}
+
+function getProductImages(product, selectedColorId) {
+  const articleImages = getImagesFromObject(product);
+  const variations = Array.isArray(product?.variations) ? product.variations : [];
+
+  if (selectedColorId) {
+    const matchingVariations = variations.filter(
+      (v) => String(getVariationColorId(v)) === String(normalizeId(selectedColorId))
+    );
+
+    const matchingImages = [...new Set(matchingVariations.flatMap((v) => getImagesFromObject(v)))];
+    if (matchingImages.length) return matchingImages;
+  }
+
+  if (articleImages.length) return articleImages;
+
+  const variationImages = [...new Set(variations.flatMap((v) => getImagesFromObject(v)))];
+  if (variationImages.length) return variationImages;
+
+  return [];
+}
+
+function ProductCard({
+  p,
+  onOpen,
+  favorites,
+  toggleFavorite,
+  nowTick,
+  selectedColorId,
+}) {
   const { t } = useTranslation();
-  const images = getProductImages(p);
+  const images = useMemo(() => getProductImages(p, selectedColorId), [p, selectedColorId]);
   const [currentImage, setCurrentImage] = useState(0);
 
   const onSale = isSaleActive(p);
@@ -73,7 +224,7 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
 
   useEffect(() => {
     setCurrentImage(0);
-  }, [p.id]);
+  }, [p.id, selectedColorId, images.length]);
 
   useEffect(() => {
     if (images.length <= 1) return;
@@ -115,7 +266,9 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
             className="productImage imageFade"
           />
         ) : (
-          <div className="productImage emptyImage">{t("common.noImage", "No image")}</div>
+          <div className="productImage emptyImage">
+            {t("common.noImage", "No image")}
+          </div>
         )}
 
         {images.length > 1 && (
@@ -137,7 +290,7 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
       <div className="productName">{p.nom}</div>
 
       <div className="productMeta">
-        {p.marque || "EMIRIO"} {p.recommended ? `• ${t("nav.bestChoice")}` : ""}
+        {p.marque || "EMIRIO"} {p.recommended ? `• ${t("nav.bestChoice", "Best choice")}` : ""}
       </div>
 
       {onSale ? (
@@ -149,7 +302,7 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
       <div className="productPriceRow">
         <span className="priceNow">{fmtPrice(getDisplayPrice(p))}</span>
         {onSale ? <span className="priceOld">{fmtPrice(p.prix)}</span> : null}
-        {onSale && discount ? <span className="discountTag">-{discount}%</span> : null}
+        {onSale && discount !== null ? <span className="discountTag">-{discount}%</span> : null}
       </div>
 
       <button
@@ -160,7 +313,7 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
           onOpen(p.id);
         }}
       >
-        {t("catalog.viewProduct")}
+        {t("catalog.viewProduct", "View Product")}
       </button>
     </div>
   );
@@ -169,6 +322,7 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
 export default function CatalogPage({ me, setMe }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [articles, setArticles] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -189,18 +343,18 @@ export default function CatalogPage({ me, setMe }) {
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [nowTick, setNowTick] = useState(Date.now());
 
-  const [favorites, setFavorites] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("favorites") || "[]");
-    } catch {
-      return [];
-    }
-  });
+  const [favorites, setFavorites] = useState(readFavorites);
+  const [cartCount, setCartCount] = useState(getCartCount);
 
   useEffect(() => {
     const tick = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(tick);
   }, []);
+
+  useEffect(() => {
+    const qpCategory = searchParams.get("categorieId") || "";
+    setCategoryId(qpCategory);
+  }, [searchParams]);
 
   useEffect(() => {
     async function load() {
@@ -233,13 +387,28 @@ export default function CatalogPage({ me, setMe }) {
     localStorage.setItem("favorites", JSON.stringify(favorites));
   }, [favorites]);
 
+  useEffect(() => {
+    const syncCart = () => setCartCount(getCartCount());
+    syncCart();
+
+    window.addEventListener("storage", syncCart);
+    window.addEventListener("focus", syncCart);
+    window.addEventListener("cart-updated", syncCart);
+
+    return () => {
+      window.removeEventListener("storage", syncCart);
+      window.removeEventListener("focus", syncCart);
+      window.removeEventListener("cart-updated", syncCart);
+    };
+  }, []);
+
   const filtered = useMemo(() => {
     return articles.filter((a) => {
       const s = search.trim().toLowerCase();
 
       const matchesSearch =
         !s ||
-        `${a.nom} ${a.description || ""} ${a.marque || ""} ${a.matiere || ""} ${a.sku || ""} ${a.categorieNom || ""}`
+        `${a.nom || ""} ${a.description || ""} ${a.marque || ""} ${a.matiere || ""} ${a.sku || ""} ${a.categorieNom || ""}`
           .toLowerCase()
           .includes(s);
 
@@ -253,9 +422,8 @@ export default function CatalogPage({ me, setMe }) {
       const matchesMin = !minPrice || price >= Number(minPrice);
       const matchesMax = !maxPrice || price <= Number(maxPrice);
 
-      const vars = a.variations || [];
-      const matchesColor = !colorId || vars.some((v) => String(v.couleurId) === String(colorId));
-      const matchesSize = !sizeId || vars.some((v) => String(v.tailleId) === String(sizeId));
+      const matchesColor = articleMatchesColor(a, colorId);
+      const matchesSize = articleMatchesSize(a, sizeId);
       const matchesFavorites = !favoritesOnly || favorites.includes(a.id);
 
       return (
@@ -317,15 +485,15 @@ export default function CatalogPage({ me, setMe }) {
         <Link to="/" className="logo">EMIRIO</Link>
 
         <nav className="mainNav">
-          <Link to="/">{t("nav.home")}</Link>
-          <a href="#catalog-grid">{t("nav.catalog")}</a>
-          <a href="#filters">{t("nav.filters")}</a>
+          <Link to="/">{t("nav.home", "Home")}</Link>
+          <a href="#catalog-grid">{t("nav.catalog", "Catalog")}</a>
+          <a href="#filters">{t("nav.filters", "Filters")}</a>
           <button
             type="button"
             className="catalogNavFavBtn"
             onClick={() => setFavoritesOnly((v) => !v)}
           >
-            {t("nav.favorites")} ({favorites.length})
+            {t("nav.favorites", "Favorites")} ({favorites.length})
           </button>
         </nav>
 
@@ -333,11 +501,17 @@ export default function CatalogPage({ me, setMe }) {
           <div className="searchBar">
             <input
               type="text"
-              placeholder={t("common.searchProducts")}
+              placeholder={t("common.searchProducts", "Search products")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+
+          <button type="button" className="cartHeaderBtn" onClick={() => navigate("/cart")}>
+            <span>🛒</span>
+            <span>{t("nav.cart", "Cart")}</span>
+            {cartCount > 0 ? <span className="cartBadge">{cartCount}</span> : null}
+          </button>
 
           <LanguageMenu />
           <UserIconMenu me={me} setMe={setMe} />
@@ -347,27 +521,27 @@ export default function CatalogPage({ me, setMe }) {
       <div className="catalogLayout">
         <aside className="filterSidebar slideInLeft" id="filters">
           <div className="filterHead">
-            <h2>{t("catalog.filters")}</h2>
+            <h2>{t("catalog.filters", "Filters")}</h2>
           </div>
 
           <div className="filterBlock">
             <input
               className="searchBox"
-              placeholder={t("common.searchAnything")}
+              placeholder={t("common.searchAnything", "Search anything")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
 
           <div className="filterBlock">
-            <div className="filterTitle">{t("catalog.category")}</div>
+            <div className="filterTitle">{t("catalog.category", "Category")}</div>
             <div className="stackBtns">
               <button
                 type="button"
                 className={!categoryId ? "catBtn active" : "catBtn"}
                 onClick={() => setCategoryId("")}
               >
-                {t("common.all")}
+                {t("common.all", "All")}
               </button>
 
               {categories.map((c) => (
@@ -384,17 +558,17 @@ export default function CatalogPage({ me, setMe }) {
           </div>
 
           <div className="filterBlock">
-            <div className="filterTitle">{t("catalog.price")}</div>
+            <div className="filterTitle">{t("catalog.price", "Price")}</div>
             <div className="rangeGrid">
               <input
                 type="number"
-                placeholder={t("catalog.min")}
+                placeholder={t("catalog.min", "Min")}
                 value={minPrice}
                 onChange={(e) => setMinPrice(e.target.value)}
               />
               <input
                 type="number"
-                placeholder={t("catalog.max")}
+                placeholder={t("catalog.max", "Max")}
                 value={maxPrice}
                 onChange={(e) => setMaxPrice(e.target.value)}
               />
@@ -402,7 +576,7 @@ export default function CatalogPage({ me, setMe }) {
           </div>
 
           <div className="filterBlock">
-            <div className="filterTitle">{t("catalog.brand")}</div>
+            <div className="filterTitle">{t("catalog.brand", "Brand")}</div>
             <input
               className="searchBox"
               placeholder="Nike, Adidas..."
@@ -412,7 +586,7 @@ export default function CatalogPage({ me, setMe }) {
           </div>
 
           <div className="filterBlock">
-            <div className="filterTitle">{t("catalog.material")}</div>
+            <div className="filterTitle">{t("catalog.material", "Material")}</div>
             <input
               className="searchBox"
               placeholder="Leather, Cotton..."
@@ -422,7 +596,7 @@ export default function CatalogPage({ me, setMe }) {
           </div>
 
           <div className="filterBlock">
-            <div className="filterTitle">{t("catalog.sku")}</div>
+            <div className="filterTitle">{t("catalog.sku", "SKU")}</div>
             <input
               className="searchBox"
               placeholder="Search SKU..."
@@ -432,14 +606,14 @@ export default function CatalogPage({ me, setMe }) {
           </div>
 
           <div className="filterBlock">
-            <div className="filterTitle">{t("catalog.colors")}</div>
+            <div className="filterTitle">{t("catalog.colors", "Colors")}</div>
             <div className="colorGrid">
               <button
                 type="button"
                 className={!colorId ? "allFilterBtn active" : "allFilterBtn"}
                 onClick={() => setColorId("")}
               >
-                {t("common.all")}
+                {t("common.all", "All")}
               </button>
 
               {colors.map((c) => (
@@ -447,7 +621,7 @@ export default function CatalogPage({ me, setMe }) {
                   type="button"
                   key={c.id}
                   className={`colorPick ${String(colorId) === String(c.id) ? "selected" : ""}`}
-                  style={{ background: c.codeHex }}
+                  style={{ background: c.codeHex || c.codehex || "#ddd" }}
                   title={c.nom}
                   onClick={() => setColorId(c.id)}
                 />
@@ -456,14 +630,14 @@ export default function CatalogPage({ me, setMe }) {
           </div>
 
           <div className="filterBlock">
-            <div className="filterTitle">{t("catalog.size")}</div>
+            <div className="filterTitle">{t("catalog.size", "Size")}</div>
             <div className="sizeGrid">
               <button
                 type="button"
                 className={!sizeId ? "sizeBtn active" : "sizeBtn"}
                 onClick={() => setSizeId("")}
               >
-                {t("common.all")}
+                {t("common.all", "All")}
               </button>
 
               {sizes.map((s) => (
@@ -485,13 +659,15 @@ export default function CatalogPage({ me, setMe }) {
               className={`favoriteFilterBtn ${favoritesOnly ? "active" : ""}`}
               onClick={() => setFavoritesOnly((v) => !v)}
             >
-              {favoritesOnly ? t("catalog.favoritesOnlyActive") : t("catalog.favoritesOnly")}
+              {favoritesOnly
+                ? t("catalog.favoritesOnlyActive", "Favorites only active")
+                : t("catalog.favoritesOnly", "Favorites only")}
             </button>
           </div>
 
           <div className="filterBlock">
             <button type="button" className="applyBtn" onClick={resetFilters}>
-              {t("common.resetFilters")}
+              {t("common.resetFilters", "Reset filters")}
             </button>
           </div>
         </aside>
@@ -499,17 +675,17 @@ export default function CatalogPage({ me, setMe }) {
         <section className="catalogContent fadeInUp">
           <div className="catalogTop">
             <div>
-              <h2>{t("catalog.title")}</h2>
-              <p>{filtered.length} {t("catalog.found")}</p>
+              <h2>{t("catalog.title", "Catalog")}</h2>
+              <p>{filtered.length} {t("catalog.found", "found")}</p>
             </div>
           </div>
 
           {loading ? (
-            <div className="homeInfo">{t("home.loadingProducts")}</div>
+            <div className="homeInfo">{t("home.loadingProducts", "Loading products...")}</div>
           ) : error ? (
             <div className="homeInfo error">{error}</div>
           ) : !filtered.length ? (
-            <div className="homeInfo">{t("catalog.noMatch")}</div>
+            <div className="homeInfo">{t("catalog.noMatch", "No products match your filters")}</div>
           ) : (
             <div className="productsGrid catalogProductsGrid" id="catalog-grid">
               {filtered.map((p) => (
@@ -520,6 +696,7 @@ export default function CatalogPage({ me, setMe }) {
                   favorites={favorites}
                   toggleFavorite={toggleFavorite}
                   nowTick={nowTick}
+                  selectedColorId={colorId}
                 />
               ))}
             </div>

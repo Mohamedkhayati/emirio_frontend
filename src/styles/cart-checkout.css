@@ -1,0 +1,545 @@
+.checkoutPage {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(92, 77, 255, 0.08), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(0, 208, 255, 0.08), transparent 30%),
+    #0f1014;
+  padding: 22px;
+}
+
+.checkoutHeader {
+  max-width: 1280px;
+  margin: 0 auto 22px;
+}
+
+.checkoutWrap {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.6fr 0.9fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.cartPanel {
+  background: #f7f7fa;
+  border-radius: 22px;
+  padding: 28px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+}
+
+.checkoutTopRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.continueBtn,
+.clearBtn,
+.shopNowBtn {
+  border: 0;
+  border-radius: 12px;
+  padding: 11px 16px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.continueBtn {
+  background: transparent;
+  color: #20233a;
+  padding-left: 0;
+}
+
+.clearBtn {
+  background: #ececf6;
+  color: #2c3152;
+}
+
+.shopNowBtn {
+  background: linear-gradient(135deg, #5f63ff, #2ad0ff);
+  color: white;
+}
+
+.cartHead h2 {
+  margin: 0 0 6px;
+  color: #1e2238;
+}
+
+.cartHead p {
+  margin: 0 0 24px;
+  color: #7b809c;
+}
+
+.cartList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cartItem {
+  background: white;
+  border: 1px solid #ececf4;
+  border-radius: 18px;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+}
+
+.cartItemLeft {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.cartThumb {
+  width: 82px;
+  height: 82px;
+  border-radius: 14px;
+  background: #eef1f7;
+  overflow: hidden;
+  flex: 0 0 82px;
+  display: grid;
+  place-items: center;
+}
+
+.cartThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cartNoImage {
+  font-size: 12px;
+  color: #7b809c;
+}
+
+.cartMeta {
+  min-width: 0;
+}
+
+.cartMeta h3 {
+  margin: 0 0 6px;
+  color: #1f2337;
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.cartMeta p {
+  margin: 0;
+  color: #8a90ab;
+  font-size: 14px;
+}
+
+.cartItemRight {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.qtyControl {
+  display: inline-flex;
+  align-items: center;
+  background: #f3f4fb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.qtyControl button {
+  border: 0;
+  background: transparent;
+  width: 38px;
+  height: 38px;
+  font-size: 20px;
+  cursor: pointer;
+  color: #242946;
+}
+
+.qtyControl span {
+  min-width: 32px;
+  text-align: center;
+  font-weight: 700;
+  color: #202540;
+}
+
+.linePrice {
+  min-width: 110px;
+  text-align: right;
+  font-weight: 800;
+  color: #282d4b;
+}
+
+.removeBtn {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.emptyCartBox {
+  padding: 34px;
+  border-radius: 18px;
+  background: white;
+  border: 1px dashed #d7d9ea;
+  text-align: center;
+}
+
+.emptyCartBox h3 {
+  margin: 0 0 10px;
+  color: #1f2440;
+}
+
+.emptyCartBox p {
+  margin: 0 0 18px;
+  color: #7f86a4;
+}
+
+.paymentPanel {
+  position: sticky;
+  top: 20px;
+}
+
+.paymentCard {
+  background: linear-gradient(180deg, #5b5dd6 0%, #5759d6 100%);
+  border-radius: 24px;
+  padding: 22px;
+  color: white;
+  box-shadow: 0 24px 60px rgba(37, 31, 125, 0.35);
+}
+
+.paymentHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.paymentHeader h2 {
+  margin: 0 0 6px;
+  font-size: 24px;
+}
+
+.paymentHeader p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+}
+
+.miniAvatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.cardTypes {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.cardTypeBtn {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  border-radius: 12px;
+  padding: 10px 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.cardTypeBtn.active {
+  background: white;
+  color: #4f53cf;
+  font-weight: 800;
+}
+
+.paymentForm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.paymentForm label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.paymentForm label span {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.paymentForm input {
+  height: 46px;
+  border: 0;
+  outline: none;
+  border-radius: 12px;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+}
+
+.paymentForm input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.paymentGrid {
+  display: grid;
+  grid-template-columns: 1fr 0.8fr;
+  gap: 12px;
+}
+
+.summaryBox {
+  margin-top: 8px;
+  padding-top: 10px;
+}
+
+.summaryBox > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 6px 0;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.totalRow {
+  margin-top: 8px;
+  padding-top: 10px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: 18px;
+}
+
+.checkoutBtn {
+  margin-top: 10px;
+  border: 0;
+  border-radius: 14px;
+  padding: 15px 16px;
+  background: linear-gradient(90deg, #4fe0d2, #53d8b7);
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.checkoutBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1050px) {
+  .checkoutWrap {
+    grid-template-columns: 1fr;
+  }
+
+  .paymentPanel {
+    position: static;
+  }
+}
+
+@media (max-width: 700px) {
+  .checkoutPage {
+    padding: 12px;
+  }
+
+  .cartPanel,
+  .paymentCard {
+    padding: 18px;
+  }
+
+  .cartItem {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .cartItemRight {
+    justify-content: space-between;
+  }
+
+  .cardTypes,
+  .paymentGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.checkoutSelect,
+.paymentForm textarea {
+  width: 100%;
+  border: 0;
+  outline: none;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+}
+
+.paymentForm textarea::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.successBox {
+  background: rgba(83, 216, 183, 0.16);
+  color: #eafff7;
+  border: 1px solid rgba(83, 216, 183, 0.35);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.ordersWrapSingle {
+  grid-template-columns: 1fr;
+}
+
+.ordersTabs {
+  display: flex;
+  gap: 12px;
+  margin: 16px 0 20px;
+}
+
+.tabBtn {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #ececf6;
+  color: #2c3152;
+}
+
+.tabBtn.active {
+  background: linear-gradient(135deg, #5f63ff, #7b61ff);
+  color: #fff;
+}
+
+.ordersList {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.orderCard {
+  background: white;
+  border: 1px solid #ececf4;
+  border-radius: 18px;
+  padding: 18px;
+}
+
+.orderTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.orderTop h3 {
+  margin: 0 0 6px;
+  color: #1f2337;
+}
+
+.orderTop p {
+  margin: 0;
+  color: #8a90ab;
+}
+
+.statusChip {
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.statusChip.progress {
+  background: #fff1d8;
+  color: #9d6700;
+}
+
+.statusChip.ok {
+  background: #e7f7ee;
+  color: #137a42;
+}
+
+.statusChip.done {
+  background: #e7f0ff;
+  color: #2358c5;
+}
+
+.statusChip.bad {
+  background: #ffe7e7;
+  color: #b42323;
+}
+
+.orderMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.orderMetaGrid div {
+  background: #f6f7fb;
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.orderMetaGrid span {
+  display: block;
+  color: #8a90ab;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.orderMetaGrid strong {
+  color: #202540;
+}
+
+.orderLines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.orderLine {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid #eff1f7;
+}
+
+.orderLine:first-child {
+  border-top: none;
+}
+
+.orderLine p {
+  margin: 6px 0 0;
+  color: #8a90ab;
+  font-size: 14px;
+}
+
+.orderLineRight {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  white-space: nowrap;
+}
+
+.orderActions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 900px) {
+  .orderMetaGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

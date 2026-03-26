@@ -24,7 +24,12 @@ export default function UserIconMenu({ me, setMe }) {
       await api.post("/api/auth/logout").catch(() => null);
     } finally {
       clearToken();
+
       localStorage.removeItem("favorites");
+      localStorage.removeItem("user");
+      localStorage.removeItem("cart");
+      localStorage.removeItem("cart_guest");
+
       sessionStorage.clear();
       setMe?.(null);
       setOpen(false);

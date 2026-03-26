@@ -2,7 +2,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { api } from "./lib/api";
 import { useTranslation } from "react-i18next";
-
+import CartCheckoutPage from "./pages/CartCheckoutPage";
+import OrderHistoryPage from "./pages/OrderHistoryPage";
 import Favorites from "./pages/Favorites";
 import Home from "./pages/Home.jsx";
 import Auth from "./pages/Auth.jsx";
@@ -12,7 +13,6 @@ import CatalogPage from "./pages/CatalogPage.jsx";
 import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
 import ResetPassword from "./pages/auth/ResetPassword.jsx";
 import AdminPage from "./pages/admin/AdminPage.jsx";
-import AdminLayout from "./components/AdminLayout.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
 export default function App() {
@@ -64,8 +64,10 @@ export default function App() {
         path="/profile"
         element={me ? <Profile me={me} setMe={setMe} /> : <Navigate to="/auth" replace />}
       />
+<Route path="/cart" element={<CartCheckoutPage me={me} setMe={setMe} />} />
 
       <Route
+        path="/admin"
         element={
           <ProtectedRoute
             isAllowed={role === "ADMIN"}
@@ -73,10 +75,9 @@ export default function App() {
           />
         }
       >
-        <Route element={<AdminLayout me={me} setMe={setMe} />}>
-          <Route path="/admin" element={<AdminPage />} />
-        </Route>
+        <Route index element={<AdminPage />} />
       </Route>
+<Route path="/orders" element={<OrderHistoryPage me={me} setMe={setMe} />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
