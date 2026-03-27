@@ -247,6 +247,7 @@ export default function AdminPage() {
         const ref = String(o.referenceCommande || o.id || "").toLowerCase();
         const email = String(o.emailClient || "").toLowerCase();
         const phone = String(o.telephone || "").toLowerCase();
+
         return (
           customerName.includes(qv) ||
           ref.includes(qv) ||
@@ -315,35 +316,64 @@ export default function AdminPage() {
     }
   }
 
- async function confirmOrder(id) {
-  setBusyOrderId(id);
-  setOrdersError("");
-  try {
-    await api.patch(`/api/admin/orders/${id}/status`, {
-      statutCommande: "CONFIRMEE",
-    });
-    await loadOrders();
-  } catch (e) {
-    setOrdersError(e?.response?.data?.message || "Cannot confirm order");
-  } finally {
-    setBusyOrderId(null);
+  async function confirmOrder(id) {
+    setBusyOrderId(id);
+    setOrdersError("");
+    try {
+      await api.patch(`/api/admin/orders/${id}/status`, {
+        statutCommande: "CONFIRMEE",
+      });
+      await loadOrders();
+    } catch (e) {
+      setOrdersError(e?.response?.data?.message || "Cannot confirm order");
+    } finally {
+      setBusyOrderId(null);
+    }
   }
-}
 
-async function cancelOrder(id) {
-  setBusyOrderId(id);
-  setOrdersError("");
-  try {
-    await api.patch(`/api/admin/orders/${id}/status`, {
-      statutCommande: "ANNULEE",
-    });
-    await loadOrders();
-  } catch (e) {
-    setOrdersError(e?.response?.data?.message || "Cannot cancel order");
-  } finally {
-    setBusyOrderId(null);
+  async function cancelOrder(id) {
+    setBusyOrderId(id);
+    setOrdersError("");
+    try {
+      await api.patch(`/api/admin/orders/${id}/status`, {
+        statutCommande: "ANNULEE",
+      });
+      await loadOrders();
+    } catch (e) {
+      setOrdersError(e?.response?.data?.message || "Cannot cancel order");
+    } finally {
+      setBusyOrderId(null);
+    }
   }
-}
+
+  async function reviewPayment(id, accepted) {
+    setBusyOrderId(id);
+    setOrdersError("");
+    try {
+      await api.patch(`/api/admin/orders/${id}/payment-review`, {
+        accepted,
+        note: accepted ? "Payment accepted by admin" : "Payment rejected by admin",
+      });
+      await loadOrders();
+    } catch (e) {
+      setOrdersError(e?.response?.data?.message || "Cannot review payment");
+    } finally {
+      setBusyOrderId(null);
+    }
+  }
+
+  async function markDelivered(id) {
+    setBusyOrderId(id);
+    setOrdersError("");
+    try {
+      await api.patch(`/api/admin/orders/${id}/delivered`);
+      await loadOrders();
+    } catch (e) {
+      setOrdersError(e?.response?.data?.message || "Cannot mark order as delivered");
+    } finally {
+      setBusyOrderId(null);
+    }
+  }
 
   async function loadRecommendationConfig() {
     try {
@@ -1042,6 +1072,9 @@ async function cancelOrder(id) {
                     <div>Details</div>
                     <div>Total</div>
                     <div>Actions</div>
+                    <div>Payment</div>
+                    <div>Invoice</div>
+                    <div>Signature</div>
                   </div>
 
                   {ordersLoading ? (
@@ -1155,6 +1188,87 @@ async function cancelOrder(id) {
                             >
                               Cancel
                             </button>
+
+                            <button
+                              type="button"
+                              className="admBtn mini"
+                              onClick={() => reviewPayment(order.id, true)}
+                              disabled={
+                                busyOrderId === order.id || order.statutPaiement === "ACCEPTE"
+                              }
+                            >
+                              Accept payment
+                            </button>
+
+                            <button
+                              type="button"
+                              className="admBtn mini danger"
+                              onClick={() => reviewPayment(order.id, false)}
+                              disabled={
+                                busyOrderId === order.id || order.statutPaiement === "REFUSE"
+                              }
+                            >
+                              Reject payment
+                            </button>
+
+                            <button
+                              type="button"
+                              className="admBtn mini primary"
+                              onClick={() => markDelivered(order.id)}
+                              disabled={
+                                busyOrderId === order.id ||
+                                normalizeOrderStatus(order.statutCommande) === "LIVREE"
+                              }
+                            >
+                              Delivered
+                            </button>
+                          </div>
+
+                          <div className="ordersPaymentCell">
+                            <div>
+                              <strong>{order.modePaiement || "-"}</strong>
+                            </div>
+                            <div>{order.statutPaiement || "-"}</div>
+                            <div>
+                              {order.cardLast4 ? `Card **** ${order.cardLast4}` : null}
+                              {order.cardLast4 &&
+                              (order.d17Phone || order.d17Reference || order.bankReference)
+                                ? " • "
+                                : null}
+                              {order.d17Phone ? `D17: ${order.d17Phone}` : null}
+                              {order.d17Phone && (order.d17Reference || order.bankReference)
+                                ? " • "
+                                : null}
+                              {order.d17Reference ? `Ref: ${order.d17Reference}` : null}
+                              {order.d17Reference && order.bankReference ? " • " : null}
+                              {order.bankReference ? `Bank ref: ${order.bankReference}` : null}
+                            </div>
+                            <small>{order.paymentInstructions || "-"}</small>
+                          </div>
+
+                          <div className="ordersInvoiceCell">
+                            <div>{order.invoiceNumber || "-"}</div>
+                            {order.invoiceUrl ? (
+                              <a
+                                href={fullImageUrl(order.invoiceUrl)}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Open invoice
+                              </a>
+                            ) : (
+                              "-"
+                            )}
+                          </div>
+
+                          <div className="ordersSignatureCell">
+                            {order.signatureDataUrl ? (
+                              <a href={order.signatureDataUrl} target="_blank" rel="noreferrer">
+                                View signature
+                              </a>
+                            ) : (
+                              "-"
+                            )}
                           </div>
                         </div>
                       );
@@ -1395,6 +1509,7 @@ async function cancelOrder(id) {
 
                     {filteredArticles.map((a) => {
                       const saleLive = isSaleActive(a);
+
                       return (
                         <div
                           key={a.id}
@@ -1409,6 +1524,7 @@ async function cancelOrder(id) {
                                 <div className="articleThumb empty">{t("admin.common.noImage")}</div>
                               )}
                             </div>
+
                             <div>
                               <div className="admName">{a.nom}</div>
                               <div className="admRole">
@@ -1420,7 +1536,10 @@ async function cancelOrder(id) {
                           </div>
 
                           <div>{a.categorieNom}</div>
-                          <div>{saleLive ? `${fmtPrice(a.salePrice)} / ${fmtPrice(a.prix)}` : fmtPrice(a.prix)}</div>
+
+                          <div>
+                            {saleLive ? `${fmtPrice(a.salePrice)} / ${fmtPrice(a.prix)}` : fmtPrice(a.prix)}
+                          </div>
 
                           <div>
                             <span className={`admBadge ${a.actif ? "ok" : "bad"}`}>
@@ -1465,6 +1584,7 @@ async function cancelOrder(id) {
                       </div>
 
                       <div className="admDivider" />
+
                       <div className="admInfo">
                         <div className="admInfoRow">
                           <span>{t("admin.catalog.price")}</span>
@@ -1510,9 +1630,11 @@ async function cancelOrder(id) {
                         <div>
                           <div className="admCardTitle">{t("admin.catalog.variations")}</div>
                           <div className="variationHint">
-                            One article can have many combinations like Black / 41, Black / 42, White / 41, White / 42.
+                            One article can have many combinations like Black / 41, Black / 42,
+                            White / 41, White / 42.
                           </div>
                         </div>
+
                         <button className="admBtn mini primary" onClick={openCreateVariation}>
                           {t("admin.catalog.addVariation")}
                         </button>
@@ -1590,6 +1712,7 @@ async function cancelOrder(id) {
                       {t("admin.catalog.addCategory")}
                     </button>
                   </div>
+
                   <div className="admTable compact">
                     {categories.map((c) => (
                       <div key={c.id} className="admTr row">
@@ -1597,6 +1720,7 @@ async function cancelOrder(id) {
                           <div className="admName">{c.nom}</div>
                           <div className="admRole">{c.description || "-"}</div>
                         </div>
+
                         <div className="admRowActions">
                           <button className="admBtn mini" onClick={() => openEditCategory(c)}>
                             {t("admin.common.edit")}
@@ -1617,6 +1741,7 @@ async function cancelOrder(id) {
                       {t("admin.catalog.addColor")}
                     </button>
                   </div>
+
                   <div className="admTable compact">
                     {colors.map((c) => (
                       <div key={c.id} className="admTr row">
@@ -1627,6 +1752,7 @@ async function cancelOrder(id) {
                             <div className="admRole">{c.codeHex}</div>
                           </div>
                         </div>
+
                         <div className="admRowActions">
                           <button className="admBtn mini" onClick={() => openEditColor(c)}>
                             {t("admin.common.edit")}
@@ -1647,12 +1773,14 @@ async function cancelOrder(id) {
                       {t("admin.catalog.addSize")}
                     </button>
                   </div>
+
                   <div className="admTable compact">
                     {sizes.map((s) => (
                       <div key={s.id} className="admTr row">
                         <div>
                           <div className="admName">{s.pointure}</div>
                         </div>
+
                         <div className="admRowActions">
                           <button className="admBtn mini" onClick={() => openEditSize(s)}>
                             {t("admin.common.edit")}
@@ -1840,7 +1968,8 @@ async function cancelOrder(id) {
 
                 <form className="productForm admDialogBody" onSubmit={saveVariation}>
                   <div className="variationHelp fullCol">
-                    Create one row per combination. Example: White / 42 and Black / 42 are two different variations for the same article.
+                    Create one row per combination. Example: White / 42 and Black / 42 are two
+                    different variations for the same article.
                   </div>
 
                   {variationError ? <div className="admAlert fullCol">{variationError}</div> : null}
@@ -2268,6 +2397,7 @@ async function cancelOrder(id) {
               </div>
 
               <div className="admDivider" />
+
               <div className="admInfo">
                 <div className="admInfoRow">
                   <span>{t("admin.table.email")}</span>

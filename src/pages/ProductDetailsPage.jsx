@@ -6,6 +6,7 @@ import "../styles/home.css";
 import "../styles/product-details.css";
 import UserIconMenu from "../components/UserIconMenu";
 import LanguageMenu from "../components/LanguageMenu";
+import { useCart } from "../context/CartContext";
 
 const toAbs = (path) => {
   if (!path) return "";
@@ -20,16 +21,6 @@ const fmtPrice = (v) => {
 };
 
 const starsText = (n) => "★".repeat(n) + "☆".repeat(5 - n);
-
-function getCartCount() {
-  try {
-    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
-    if (!Array.isArray(cart)) return 0;
-    return cart.reduce((sum, item) => sum + Number(item.qty || 0), 0);
-  } catch {
-    return 0;
-  }
-}
 
 function hasValidSaleFields(p) {
   return p && p.salePrice !== null && p.salePrice !== undefined && p.salePrice !== "";
@@ -68,10 +59,6 @@ function getColorHex(obj) {
 
 function getSizeId(obj) {
   return normalizeId(obj?.tailleId ?? obj?.sizeId ?? obj?.id);
-}
-
-function getSizeLabel(obj) {
-  return obj?.taillePointure ?? obj?.pointure ?? obj?.sizeLabel ?? "";
 }
 
 function getVariationColorId(v) {
@@ -113,6 +100,7 @@ export default function ProductDetailsPage({ me, setMe }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { addToCart, cartItems } = useCart();
 
   const [article, setArticle] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -126,23 +114,11 @@ export default function ProductDetailsPage({ me, setMe }) {
   const [error, setError] = useState("");
   const [selectedColorId, setSelectedColorId] = useState("");
   const [selectedSizeId, setSelectedSizeId] = useState("");
-  const [cartCount, setCartCount] = useState(getCartCount);
   const [cartMessage, setCartMessage] = useState("");
 
-  useEffect(() => {
-    const syncCart = () => setCartCount(getCartCount());
-    syncCart();
-
-    window.addEventListener("storage", syncCart);
-    window.addEventListener("focus", syncCart);
-    window.addEventListener("cart-updated", syncCart);
-
-    return () => {
-      window.removeEventListener("storage", syncCart);
-      window.removeEventListener("focus", syncCart);
-      window.removeEventListener("cart-updated", syncCart);
-    };
-  }, []);
+  const cartCount = useMemo(() => {
+    return (cartItems || []).reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  }, [cartItems]);
 
   async function loadData() {
     setError("");
@@ -319,7 +295,7 @@ export default function ProductDetailsPage({ me, setMe }) {
     setTab("reviews");
   }
 
-  function addToCart() {
+  function handleAddToCart() {
     if (!article || !selectedVariation) return;
 
     if (getVariationStock(selectedVariation) <= 0) {
@@ -329,44 +305,24 @@ export default function ProductDetailsPage({ me, setMe }) {
 
     const limitedQty = Math.min(qty, Math.max(1, getVariationStock(selectedVariation)));
 
-    const item = {
-      id: article.id,
-      variationId: selectedVariation.id,
-      nom: article.nom,
-      prix: isSaleActive(article)
-        ? Number(article.salePrice)
-        : getVariationPrice(selectedVariation, article),
-      qty: limitedQty,
-      imageUrl: gallery[0] || "",
-      couleurId: getVariationColorId(selectedVariation),
-      couleurNom: getVariationColorName(selectedVariation),
-      tailleId: getVariationSizeId(selectedVariation),
-      taillePointure: getVariationSizeLabel(selectedVariation),
-    };
-
-    const existing = JSON.parse(localStorage.getItem("cart") || "[]");
-
-    const found = existing.find(
-      (x) => Number(x.id) === Number(item.id) && Number(x.variationId) === Number(item.variationId)
+    addToCart(
+      {
+        articleId: Number(article.id),
+        id: Number(article.id),
+        variationId: Number(selectedVariation.id),
+        nom: article.nom,
+        prix: isSaleActive(article)
+          ? Number(article.salePrice)
+          : getVariationPrice(selectedVariation, article),
+        imageUrl: gallery[0] || "",
+        couleurId: getVariationColorId(selectedVariation),
+        couleurNom: getVariationColorName(selectedVariation),
+        tailleId: getVariationSizeId(selectedVariation),
+        taillePointure: getVariationSizeLabel(selectedVariation),
+      },
+      limitedQty
     );
 
-    const next = found
-      ? existing.map((x) =>
-          Number(x.id) === Number(item.id) && Number(x.variationId) === Number(item.variationId)
-            ? {
-                ...x,
-                qty: Math.min(
-                  Number(x.qty || 0) + limitedQty,
-                  Math.max(1, getVariationStock(selectedVariation))
-                ),
-              }
-            : x
-        )
-      : [...existing, item];
-
-    localStorage.setItem("cart", JSON.stringify(next));
-    window.dispatchEvent(new Event("cart-updated"));
-    setCartCount(getCartCount());
     setCartMessage(t("product.addedToCart", "Added to cart"));
     setQty(1);
 
@@ -568,7 +524,7 @@ export default function ProductDetailsPage({ me, setMe }) {
               <button
                 type="button"
                 className="addCartBtn"
-                onClick={addToCart}
+                onClick={handleAddToCart}
                 disabled={!selectedVariation || currentStock <= 0}
               >
                 {currentStock > 0 ? t("product.addToCart", "Add to Cart") : t("product.soldOut", "Sold out")}
