@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { api } from "./lib/api";
 import { useTranslation } from "react-i18next";
+
 import CartCheckoutPage from "./pages/CartCheckoutPage";
 import OrderHistoryPage from "./pages/OrderHistoryPage";
 import Favorites from "./pages/Favorites";
@@ -11,10 +12,17 @@ import Profile from "./pages/Profile.jsx";
 import ProductDetailsPage from "./pages/ProductDetailsPage.jsx";
 import CatalogPage from "./pages/CatalogPage.jsx";
 import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
+
+
 import ResetPassword from "./pages/auth/ResetPassword.jsx";
 import AdminPage from "./pages/admin/AdminPage.jsx";
+import AboutPage from "./pages/AboutPage.jsx";
+import ContactPage from "./pages/ContactPage.jsx";
+
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import { CartProvider } from "./context/CartContext";
+import MainLayout from "./layouts/MainLayout.jsx";
+import AuthLayout from "./layouts/AuthLayout.jsx";
 
 export default function App() {
   const [me, setMe] = useState(null);
@@ -49,35 +57,36 @@ export default function App() {
   return (
     <CartProvider me={me}>
       <Routes>
-        <Route path="/" element={<Home me={me} setMe={setMe} />} />
-        <Route path="/catalog" element={<CatalogPage me={me} setMe={setMe} />} />
-        <Route path="/product/:id" element={<ProductDetailsPage me={me} setMe={setMe} />} />
-        <Route path="/favorites" element={<Favorites me={me} setMe={setMe} />} />
-
-        <Route
-          path="/auth"
-          element={me ? <Navigate to="/" replace /> : <Auth setMe={setMe} />}
-        />
-
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-
-        <Route
-          path="/profile"
-          element={me ? <Profile me={me} setMe={setMe} /> : <Navigate to="/auth" replace />}
-        />
-
-        <Route path="/cart" element={<CartCheckoutPage me={me} setMe={setMe} />} />
-        <Route path="/orders" element={<OrderHistoryPage me={me} setMe={setMe} />} />
-
-        <Route
-          path="/admin"
-          element={<ProtectedRoute isAllowed={role === "ADMIN"} redirectTo="/profile" />}
-        >
-          <Route index element={<AdminPage />} />
+        <Route element={<AuthLayout />}>
+          <Route
+            path="/auth"
+            element={me ? <Navigate to="/" replace /> : <Auth setMe={setMe} />}
+          />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route element={<MainLayout me={me} setMe={setMe} />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/catalog" element={<CatalogPage me={me} setMe={setMe} />} />
+          <Route path="/product/:id" element={<ProductDetailsPage me={me} setMe={setMe} />} />
+          <Route path="/favorites" element={<Favorites me={me} setMe={setMe} />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route
+            path="/profile"
+            element={me ? <Profile me={me} setMe={setMe} /> : <Navigate to="/auth" replace />}
+          />
+          <Route path="/cart" element={<CartCheckoutPage me={me} setMe={setMe} />} />
+          <Route path="/orders" element={<OrderHistoryPage me={me} setMe={setMe} />} />
+          <Route
+            path="/admin"
+            element={<ProtectedRoute isAllowed={role === "ADMIN_GENERAL" ||role === "VENDEUR" } redirectTo="/profile" />}
+          >
+            <Route index element={<AdminPage />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
       </Routes>
     </CartProvider>
   );

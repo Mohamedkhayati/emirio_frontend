@@ -1043,3 +1043,143 @@ html[dir="rtl"] body {
     display: none;
   }
 }
+.proNavbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+  animation: navbarSlideDown 0.6s ease;
+}
+
+.logoWrap {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.logoWrap:hover {
+  transform: scale(1.03);
+  opacity: 0.95;
+}
+
+.logoImage {
+  height: 58px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.proNavLinks {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.navItem {
+  position: relative;
+  text-decoration: none;
+  color: #111;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  padding: 10px 0;
+  transition: color 0.25s ease, transform 0.25s ease;
+}
+
+.navItem::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  width: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #111, #e91e63);
+  transition: width 0.3s ease;
+}
+
+.navItem:hover {
+  color: #e91e63;
+  transform: translateY(-2px);
+}
+
+.navItem:hover::after,
+.navItem.active::after {
+  width: 100%;
+}
+
+.navItem.active {
+  color: #111;
+}
+
+.proCartBtn {
+  font-weight: 800;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.proCartBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(233, 30, 99, 0.18);
+}
+
+.storeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 28px;
+}
+
+@keyframes navbarSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 992px) {
+  .storeHeader {
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 14px 16px;
+  }
+
+  .logoImage {
+    height: 48px;
+  }
+
+  .proNavLinks {
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .navItem {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 576px) {
+  .logoImage {
+    height: 42px;
+  }
+
+  .proNavLinks {
+    gap: 12px;
+  }
+
+  .navItem {
+    font-size: 13px;
+    letter-spacing: 0.2px;
+  }
+}

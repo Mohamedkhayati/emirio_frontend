@@ -1,10 +1,9 @@
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
+import Footer from "../components/Footer";
 import "../styles/home.css";
-import UserIconMenu from "../components/UserIconMenu";
-import LanguageMenu from "../components/LanguageMenu";
 
 const toAbs = (path) => {
   if (!path) return "";
@@ -24,16 +23,6 @@ function readFavorites() {
     return Array.isArray(value) ? value : [];
   } catch {
     return [];
-  }
-}
-
-function getCartCount() {
-  try {
-    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
-    if (!Array.isArray(cart)) return 0;
-    return cart.reduce((sum, item) => sum + Number(item.qty || 0), 0);
-  } catch {
-    return 0;
   }
 }
 
@@ -248,11 +237,7 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
         </button>
 
         {images.length > 0 ? (
-          <img
-            src={images[currentImage]}
-            alt={p.nom}
-            className="productImage imageFade"
-          />
+          <img src={images[currentImage]} alt={p.nom} className="productImage imageFade" />
         ) : (
           <div className="productImage emptyImage">{t("common.noImage", "No image")}</div>
         )}
@@ -294,7 +279,7 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
   );
 }
 
-export default function Home({ me, setMe }) {
+export default function Home() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -306,7 +291,6 @@ export default function Home({ me, setMe }) {
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [nowTick, setNowTick] = useState(Date.now());
   const [favorites, setFavorites] = useState(readFavorites);
-  const [cartCount, setCartCount] = useState(getCartCount);
 
   useEffect(() => {
     const tick = setInterval(() => setNowTick(Date.now()), 1000);
@@ -340,21 +324,6 @@ export default function Home({ me, setMe }) {
   useEffect(() => {
     localStorage.setItem("favorites", JSON.stringify(favorites));
   }, [favorites]);
-
-  useEffect(() => {
-    const syncCart = () => setCartCount(getCartCount());
-    syncCart();
-
-    window.addEventListener("storage", syncCart);
-    window.addEventListener("focus", syncCart);
-    window.addEventListener("cart-updated", syncCart);
-
-    return () => {
-      window.removeEventListener("storage", syncCart);
-      window.removeEventListener("focus", syncCart);
-      window.removeEventListener("cart-updated", syncCart);
-    };
-  }, []);
 
   const filteredArticles = useMemo(() => {
     let list = [...articles];
@@ -400,52 +369,24 @@ export default function Home({ me, setMe }) {
   const openCatalog = () =>
     navigate(selectedCategoryId ? `/catalog?categorieId=${selectedCategoryId}` : "/catalog");
 
-  const openCart = () => navigate("/cart");
-
   const toggleFavorite = (id) => {
-    setFavorites((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
+    setFavorites((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
   return (
     <div className="homePage">
-      <div className="topStrip">
-        <span>{t("home.topStrip")}</span>
-      </div>
-
-      <header className="storeHeader">
-        <Link to="/" className="logo">EMIRIO</Link>
-
-        <nav className="mainNav">
-          <a href="#sale-products">{t("nav.sale", "Sale")}</a>
-          <a href="#recommended">{t("nav.bestChoice", "Best Choice")}</a>
-          <a href="#new-arrivals">{t("nav.newArrivals", "New Arrivals")}</a>
-          <a href="#categories">{t("nav.categories", "Categories")}</a>
-        </nav>
-
-        <div className="headerActions">
-          <div className="searchBar">
-            <input
-              type="text"
-              placeholder={t("common.searchProducts", "Search products")}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-
-          <button type="button" className="cartHeaderBtn" onClick={openCart}>
-            <span>🛒</span>
-            <span>{t("nav.cart", "Cart")}</span>
-            {cartCount > 0 ? <span className="cartBadge">{cartCount}</span> : null}
-          </button>
-
-          <LanguageMenu />
-          <UserIconMenu me={me} setMe={setMe} />
-        </div>
-      </header>
-
       <SaleHeroSlider articles={filteredArticles} onOpen={openProduct} nowTick={nowTick} />
+
+      <section className="productSection">
+        <div className="searchBar" style={{ maxWidth: "420px", marginLeft: "auto" }}>
+          <input
+            type="text"
+            placeholder={t("common.searchProducts", "Search products")}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      </section>
 
       <section className="productSection" id="sale-products">
         <div className="sectionTopRow">
@@ -564,6 +505,7 @@ export default function Home({ me, setMe }) {
           </div>
         )}
       </section>
+
     </div>
   );
 }

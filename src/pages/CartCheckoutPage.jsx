@@ -1,10 +1,8 @@
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import "../styles/cart-checkout.css";
-import UserIconMenu from "../components/UserIconMenu";
-import LanguageMenu from "../components/LanguageMenu";
 import { useCart } from "../context/CartContext";
 
 const PAYMENT_METHODS = [
@@ -23,7 +21,7 @@ const toAbs = (path) => {
 
 const fmtPrice = (v) => `${Number(v || 0).toFixed(3)} TND`;
 
-export default function CartCheckoutPage({ me, setMe }) {
+export default function CartCheckoutPage({ me }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { cartItems, updateCartItemQty, removeFromCart, clearCart } = useCart();
@@ -246,27 +244,6 @@ export default function CartCheckoutPage({ me, setMe }) {
 
   return (
     <div className="checkoutPage">
-      <header className="storeHeader checkoutHeader">
-        <Link to="/" className="logo">EMIRIO</Link>
-
-        <nav className="mainNav">
-          <Link to="/">{t("nav.home", "Home")}</Link>
-          <Link to="/catalog">{t("nav.catalog", "Catalog")}</Link>
-          <Link to="/cart">{t("nav.cart", "Cart")}</Link>
-          <Link to="/orders">{t("nav.orders", "Orders")}</Link>
-        </nav>
-
-        <div className="headerActions">
-          <button type="button" className="cartHeaderBtn" onClick={() => navigate("/cart")}>
-            <span>🛒</span>
-            <span>{t("nav.cart", "Cart")}</span>
-            {cartCount > 0 ? <span className="cartBadge">{cartCount}</span> : null}
-          </button>
-          <LanguageMenu />
-          <UserIconMenu me={me} setMe={setMe} />
-        </div>
-      </header>
-
       <div className="checkoutWrap">
         <section className="cartPanel">
           <div className="checkoutTopRow">

@@ -94,11 +94,10 @@ const ORDER_TABS = [
   { key: "CLOSED", label: "Closed" },
 ];
 
-const normalizeOrderStatus = (status) => String(status || "").toUpperCase();
+const normalizeOrderStatus = (status) => String(status || "").trim().toUpperCase();
 
 function getOrderBucket(status) {
   const s = normalizeOrderStatus(status);
-
   if (["ANNULEE", "CANCELLED"].includes(s)) return "CANCELLED";
   if (["LIVREE", "CLOSED", "COMPLETED"].includes(s)) return "CLOSED";
   if (["CONFIRMEE", "EN_COURS", "EXPEDIEE", "SHIPPED", "SENT"].includes(s)) return "SEND";
@@ -107,7 +106,6 @@ function getOrderBucket(status) {
 
 function getOrderBadgeLabel(status) {
   const s = normalizeOrderStatus(status);
-
   if (s === "EN_ATTENTE") return "Pending";
   if (s === "CONFIRMEE") return "Confirmed";
   if (s === "EN_COURS") return "In process";
@@ -122,10 +120,153 @@ function getOrderBadgeClass(status) {
   return `orderStatusBadge ${bucket.toLowerCase()}`;
 }
 
+function normalizeRole(role) {
+  return String(role || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
+}
+
+function isAdminRole(role) {
+  const r = normalizeRole(role);
+  return r === "ADMIN_GENERAL" || r === "ADMIN";
+}
+
+function isVendeurRole(role) {
+  const r = normalizeRole(role);
+  return r === "VENDEUR" || r === "SELLER";
+}
+
+function getStoredToken() {
+  try {
+    const direct = localStorage.getItem("emirio_token") || localStorage.getItem("token");
+    if (direct) return direct;
+
+    const authRaw = localStorage.getItem("auth");
+    if (!authRaw) return "";
+
+    const auth = JSON.parse(authRaw);
+    return auth?.token || "";
+  } catch {
+    return "";
+  }
+}
+
+function getStoredRole() {
+  try {
+    const directRole = localStorage.getItem("role");
+    if (directRole) return normalizeRole(directRole);
+
+    const authRaw = localStorage.getItem("auth");
+    if (authRaw) {
+      const auth = JSON.parse(authRaw);
+      if (auth?.role) return normalizeRole(auth.role);
+      if (auth?.user?.role) return normalizeRole(auth.user.role);
+    }
+  } catch {
+    return "";
+  }
+  return "";
+}
+
+function persistAuth(token, role) {
+  const normalizedRole = normalizeRole(role);
+
+  if (token) {
+    localStorage.setItem("emirio_token", token);
+    localStorage.setItem("token", token);
+  }
+
+  if (normalizedRole) {
+    localStorage.setItem("role", normalizedRole);
+  } else {
+    localStorage.removeItem("role");
+  }
+
+  localStorage.setItem(
+    "auth",
+    JSON.stringify({
+      token: token || "",
+      role: normalizedRole || "",
+    })
+  );
+}
+
+function clearStoredAuth() {
+  localStorage.removeItem("emirio_token");
+  localStorage.removeItem("token");
+  localStorage.removeItem("role");
+  localStorage.removeItem("auth");
+}
+
+function getReclamationTitle(item) {
+  return (
+    item?.objet ||
+    item?.sujet ||
+    item?.title ||
+    item?.titre ||
+    item?.subject ||
+    item?.type ||
+    "Reclamation"
+  );
+}
+
+function getReclamationMessage(item) {
+  return (
+    item?.message ||
+    item?.description ||
+    item?.contenu ||
+    item?.details ||
+    item?.texte ||
+    item?.body ||
+    "-"
+  );
+}
+
+function getReclamationStatus(item) {
+  return item?.statut || item?.status || item?.etat || "PENDING";
+}
+
+function getReclamationAuthor(item) {
+  return (
+    item?.email ||
+    item?.emailClient ||
+    item?.clientEmail ||
+    item?.utilisateurEmail ||
+    item?.nomComplet ||
+    item?.clientNom ||
+    item?.nom ||
+    item?.userName ||
+    "-"
+  );
+}
+
+function getReclamationDate(item) {
+  return (
+    item?.dateCreation ||
+    item?.createdAt ||
+    item?.date ||
+    item?.created_at ||
+    item?.updatedAt ||
+    null
+  );
+}
+
 export default function AdminPage() {
   const { t, i18n } = useTranslation();
 
-  const [section, setSection] = useState("customers");
+  const [role, setRole] = useState("");
+  const [roleLoading, setRoleLoading] = useState(true);
+
+  const isAdminGeneral = useMemo(() => isAdminRole(role), [role]);
+  const isVendeur = useMemo(() => isVendeurRole(role), [role]);
+
+ const allowedSections = useMemo(() => {
+  if (isAdminGeneral) return ["customers", "catalog", "dashboard", "orders"];
+  if (isVendeur) return ["catalog"];
+  return [];
+}, [isAdminGeneral, isVendeur]);
+  const [section, setSection] = useState("catalog");
 
   const [rows, setRows] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -170,6 +311,12 @@ export default function AdminPage() {
   const [orderSort, setOrderSort] = useState("newest");
   const [orderPage, setOrderPage] = useState(1);
 
+  const [reclamations, setReclamations] = useState([]);
+  const [reclamationsLoading, setReclamationsLoading] = useState(false);
+  const [reclamationsError, setReclamationsError] = useState("");
+  const [reclamationQ, setReclamationQ] = useState("");
+  const [selectedReclamation, setSelectedReclamation] = useState(null);
+
   const [editingArticleId, setEditingArticleId] = useState(null);
   const [editingVariationId, setEditingVariationId] = useState(null);
   const [editingCategoryId, setEditingCategoryId] = useState(null);
@@ -193,6 +340,60 @@ export default function AdminPage() {
     if (lng.startsWith("ar")) return "ar";
     return "en";
   }, [i18n.language, i18n.resolvedLanguage]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function bootstrapRole() {
+      try {
+        const token = getStoredToken();
+
+        if (!token) {
+          clearStoredAuth();
+          if (mounted) {
+            setRole("");
+            setRoleLoading(false);
+          }
+          return;
+        }
+
+        const res = await api.get("/api/profile");
+        const apiRole = normalizeRole(res?.data?.role || "");
+
+        persistAuth(token, apiRole);
+
+        if (mounted) {
+          setRole(apiRole);
+        }
+      } catch {
+        clearStoredAuth();
+        if (mounted) {
+          setRole("");
+        }
+      } finally {
+        if (mounted) {
+          setRoleLoading(false);
+        }
+      }
+    }
+
+    bootstrapRole();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!allowedSections.length) return;
+    if (!allowedSections.includes(section)) {
+      setSection(allowedSections[0]);
+    }
+  }, [allowedSections, section]);
+
+  useEffect(() => {
+    setOrderPage(1);
+  }, [orderQ, orderTab, orderSort]);
 
   const colorNameById = useMemo(
     () => Object.fromEntries(colors.map((c) => [Number(c.id), c.nom])),
@@ -218,7 +419,9 @@ export default function AdminPage() {
     const s = q.trim().toLowerCase();
     if (!s) return rows;
     return rows.filter((u) =>
-      `${u.nom || ""} ${u.prenom || ""} ${u.email || ""}`.toLowerCase().includes(s)
+      `${u.nom || ""} ${u.prenom || ""} ${u.email || ""} ${u.role || ""}`
+        .toLowerCase()
+        .includes(s)
     );
   }, [q, rows]);
 
@@ -226,28 +429,32 @@ export default function AdminPage() {
     const s = catalogQ.trim().toLowerCase();
     if (!s) return articles;
     return articles.filter((a) =>
-      `${a.nom || ""} ${a.description || ""} ${a.categorieNom || ""} ${a.marque || ""} ${
-        a.sku || ""
-      }`
+      `${a.nom || ""} ${a.description || ""} ${a.categorieNom || ""} ${a.marque || ""} ${a.sku || ""}`
         .toLowerCase()
         .includes(s)
     );
   }, [catalogQ, articles]);
 
+  const filteredReclamations = useMemo(() => {
+    const s = reclamationQ.trim().toLowerCase();
+    if (!s) return reclamations;
+    return reclamations.filter((r) =>
+      `${getReclamationTitle(r)} ${getReclamationMessage(r)} ${getReclamationAuthor(r)} ${getReclamationStatus(r)}`
+        .toLowerCase()
+        .includes(s)
+    );
+  }, [reclamationQ, reclamations]);
+
   const filteredOrders = useMemo(() => {
     const qv = orderQ.trim().toLowerCase();
-
     let list = [...orders].filter((o) => getOrderBucket(o.statutCommande) === orderTab);
 
     if (qv) {
       list = list.filter((o) => {
-        const customerName = `${o.prenomClient || ""} ${o.nomClient || ""}`
-          .trim()
-          .toLowerCase();
+        const customerName = `${o.prenomClient || ""} ${o.nomClient || ""}`.trim().toLowerCase();
         const ref = String(o.referenceCommande || o.id || "").toLowerCase();
         const email = String(o.emailClient || "").toLowerCase();
         const phone = String(o.telephone || "").toLowerCase();
-
         return (
           customerName.includes(qv) ||
           ref.includes(qv) ||
@@ -281,10 +488,6 @@ export default function AdminPage() {
   }, [filteredOrders, orderPage]);
 
   useEffect(() => {
-    setOrderPage(1);
-  }, [orderQ, orderTab, orderSort]);
-
-  useEffect(() => {
     if (orderPage > totalOrderPages) {
       setOrderPage(totalOrderPages);
     }
@@ -296,18 +499,32 @@ export default function AdminPage() {
     document.documentElement.lang = lng;
     document.documentElement.dir = i18n.dir(lng);
   }
+  async function updateUserRole(id, role) {
+  setError("");
+  setBusyId(id);
+
+  try {
+    const res = await api.put(`/api/admin/users/${id}/role`, { role });
+    setSelected(res.data);
+    await loadList(false);
+  } catch (e) {
+    setError(e?.response?.data?.message || "Role update failed");
+  } finally {
+    setBusyId(null);
+  }
+}
 
   function closeDialog(ref) {
     ref.current?.close();
   }
 
   async function loadOrders() {
+    if (!isAdminGeneral) return;
     setOrdersError("");
     setOrdersLoading(true);
     try {
       const res = await api.get("/api/admin/orders");
-      const list = Array.isArray(res.data) ? res.data : [];
-      setOrders(list);
+      setOrders(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
       setOrdersError(e?.response?.data?.message || "Cannot load orders");
       setOrders([]);
@@ -320,9 +537,7 @@ export default function AdminPage() {
     setBusyOrderId(id);
     setOrdersError("");
     try {
-      await api.patch(`/api/admin/orders/${id}/status`, {
-        statutCommande: "CONFIRMEE",
-      });
+      await api.patch(`/api/admin/orders/${id}/status`, { statutCommande: "CONFIRMEE" });
       await loadOrders();
     } catch (e) {
       setOrdersError(e?.response?.data?.message || "Cannot confirm order");
@@ -335,9 +550,7 @@ export default function AdminPage() {
     setBusyOrderId(id);
     setOrdersError("");
     try {
-      await api.patch(`/api/admin/orders/${id}/status`, {
-        statutCommande: "ANNULEE",
-      });
+      await api.patch(`/api/admin/orders/${id}/status`, { statutCommande: "ANNULEE" });
       await loadOrders();
     } catch (e) {
       setOrdersError(e?.response?.data?.message || "Cannot cancel order");
@@ -376,6 +589,7 @@ export default function AdminPage() {
   }
 
   async function loadRecommendationConfig() {
+    if (!isAdminGeneral) return;
     try {
       const res = await api.get("/api/admin/recommendation-config");
       if (res?.data) {
@@ -393,6 +607,7 @@ export default function AdminPage() {
   }
 
   async function saveRecommendationConfig() {
+    if (!isAdminGeneral) return;
     try {
       await api.put("/api/admin/recommendation-config", recConfig);
     } catch (e) {
@@ -401,27 +616,40 @@ export default function AdminPage() {
   }
 
   async function loadList(pickFirst = false) {
+    if (!isAdminGeneral) return;
     setError("");
-    const res = await api.get("/api/admin/clients");
-    const list = res.data || [];
-    setRows(list);
+    try {
+      const res = await api.get("/api/admin/clients");
+      const list = Array.isArray(res.data) ? res.data : [];
+      setRows(list);
 
-    if (pickFirst && list.length) {
-      const firstId = selected?.id ?? list[0].id;
-      const d = await api.get(`/api/admin/clients/${firstId}`);
-      setSelected(d.data);
-    } else if (!list.length) {
+      if (pickFirst && list.length) {
+        const firstId = selected?.id ?? list[0].id;
+        const d = await api.get(`/api/admin/clients/${firstId}`);
+        setSelected(d.data);
+      } else if (!list.length) {
+        setSelected(null);
+      }
+    } catch (e) {
+      setError(e?.response?.data?.message || "Cannot load customers");
+      setRows([]);
       setSelected(null);
     }
   }
 
   async function selectClient(id) {
+    if (!isAdminGeneral) return;
     setError("");
-    const d = await api.get(`/api/admin/clients/${id}`);
-    setSelected(d.data);
+    try {
+      const d = await api.get(`/api/admin/clients/${id}`);
+      setSelected(d.data);
+    } catch (e) {
+      setError(e?.response?.data?.message || "Cannot load customer");
+    }
   }
 
   async function setStatus(id, statutCompte) {
+    if (!isAdminGeneral) return;
     setError("");
     setBusyId(id);
     try {
@@ -429,14 +657,15 @@ export default function AdminPage() {
       setSelected(d.data);
       await loadList(false);
     } catch (e) {
-      setError(e?.response?.data?.message || t("admin.messages.updateFailed"));
+      setError(e?.response?.data?.message || "Update failed");
     } finally {
       setBusyId(null);
     }
   }
 
   async function deleteClient(id) {
-    if (!window.confirm(t("admin.confirm.deleteClient"))) return;
+    if (!isAdminGeneral) return;
+    if (!window.confirm("Delete this customer?")) return;
     setError("");
     setBusyId(id);
     try {
@@ -445,9 +674,31 @@ export default function AdminPage() {
       setSelected(null);
       await loadList(true);
     } catch (e) {
-      setError(e?.response?.data?.message || t("admin.messages.deleteFailed"));
+      setError(e?.response?.data?.message || "Delete failed");
     } finally {
       setBusyId(null);
+    }
+  }
+
+  async function loadReclamations() {
+    setReclamationsError("");
+    setReclamationsLoading(true);
+    try {
+      const res = await api.get("/api/admin/reclamations");
+      const list = Array.isArray(res.data)
+        ? res.data
+        : Array.isArray(res.data?.content)
+        ? res.data.content
+        : [];
+      setReclamations(list);
+      if (!selectedReclamation && list.length) setSelectedReclamation(list[0]);
+      if (!list.length) setSelectedReclamation(null);
+    } catch (e) {
+      setReclamationsError(e?.response?.data?.message || "Cannot load reclamations");
+      setReclamations([]);
+      setSelectedReclamation(null);
+    } finally {
+      setReclamationsLoading(false);
     }
   }
 
@@ -486,7 +737,6 @@ export default function AdminPage() {
     }
 
     const stillExists = selectedArticle && list.some((x) => x.id === selectedArticle.id);
-
     if (stillExists) {
       await loadArticleDetails(selectedArticle.id);
     } else {
@@ -495,11 +745,24 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    loadList(true).catch((e) => setError(e?.response?.data?.message || e.message));
-    refreshCatalog(true).catch((e) => setCatalogError(e?.response?.data?.message || e.message));
-    loadRecommendationConfig().catch(() => {});
-    loadOrders().catch(() => {});
-  }, []);
+    refreshCatalog(true).catch((e) =>
+      setCatalogError(e?.response?.data?.message || e.message || "Cannot load catalog")
+    );
+
+    loadReclamations().catch(() => {});
+
+    if (isAdminGeneral) {
+      loadList(true).catch((e) =>
+        setError(e?.response?.data?.message || e.message || "Cannot load customers")
+      );
+      loadRecommendationConfig().catch(() => {});
+      loadOrders().catch(() => {});
+    } else {
+      setRows([]);
+      setSelected(null);
+      setOrders([]);
+    }
+  }, [isAdminGeneral]);
 
   function openCreateArticle() {
     setEditingArticleId(null);
@@ -509,7 +772,6 @@ export default function AdminPage() {
 
   function openEditArticle(article = selectedArticle) {
     if (!article) return;
-
     setEditingArticleId(article.id);
     setArticleForm({
       nom: article.nom || "",
@@ -526,7 +788,6 @@ export default function AdminPage() {
       saleEndAt: toInputDateTime(article.saleEndAt),
       recommended: !!article.recommended,
     });
-
     articleDialogRef.current?.showModal();
   }
 
@@ -565,7 +826,6 @@ export default function AdminPage() {
     if (articleForm.saleStartAt && articleForm.saleEndAt) {
       const start = new Date(articleForm.saleStartAt).getTime();
       const end = new Date(articleForm.saleEndAt).getTime();
-
       if (end < start) {
         setCatalogError("Sale end date must be after sale start date.");
         setBusyCatalog(false);
@@ -606,29 +866,26 @@ export default function AdminPage() {
       articleDialogRef.current?.close();
       await refreshCatalog(true);
     } catch (e2) {
-      setCatalogError(e2?.response?.data?.message || t("admin.messages.saveArticleFailed"));
+      setCatalogError(e2?.response?.data?.message || "Save article failed");
     } finally {
       setBusyCatalog(false);
     }
   }
 
   async function deleteArticle(id) {
-    if (!window.confirm(t("admin.confirm.deleteArticle"))) return;
-
+    if (!window.confirm("Delete this article?")) return;
     setBusyCatalog(true);
     setCatalogError("");
 
     try {
       await api.delete(`/api/admin/articles/${id}`);
-
       if (selectedArticle?.id === id) {
         setSelectedArticle(null);
         setVariations([]);
       }
-
       await refreshCatalog(true);
     } catch (e) {
-      setCatalogError(e?.response?.data?.message || t("admin.messages.deleteArticleFailed"));
+      setCatalogError(e?.response?.data?.message || "Delete article failed");
     } finally {
       setBusyCatalog(false);
     }
@@ -641,7 +898,6 @@ export default function AdminPage() {
 
   function openCreateVariation() {
     if (!selectedArticle) return;
-
     if (!colors.length || !sizes.length) {
       setCatalogError("Create at least one color and one size before adding a variation.");
       return;
@@ -719,13 +975,7 @@ export default function AdminPage() {
     setBusyCatalog(true);
 
     try {
-      const payload = {
-        prix,
-        quantiteStock,
-        couleurId,
-        tailleId,
-      };
-
+      const payload = { prix, quantiteStock, couleurId, tailleId };
       const fd = new FormData();
       fd.append("data", new Blob([JSON.stringify(payload)], { type: "application/json" }));
 
@@ -754,15 +1004,13 @@ export default function AdminPage() {
   }
 
   async function deleteVariation(id) {
-    if (!window.confirm(t("admin.confirm.deleteVariation"))) return;
+    if (!window.confirm("Delete this variation?")) return;
     setBusyCatalog(true);
     try {
       await api.delete(`/api/admin/variations/${id}`);
-      if (selectedArticle?.id) {
-        await loadArticleDetails(selectedArticle.id);
-      }
+      if (selectedArticle?.id) await loadArticleDetails(selectedArticle.id);
     } catch (e) {
-      setCatalogError(e?.response?.data?.message || t("admin.messages.deleteVariationFailed"));
+      setCatalogError(e?.response?.data?.message || "Delete variation failed");
     } finally {
       setBusyCatalog(false);
     }
@@ -776,10 +1024,7 @@ export default function AdminPage() {
 
   function openEditCategory(c) {
     setEditingCategoryId(c.id);
-    setCategoryForm({
-      nom: c.nom || "",
-      description: c.description || "",
-    });
+    setCategoryForm({ nom: c.nom || "", description: c.description || "" });
     categoryDialogRef.current?.showModal();
   }
 
@@ -817,13 +1062,13 @@ export default function AdminPage() {
   }
 
   async function deleteCategory(id) {
-    if (!window.confirm(t("admin.confirm.deleteCategory"))) return;
+    if (!window.confirm("Delete this category?")) return;
     setBusyCatalog(true);
     try {
       await api.delete(`/api/admin/categories/${id}`);
       await refreshCatalog(false);
     } catch (e) {
-      setCatalogError(e?.response?.data?.message || t("admin.messages.deleteCategoryFailed"));
+      setCatalogError(e?.response?.data?.message || "Delete category failed");
     } finally {
       setBusyCatalog(false);
     }
@@ -837,10 +1082,7 @@ export default function AdminPage() {
 
   function openEditColor(c) {
     setEditingColorId(c.id);
-    setColorForm({
-      nom: c.nom || "",
-      codeHex: c.codeHex || "#000000",
-    });
+    setColorForm({ nom: c.nom || "", codeHex: c.codeHex || "#000000" });
     colorDialogRef.current?.showModal();
   }
 
@@ -878,13 +1120,13 @@ export default function AdminPage() {
   }
 
   async function deleteColor(id) {
-    if (!window.confirm(t("admin.confirm.deleteColor"))) return;
+    if (!window.confirm("Delete this color?")) return;
     setBusyCatalog(true);
     try {
       await api.delete(`/api/admin/colors/${id}`);
       await refreshCatalog(false);
     } catch (e) {
-      setCatalogError(e?.response?.data?.message || t("admin.messages.deleteColorFailed"));
+      setCatalogError(e?.response?.data?.message || "Delete color failed");
     } finally {
       setBusyCatalog(false);
     }
@@ -898,9 +1140,7 @@ export default function AdminPage() {
 
   function openEditSize(s) {
     setEditingSizeId(s.id);
-    setSizeForm({
-      pointure: s.pointure || "",
-    });
+    setSizeForm({ pointure: s.pointure || "" });
     sizeDialogRef.current?.showModal();
   }
 
@@ -916,9 +1156,7 @@ export default function AdminPage() {
     }
 
     try {
-      const payload = {
-        pointure: String(sizeForm.pointure).trim(),
-      };
+      const payload = { pointure: String(sizeForm.pointure).trim() };
 
       if (editingSizeId) {
         await api.put(`/api/admin/sizes/${editingSizeId}`, payload);
@@ -937,16 +1175,44 @@ export default function AdminPage() {
   }
 
   async function deleteSize(id) {
-    if (!window.confirm(t("admin.confirm.deleteSize"))) return;
+    if (!window.confirm("Delete this size?")) return;
     setBusyCatalog(true);
     try {
       await api.delete(`/api/admin/sizes/${id}`);
       await refreshCatalog(false);
     } catch (e) {
-      setCatalogError(e?.response?.data?.message || t("admin.messages.deleteSizeFailed"));
+      setCatalogError(e?.response?.data?.message || "Delete size failed");
     } finally {
       setBusyCatalog(false);
     }
+  }
+
+  if (roleLoading) {
+    return (
+      <div className="adminLayout">
+        <main className="adminContent">
+          <div className="fadeInUp">
+            <div className="admPage">
+              <div className="admAlert">Loading...</div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (!isAdminGeneral && !isVendeur) {
+    return (
+      <div className="adminLayout">
+        <main className="adminContent">
+          <div className="fadeInUp">
+            <div className="admPage">
+              <div className="admAlert">Access denied. Your role is not allowed to open this page.</div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   return (
@@ -955,12 +1221,14 @@ export default function AdminPage() {
         <div className="adminSidebarTop">
           <div className="adminBrandBlock">
             <div className="adminBrandTitle">EMIRIO</div>
-            <div className="adminBrandSub">{t("admin.sidebar.panel")}</div>
+            <div className="adminBrandSub">
+              {isAdminGeneral ? "Admin General Panel" : "Vendeur Panel"}
+            </div>
           </div>
 
           <div className="adminLangBox">
             <label className="adminLangLabel" htmlFor="admin-language">
-              {t("admin.language")}
+              {t("admin.language") || "Language"}
             </label>
 
             <select
@@ -977,38 +1245,46 @@ export default function AdminPage() {
         </div>
 
         <div className="adminMenu onlyMenu">
-          <button
-            className={`adminMenuItem ${section === "customers" ? "active" : ""}`}
-            onClick={() => setSection("customers")}
-          >
-            {t("admin.sidebar.customers")}
-          </button>
+          {isAdminGeneral && (
+            <button
+              className={`adminMenuItem ${section === "customers" ? "active" : ""}`}
+              onClick={() => setSection("customers")}
+            >
+              Customers
+            </button>
+          )}
 
           <button
             className={`adminMenuItem ${section === "catalog" ? "active" : ""}`}
             onClick={() => setSection("catalog")}
           >
-            {t("admin.sidebar.catalog")}
+            Catalog
           </button>
 
-          <button
-            className={`adminMenuItem ${section === "dashboard" ? "active" : ""}`}
-            onClick={() => setSection("dashboard")}
-          >
-            {t("admin.sidebar.dashboard")}
-          </button>
+          
 
-          <button
-            className={`adminMenuItem ${section === "orders" ? "active" : ""}`}
-            onClick={() => setSection("orders")}
-          >
-            Orders
-          </button>
+          {isAdminGeneral && (
+            <button
+              className={`adminMenuItem ${section === "dashboard" ? "active" : ""}`}
+              onClick={() => setSection("dashboard")}
+            >
+              Dashboard
+            </button>
+          )}
+
+          {isAdminGeneral && (
+            <button
+              className={`adminMenuItem ${section === "orders" ? "active" : ""}`}
+              onClick={() => setSection("orders")}
+            >
+              Orders
+            </button>
+          )}
         </div>
       </aside>
 
       <main className="adminContent">
-        {section === "orders" && (
+        {section === "orders" && isAdminGeneral && (
           <div className="fadeInUp">
             <div className="admPage ordersPage">
               <div className="ordersHero">
@@ -1087,9 +1363,7 @@ export default function AdminPage() {
                         `${order.prenomClient || ""} ${order.nomClient || ""}`.trim() ||
                         "Unknown customer";
 
-                      const customerSub =
-                        order.emailClient || order.telephone || order.adresse || "-";
-
+                      const customerSub = order.emailClient || order.telephone || order.adresse || "-";
                       const ref = order.referenceCommande || `#${order.id}`;
                       const lines = Array.isArray(order.lignes) ? order.lignes : [];
                       const thumbs = lines.slice(0, 3);
@@ -1193,9 +1467,7 @@ export default function AdminPage() {
                               type="button"
                               className="admBtn mini"
                               onClick={() => reviewPayment(order.id, true)}
-                              disabled={
-                                busyOrderId === order.id || order.statutPaiement === "ACCEPTE"
-                              }
+                              disabled={busyOrderId === order.id || order.statutPaiement === "ACCEPTE"}
                             >
                               Accept payment
                             </button>
@@ -1204,9 +1476,7 @@ export default function AdminPage() {
                               type="button"
                               className="admBtn mini danger"
                               onClick={() => reviewPayment(order.id, false)}
-                              disabled={
-                                busyOrderId === order.id || order.statutPaiement === "REFUSE"
-                              }
+                              disabled={busyOrderId === order.id || order.statutPaiement === "REFUSE"}
                             >
                               Reject payment
                             </button>
@@ -1249,11 +1519,7 @@ export default function AdminPage() {
                           <div className="ordersInvoiceCell">
                             <div>{order.invoiceNumber || "-"}</div>
                             {order.invoiceUrl ? (
-                              <a
-                                href={fullImageUrl(order.invoiceUrl)}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
+                              <a href={fullImageUrl(order.invoiceUrl)} target="_blank" rel="noreferrer">
                                 Open invoice
                               </a>
                             ) : (
@@ -1311,13 +1577,15 @@ export default function AdminPage() {
           </div>
         )}
 
-        {section === "customers" && (
+        {section === "customers" && isAdminGeneral && (
           <div className="fadeInUp">
             <div className="admPage">
               <div className="admHeader">
                 <div>
-                  <div className="admH1">{t("admin.customers.title")}</div>
-                  <div className="admH2">{t("admin.customers.subtitle")}</div>
+                  <div className="admH1">{t("admin.customers.title") || "Customers"}</div>
+                  <div className="admH2">
+                    {t("admin.customers.subtitle") || "Manage customer accounts"}
+                  </div>
                 </div>
 
                 <div className="admHeaderRight">
@@ -1326,7 +1594,7 @@ export default function AdminPage() {
                       className="admSearch"
                       value={q}
                       onChange={(e) => setQ(e.target.value)}
-                      placeholder={t("admin.customers.searchPlaceholder")}
+                      placeholder={t("admin.customers.searchPlaceholder") || "Search customers"}
                     />
                   </div>
                   <button
@@ -1334,7 +1602,7 @@ export default function AdminPage() {
                     onClick={() => selected && clientDialogRef.current?.showModal()}
                     disabled={!selected}
                   >
-                    {t("admin.common.seeProfile")}
+                    {t("admin.common.seeProfile") || "See profile"}
                   </button>
                 </div>
               </div>
@@ -1345,26 +1613,26 @@ export default function AdminPage() {
                 <div className="admCard">
                   <div className="admCardTop">
                     <div className="admCardTitle">
-                      {filteredCustomers.length} {t("admin.common.customersCount")}
+                      {filteredCustomers.length} {t("admin.common.customersCount") || "customers"}
                     </div>
                     <button className="admBtn" onClick={() => loadList(false)}>
-                      {t("admin.common.refresh")}
+                      {t("admin.common.refresh") || "Refresh"}
                     </button>
                   </div>
 
                   <div className="admTable">
                     <div className="admTr head">
-                      <div>{t("admin.table.name")}</div>
-                      <div>{t("admin.table.email")}</div>
-                      <div>{t("admin.table.status")}</div>
-                      <div style={{ textAlign: "right" }}>{t("admin.table.actions")}</div>
+                      <div>{t("admin.table.name") || "Name"}</div>
+                      <div>{t("admin.table.email") || "Email"}</div>
+                      <div>{t("admin.table.status") || "Status"}</div>
+                      <div style={{ textAlign: "right" }}>{t("admin.table.actions") || "Actions"}</div>
                     </div>
 
                     {filteredCustomers.map((u) => (
                       <div
                         key={u.id}
                         className={`admTr row ${selected?.id === u.id ? "active" : ""}`}
-                        onClick={() => selectClient(u.id).catch((e) => setError(e.message))}
+                        onClick={() => selectClient(u.id)}
                       >
                         <div className="admNameCell">
                           <div className="admAvatar">{initials(u.nom, u.prenom)}</div>
@@ -1390,7 +1658,7 @@ export default function AdminPage() {
                             disabled={busyId === u.id}
                             onClick={() => setStatus(u.id, "ACTIVE")}
                           >
-                            {t("admin.common.enable")}
+                            {t("admin.common.enable") || "Enable"}
                           </button>
 
                           <button
@@ -1398,7 +1666,7 @@ export default function AdminPage() {
                             disabled={busyId === u.id}
                             onClick={() => setStatus(u.id, "BLOCKED")}
                           >
-                            {t("admin.common.block")}
+                            {t("admin.common.block") || "Block"}
                           </button>
 
                           <button
@@ -1406,8 +1674,32 @@ export default function AdminPage() {
                             disabled={busyId === u.id}
                             onClick={() => deleteClient(u.id)}
                           >
-                            {t("admin.common.delete")}
+                            {t("admin.common.delete") || "Delete"}
                           </button>
+                          
+                           <button
+    className="admBtn mini"
+    disabled={busyId === u.id}
+    onClick={() => updateUserRole(u.id, "USER")}
+  >
+    USER
+  </button>
+
+  <button
+    className="admBtn mini"
+    disabled={busyId === u.id}
+    onClick={() => updateUserRole(u.id, "VENDEUR")}
+  >
+    VENDEUR
+  </button>
+
+  <button
+    className="admBtn mini"
+    disabled={busyId === u.id}
+    onClick={() => updateUserRole(u.id, "ADMIN_GENERAL")}
+  >
+    ADMIN
+  </button>
                         </div>
                       </div>
                     ))}
@@ -1416,7 +1708,9 @@ export default function AdminPage() {
 
                 <div className="admCard side">
                   {!selected ? (
-                    <div className="admEmpty">{t("admin.customers.selectClient")}</div>
+                    <div className="admEmpty">
+                      {t("admin.customers.selectClient") || "Select a customer"}
+                    </div>
                   ) : (
                     <>
                       <div className="admSideTop">
@@ -1432,15 +1726,15 @@ export default function AdminPage() {
                       <div className="admDivider" />
                       <div className="admInfo">
                         <div className="admInfoRow">
-                          <span>{t("admin.table.email")}</span>
+                          <span>{t("admin.table.email") || "Email"}</span>
                           <span className="mono">{selected.email}</span>
                         </div>
                         <div className="admInfoRow">
-                          <span>{t("admin.table.status")}</span>
+                          <span>{t("admin.table.status") || "Status"}</span>
                           <span>{selected.statutCompte}</span>
                         </div>
                         <div className="admInfoRow">
-                          <span>{t("admin.common.created")}</span>
+                          <span>{t("admin.common.created") || "Created"}</span>
                           <span>{fmt(selected.dateDeCreation)}</span>
                         </div>
                       </div>
@@ -1457,8 +1751,10 @@ export default function AdminPage() {
             <div className="admPage">
               <div className="admHeader">
                 <div>
-                  <div className="admH1">{t("admin.catalog.title")}</div>
-                  <div className="admH2">{t("admin.catalog.subtitle")}</div>
+                  <div className="admH1">{t("admin.catalog.title") || "Catalog"}</div>
+                  <div className="admH2">
+                    {t("admin.catalog.subtitle") || "Manage products, categories, colors and sizes"}
+                  </div>
                 </div>
 
                 <div className="admHeaderRight">
@@ -1467,23 +1763,23 @@ export default function AdminPage() {
                       className="admSearch"
                       value={catalogQ}
                       onChange={(e) => setCatalogQ(e.target.value)}
-                      placeholder={t("admin.catalog.searchPlaceholder")}
+                      placeholder={t("admin.catalog.searchPlaceholder") || "Search articles"}
                     />
                   </div>
                   <button className="admBtn" onClick={() => refreshCatalog(false)}>
-                    {t("admin.common.refresh")}
+                    {t("admin.common.refresh") || "Refresh"}
                   </button>
                   <button className="admBtn" onClick={openCreateCategory}>
-                    {t("admin.catalog.addCategory")}
+                    {t("admin.catalog.addCategory") || "Add category"}
                   </button>
                   <button className="admBtn" onClick={openCreateColor}>
-                    {t("admin.catalog.addColor")}
+                    {t("admin.catalog.addColor") || "Add color"}
                   </button>
                   <button className="admBtn" onClick={openCreateSize}>
-                    {t("admin.catalog.addSize")}
+                    {t("admin.catalog.addSize") || "Add size"}
                   </button>
                   <button className="admBtn primary" onClick={openCreateArticle}>
-                    {t("admin.catalog.addArticle")}
+                    {t("admin.catalog.addArticle") || "Add article"}
                   </button>
                 </div>
               </div>
@@ -1494,17 +1790,17 @@ export default function AdminPage() {
                 <div className="admCard">
                   <div className="admCardTop">
                     <div className="admCardTitle">
-                      {filteredArticles.length} {t("admin.common.articlesCount")}
+                      {filteredArticles.length} {t("admin.common.articlesCount") || "articles"}
                     </div>
                   </div>
 
                   <div className="admTable">
                     <div className="admTr head articleRow">
-                      <div>{t("admin.table.article")}</div>
-                      <div>{t("admin.table.category")}</div>
-                      <div>{t("admin.table.price")}</div>
-                      <div>{t("admin.table.status")}</div>
-                      <div style={{ textAlign: "right" }}>{t("admin.table.actions")}</div>
+                      <div>{t("admin.table.article") || "Article"}</div>
+                      <div>{t("admin.table.category") || "Category"}</div>
+                      <div>{t("admin.table.price") || "Price"}</div>
+                      <div>{t("admin.table.status") || "Status"}</div>
+                      <div style={{ textAlign: "right" }}>{t("admin.table.actions") || "Actions"}</div>
                     </div>
 
                     {filteredArticles.map((a) => {
@@ -1521,7 +1817,7 @@ export default function AdminPage() {
                               {a.imageUrl ? (
                                 <img src={fullImageUrl(a.imageUrl)} alt={a.nom} className="articleThumb" />
                               ) : (
-                                <div className="articleThumb empty">{t("admin.common.noImage")}</div>
+                                <div className="articleThumb empty">{t("admin.common.noImage") || "No image"}</div>
                               )}
                             </div>
 
@@ -1529,7 +1825,7 @@ export default function AdminPage() {
                               <div className="admName">{a.nom}</div>
                               <div className="admRole">
                                 #{a.id}
-                                {a.recommended ? ` • ${t("admin.catalog.recommended")}` : ""}
+                                {a.recommended ? ` • ${t("admin.catalog.recommended") || "Recommended"}` : ""}
                                 {saleLive ? ` • Sale -${salePercent(a)}%` : ""}
                               </div>
                             </div>
@@ -1549,10 +1845,10 @@ export default function AdminPage() {
 
                           <div className="admRowActions" onClick={(e) => e.stopPropagation()}>
                             <button className="admBtn mini" onClick={() => openEditArticle(a)}>
-                              {t("admin.common.edit")}
+                              {t("admin.common.edit") || "Edit"}
                             </button>
                             <button className="admBtn mini danger" onClick={() => deleteArticle(a.id)}>
-                              {t("admin.common.delete")}
+                              {t("admin.common.delete") || "Delete"}
                             </button>
                           </div>
                         </div>
@@ -1563,7 +1859,7 @@ export default function AdminPage() {
 
                 <div className="admCard side">
                   {!selectedArticle ? (
-                    <div className="admEmpty">{t("admin.catalog.selectArticle")}</div>
+                    <div className="admEmpty">{t("admin.catalog.selectArticle") || "Select an article"}</div>
                   ) : (
                     <>
                       <div className="admSideTop articleSideTop">
@@ -1574,7 +1870,7 @@ export default function AdminPage() {
                             className="selectedArticleImage"
                           />
                         ) : (
-                          <div className="selectedArticleImage empty">{t("admin.common.noImage")}</div>
+                          <div className="selectedArticleImage empty">{t("admin.common.noImage") || "No image"}</div>
                         )}
 
                         <div>
@@ -1587,39 +1883,39 @@ export default function AdminPage() {
 
                       <div className="admInfo">
                         <div className="admInfoRow">
-                          <span>{t("admin.catalog.price")}</span>
+                          <span>{t("admin.catalog.price") || "Price"}</span>
                           <span>{fmtPrice(selectedArticle.prix)}</span>
                         </div>
                         <div className="admInfoRow">
-                          <span>{t("admin.catalog.salePrice")}</span>
+                          <span>{t("admin.catalog.salePrice") || "Sale price"}</span>
                           <span>{fmtPrice(selectedArticle.salePrice)}</span>
                         </div>
                         <div className="admInfoRow">
-                          <span>{t("admin.catalog.saleStart")}</span>
+                          <span>{t("admin.catalog.saleStart") || "Sale start"}</span>
                           <span>{fmt(selectedArticle.saleStartAt)}</span>
                         </div>
                         <div className="admInfoRow">
-                          <span>{t("admin.catalog.saleEnd")}</span>
+                          <span>{t("admin.catalog.saleEnd") || "Sale end"}</span>
                           <span>{fmt(selectedArticle.saleEndAt)}</span>
                         </div>
                         <div className="admInfoRow">
-                          <span>{t("admin.catalog.onSaleNow")}</span>
-                          <span>{isSaleActive(selectedArticle) ? t("admin.common.yes") : t("admin.common.no")}</span>
+                          <span>{t("admin.catalog.onSaleNow") || "On sale now"}</span>
+                          <span>{isSaleActive(selectedArticle) ? (t("admin.common.yes") || "Yes") : (t("admin.common.no") || "No")}</span>
                         </div>
                         <div className="admInfoRow">
-                          <span>{t("admin.catalog.recommended")}</span>
-                          <span>{selectedArticle.recommended ? t("admin.common.yes") : t("admin.common.no")}</span>
+                          <span>{t("admin.catalog.recommended") || "Recommended"}</span>
+                          <span>{selectedArticle.recommended ? (t("admin.common.yes") || "Yes") : (t("admin.common.no") || "No")}</span>
                         </div>
                         <div className="admInfoRow">
-                          <span>{t("admin.catalog.brand")}</span>
+                          <span>{t("admin.catalog.brand") || "Brand"}</span>
                           <span>{selectedArticle.marque || "-"}</span>
                         </div>
                         <div className="admInfoRow">
-                          <span>{t("admin.catalog.material")}</span>
+                          <span>{t("admin.catalog.material") || "Material"}</span>
                           <span>{selectedArticle.matiere || "-"}</span>
                         </div>
                         <div className="admInfoRow">
-                          <span>{t("admin.catalog.sku")}</span>
+                          <span>{t("admin.catalog.sku") || "SKU"}</span>
                           <span>{selectedArticle.sku || "-"}</span>
                         </div>
                       </div>
@@ -1628,7 +1924,7 @@ export default function AdminPage() {
 
                       <div className="admCardTop">
                         <div>
-                          <div className="admCardTitle">{t("admin.catalog.variations")}</div>
+                          <div className="admCardTitle">{t("admin.catalog.variations") || "Variations"}</div>
                           <div className="variationHint">
                             One article can have many combinations like Black / 41, Black / 42,
                             White / 41, White / 42.
@@ -1636,7 +1932,7 @@ export default function AdminPage() {
                         </div>
 
                         <button className="admBtn mini primary" onClick={openCreateVariation}>
-                          {t("admin.catalog.addVariation")}
+                          {t("admin.catalog.addVariation") || "Add variation"}
                         </button>
                       </div>
 
@@ -1707,9 +2003,9 @@ export default function AdminPage() {
               <div className="admGrid refsGrid">
                 <div className="admCard">
                   <div className="admCardTop">
-                    <div className="admCardTitle">{t("admin.catalog.categories")}</div>
+                    <div className="admCardTitle">{t("admin.catalog.categories") || "Categories"}</div>
                     <button className="admBtn mini" onClick={openCreateCategory}>
-                      {t("admin.catalog.addCategory")}
+                      {t("admin.catalog.addCategory") || "Add category"}
                     </button>
                   </div>
 
@@ -1723,10 +2019,10 @@ export default function AdminPage() {
 
                         <div className="admRowActions">
                           <button className="admBtn mini" onClick={() => openEditCategory(c)}>
-                            {t("admin.common.edit")}
+                            {t("admin.common.edit") || "Edit"}
                           </button>
                           <button className="admBtn mini danger" onClick={() => deleteCategory(c.id)}>
-                            {t("admin.common.delete")}
+                            {t("admin.common.delete") || "Delete"}
                           </button>
                         </div>
                       </div>
@@ -1736,9 +2032,9 @@ export default function AdminPage() {
 
                 <div className="admCard">
                   <div className="admCardTop">
-                    <div className="admCardTitle">{t("admin.catalog.colors")}</div>
+                    <div className="admCardTitle">{t("admin.catalog.colors") || "Colors"}</div>
                     <button className="admBtn mini" onClick={openCreateColor}>
-                      {t("admin.catalog.addColor")}
+                      {t("admin.catalog.addColor") || "Add color"}
                     </button>
                   </div>
 
@@ -1755,10 +2051,10 @@ export default function AdminPage() {
 
                         <div className="admRowActions">
                           <button className="admBtn mini" onClick={() => openEditColor(c)}>
-                            {t("admin.common.edit")}
+                            {t("admin.common.edit") || "Edit"}
                           </button>
                           <button className="admBtn mini danger" onClick={() => deleteColor(c.id)}>
-                            {t("admin.common.delete")}
+                            {t("admin.common.delete") || "Delete"}
                           </button>
                         </div>
                       </div>
@@ -1768,9 +2064,9 @@ export default function AdminPage() {
 
                 <div className="admCard">
                   <div className="admCardTop">
-                    <div className="admCardTitle">{t("admin.catalog.sizes")}</div>
+                    <div className="admCardTitle">{t("admin.catalog.sizes") || "Sizes"}</div>
                     <button className="admBtn mini" onClick={openCreateSize}>
-                      {t("admin.catalog.addSize")}
+                      {t("admin.catalog.addSize") || "Add size"}
                     </button>
                   </div>
 
@@ -1783,10 +2079,10 @@ export default function AdminPage() {
 
                         <div className="admRowActions">
                           <button className="admBtn mini" onClick={() => openEditSize(s)}>
-                            {t("admin.common.edit")}
+                            {t("admin.common.edit") || "Edit"}
                           </button>
                           <button className="admBtn mini danger" onClick={() => deleteSize(s.id)}>
-                            {t("admin.common.delete")}
+                            {t("admin.common.delete") || "Delete"}
                           </button>
                         </div>
                       </div>
@@ -1798,22 +2094,20 @@ export default function AdminPage() {
               <dialog ref={articleDialogRef} className="admDialog productDialog">
                 <div className="admDialogHead">
                   <div className="admDialogTitle">
-                    {editingArticleId
-                      ? t("admin.catalog.articleDialogEdit")
-                      : t("admin.catalog.articleDialogAdd")}
+                    {editingArticleId ? "Edit article" : "Add article"}
                   </div>
                   <button
                     className="admBtn mini"
                     type="button"
                     onClick={() => articleDialogRef.current?.close()}
                   >
-                    {t("admin.common.close")}
+                    {t("admin.common.close") || "Close"}
                   </button>
                 </div>
 
                 <form className="productForm admDialogBody" onSubmit={saveArticle}>
                   <label>
-                    <span>{t("admin.catalog.productName")}</span>
+                    <span>Product name</span>
                     <input
                       value={articleForm.nom}
                       onChange={(e) => setArticleForm({ ...articleForm, nom: e.target.value })}
@@ -1822,7 +2116,7 @@ export default function AdminPage() {
                   </label>
 
                   <label>
-                    <span>{t("admin.catalog.category")}</span>
+                    <span>Category</span>
                     <select
                       value={articleForm.categorieId}
                       onChange={(e) =>
@@ -1830,7 +2124,7 @@ export default function AdminPage() {
                       }
                       required
                     >
-                      <option value="">{t("admin.common.selectCategory")}</option>
+                      <option value="">Select category</option>
                       {categories.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.nom}
@@ -1840,7 +2134,7 @@ export default function AdminPage() {
                   </label>
 
                   <label>
-                    <span>{t("admin.catalog.price")}</span>
+                    <span>Price</span>
                     <input
                       type="number"
                       step="0.001"
@@ -1852,7 +2146,7 @@ export default function AdminPage() {
                   </label>
 
                   <label>
-                    <span>{t("admin.catalog.salePrice")}</span>
+                    <span>Sale price</span>
                     <input
                       type="number"
                       step="0.001"
@@ -1863,7 +2157,7 @@ export default function AdminPage() {
                   </label>
 
                   <label>
-                    <span>{t("admin.catalog.saleStart")}</span>
+                    <span>Sale start</span>
                     <input
                       type="datetime-local"
                       value={articleForm.saleStartAt}
@@ -1874,7 +2168,7 @@ export default function AdminPage() {
                   </label>
 
                   <label>
-                    <span>{t("admin.catalog.saleEnd")}</span>
+                    <span>Sale end</span>
                     <input
                       type="datetime-local"
                       value={articleForm.saleEndAt}
@@ -1885,7 +2179,7 @@ export default function AdminPage() {
                   </label>
 
                   <label>
-                    <span>{t("admin.catalog.brand")}</span>
+                    <span>Brand</span>
                     <input
                       value={articleForm.marque}
                       onChange={(e) => setArticleForm({ ...articleForm, marque: e.target.value })}
@@ -1893,7 +2187,7 @@ export default function AdminPage() {
                   </label>
 
                   <label>
-                    <span>{t("admin.catalog.material")}</span>
+                    <span>Material</span>
                     <input
                       value={articleForm.matiere}
                       onChange={(e) => setArticleForm({ ...articleForm, matiere: e.target.value })}
@@ -1901,7 +2195,7 @@ export default function AdminPage() {
                   </label>
 
                   <label>
-                    <span>{t("admin.catalog.sku")}</span>
+                    <span>SKU</span>
                     <input
                       value={articleForm.sku}
                       onChange={(e) => setArticleForm({ ...articleForm, sku: e.target.value })}
@@ -1914,7 +2208,7 @@ export default function AdminPage() {
                       checked={articleForm.actif}
                       onChange={(e) => setArticleForm({ ...articleForm, actif: e.target.checked })}
                     />
-                    <span>{t("admin.catalog.activeProduct")}</span>
+                    <span>Active product</span>
                   </label>
 
                   <label className="checkRow">
@@ -1925,11 +2219,11 @@ export default function AdminPage() {
                         setArticleForm({ ...articleForm, recommended: e.target.checked })
                       }
                     />
-                    <span>{t("admin.catalog.bestChoice")}</span>
+                    <span>Best choice</span>
                   </label>
 
                   <label className="fullCol">
-                    <span>{t("admin.catalog.shortDescription")}</span>
+                    <span>Short description</span>
                     <textarea
                       rows="4"
                       value={articleForm.description}
@@ -1940,7 +2234,7 @@ export default function AdminPage() {
                   </label>
 
                   <label className="fullCol">
-                    <span>{t("admin.catalog.moreInformation")}</span>
+                    <span>More information</span>
                     <textarea
                       rows="6"
                       value={articleForm.details}
@@ -1950,7 +2244,7 @@ export default function AdminPage() {
 
                   <div className="admDialogActions fullCol">
                     <button type="submit" className="admBtn primary" disabled={busyCatalog}>
-                      {editingArticleId ? t("admin.common.updateArticle") : t("admin.common.saveArticle")}
+                      {editingArticleId ? "Update article" : "Save article"}
                     </button>
                   </div>
                 </form>
@@ -1962,7 +2256,7 @@ export default function AdminPage() {
                     {editingVariationId ? "Edit variation" : "Add variation"}
                   </div>
                   <button className="admBtn mini" type="button" onClick={closeVariationDialog}>
-                    {t("admin.common.close")}
+                    Close
                   </button>
                 </div>
 
@@ -2120,7 +2414,7 @@ export default function AdminPage() {
                     type="button"
                     onClick={() => categoryDialogRef.current?.close()}
                   >
-                    {t("admin.common.close")}
+                    Close
                   </button>
                 </div>
 
@@ -2163,7 +2457,7 @@ export default function AdminPage() {
                     type="button"
                     onClick={() => colorDialogRef.current?.close()}
                   >
-                    {t("admin.common.close")}
+                    Close
                   </button>
                 </div>
 
@@ -2196,21 +2490,15 @@ export default function AdminPage() {
 
               <dialog ref={sizeDialogRef} className="admDialog productDialog">
                 <div className="admDialogHead">
-                  <div className="admDialogTitle">
-                    {editingSizeId ? t("admin.catalog.sizeDialogEdit") : t("admin.catalog.sizeDialogAdd")}
-                  </div>
-                  <button
-                    className="admBtn mini"
-                    type="button"
-                    onClick={() => closeDialog(sizeDialogRef)}
-                  >
-                    {t("admin.common.close")}
+                  <div className="admDialogTitle">{editingSizeId ? "Edit size" : "Add size"}</div>
+                  <button className="admBtn mini" type="button" onClick={() => closeDialog(sizeDialogRef)}>
+                    Close
                   </button>
                 </div>
 
                 <form className="productForm admDialogBody" onSubmit={saveSize}>
                   <label>
-                    <span>{t("admin.catalog.size")}</span>
+                    <span>Size</span>
                     <input
                       value={sizeForm.pointure}
                       onChange={(e) => setSizeForm({ ...sizeForm, pointure: e.target.value })}
@@ -2220,7 +2508,7 @@ export default function AdminPage() {
 
                   <div className="admDialogActions fullCol">
                     <button type="submit" className="admBtn primary" disabled={busyCatalog}>
-                      {editingSizeId ? t("admin.common.updateSize") : t("admin.common.saveSize")}
+                      {editingSizeId ? "Update size" : "Save size"}
                     </button>
                   </div>
                 </form>
@@ -2229,13 +2517,146 @@ export default function AdminPage() {
           </div>
         )}
 
-        {section === "dashboard" && (
+        {section === "reclamations" && (
           <div className="fadeInUp">
             <div className="admPage">
               <div className="admHeader">
                 <div>
-                  <div className="admH1">{t("admin.dashboard.title")}</div>
-                  <div className="admH2">{t("admin.dashboard.subtitle")}</div>
+                  <div className="admH1">Reclamations</div>
+                  <div className="admH2">Manage customer reclamations and follow their status.</div>
+                </div>
+
+                <div className="admHeaderRight">
+                  <div className="admSearchWrap">
+                    <input
+                      className="admSearch"
+                      value={reclamationQ}
+                      onChange={(e) => setReclamationQ(e.target.value)}
+                      placeholder="Search reclamations"
+                    />
+                  </div>
+                  <button className="admBtn" onClick={() => loadReclamations()}>
+                    Refresh
+                  </button>
+                </div>
+              </div>
+
+              {reclamationsError ? <div className="admAlert">{reclamationsError}</div> : null}
+
+              <div className="admGrid">
+                <div className="admCard">
+                  <div className="admCardTop">
+                    <div className="admCardTitle">{filteredReclamations.length} reclamations</div>
+                  </div>
+
+                  <div className="admTable">
+                    <div className="admTr head">
+                      <div>Title</div>
+                      <div>Author</div>
+                      <div>Status</div>
+                      <div>Date</div>
+                    </div>
+
+                    {reclamationsLoading ? (
+                      <div className="admEmpty">Loading reclamations...</div>
+                    ) : !filteredReclamations.length ? (
+                      <div className="admEmpty">No reclamations found.</div>
+                    ) : (
+                      filteredReclamations.map((r, index) => {
+                        const rowId = r.id || r.reclamationId || index;
+                        const selectedId =
+                          selectedReclamation?.id ||
+                          selectedReclamation?.reclamationId ||
+                          null;
+
+                        return (
+                          <div
+                            key={rowId}
+                            className={`admTr row ${selectedId === rowId ? "active" : ""}`}
+                            onClick={() => setSelectedReclamation(r)}
+                          >
+                            <div>
+                              <div className="admName">{getReclamationTitle(r)}</div>
+                              <div className="admRole">#{rowId}</div>
+                            </div>
+
+                            <div>{getReclamationAuthor(r)}</div>
+
+                            <div>
+                              <span className="admBadge ok">{getReclamationStatus(r)}</span>
+                            </div>
+
+                            <div>{fmt(getReclamationDate(r))}</div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                <div className="admCard side">
+                  {!selectedReclamation ? (
+                    <div className="admEmpty">Select a reclamation</div>
+                  ) : (
+                    <>
+                      <div className="admSideTop">
+                        <div className="admAvatar big">
+                          {String(getReclamationAuthor(selectedReclamation)).slice(0, 1).toUpperCase() || "R"}
+                        </div>
+                        <div>
+                          <div className="admSideName">{getReclamationTitle(selectedReclamation)}</div>
+                          <div className="admSideRole">{getReclamationStatus(selectedReclamation)}</div>
+                        </div>
+                      </div>
+
+                      <div className="admDivider" />
+
+                      <div className="admInfo">
+                        <div className="admInfoRow">
+                          <span>Author</span>
+                          <span>{getReclamationAuthor(selectedReclamation)}</span>
+                        </div>
+                        <div className="admInfoRow">
+                          <span>Status</span>
+                          <span>{getReclamationStatus(selectedReclamation)}</span>
+                        </div>
+                        <div className="admInfoRow">
+                          <span>Date</span>
+                          <span>{fmt(getReclamationDate(selectedReclamation))}</span>
+                        </div>
+                        <div className="admInfoRow">
+                          <span>ID</span>
+                          <span className="mono">
+                            {selectedReclamation.id || selectedReclamation.reclamationId || "-"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="admDivider" />
+
+                      <div className="admCardTitle" style={{ marginBottom: 12 }}>
+                        Message
+                      </div>
+                      <div className="admInfo">
+                        <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
+                          {getReclamationMessage(selectedReclamation)}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {section === "dashboard" && isAdminGeneral && (
+          <div className="fadeInUp">
+            <div className="admPage">
+              <div className="admHeader">
+                <div>
+                  <div className="admH1">Dashboard</div>
+                  <div className="admH2">Store overview</div>
                 </div>
               </div>
 
@@ -2243,22 +2664,22 @@ export default function AdminPage() {
 
               <div className="admGrid dashboardTopGrid">
                 <div className="admCard statCard">
-                  <div className="admCardTitle">{t("admin.dashboard.customers")}</div>
+                  <div className="admCardTitle">Customers</div>
                   <div className="statValue">{rows.length}</div>
                 </div>
 
                 <div className="admCard statCard">
-                  <div className="admCardTitle">{t("admin.dashboard.articles")}</div>
+                  <div className="admCardTitle">Articles</div>
                   <div className="statValue">{articles.length}</div>
                 </div>
 
                 <div className="admCard statCard">
-                  <div className="admCardTitle">{t("admin.dashboard.categories")}</div>
+                  <div className="admCardTitle">Categories</div>
                   <div className="statValue">{categories.length}</div>
                 </div>
 
                 <div className="admCard statCard">
-                  <div className="admCardTitle">{t("admin.dashboard.recommended")}</div>
+                  <div className="admCardTitle">Recommended</div>
                   <div className="statValue">{articles.filter((a) => !!a.recommended).length}</div>
                 </div>
               </div>
@@ -2356,7 +2777,7 @@ export default function AdminPage() {
 
               <div className="admCard powerbiCard">
                 <div className="admCardTop">
-                  <div className="admCardTitle">{t("admin.dashboard.powerBi")}</div>
+                  <div className="admCardTitle">Power BI</div>
                 </div>
 
                 <iframe
@@ -2374,14 +2795,14 @@ export default function AdminPage() {
 
         <dialog ref={clientDialogRef} className="admDialog">
           <div className="admDialogHead">
-            <div className="admDialogTitle">{t("admin.customers.profileTitle")}</div>
+            <div className="admDialogTitle">Customer profile</div>
             <button className="admBtn mini" type="button" onClick={() => closeDialog(clientDialogRef)}>
-              {t("admin.common.close")}
+              Close
             </button>
           </div>
 
           {!selected ? (
-            <div className="admDialogBody">{t("admin.customers.noClientSelected")}</div>
+            <div className="admDialogBody">No customer selected</div>
           ) : (
             <div className="admDialogBody">
               <div className="admSideTop">
@@ -2400,15 +2821,15 @@ export default function AdminPage() {
 
               <div className="admInfo">
                 <div className="admInfoRow">
-                  <span>{t("admin.table.email")}</span>
+                  <span>Email</span>
                   <span className="mono">{selected.email}</span>
                 </div>
                 <div className="admInfoRow">
-                  <span>{t("admin.table.status")}</span>
+                  <span>Status</span>
                   <span>{selected.statutCompte}</span>
                 </div>
                 <div className="admInfoRow">
-                  <span>{t("admin.common.created")}</span>
+                  <span>Created</span>
                   <span>{fmt(selected.dateDeCreation)}</span>
                 </div>
                 <div className="admInfoRow">

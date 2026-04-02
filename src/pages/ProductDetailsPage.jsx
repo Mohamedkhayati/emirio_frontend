@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
+import Footer from "../components/Footer";
 import "../styles/home.css";
 import "../styles/product-details.css";
-import UserIconMenu from "../components/UserIconMenu";
-import LanguageMenu from "../components/LanguageMenu";
 import { useCart } from "../context/CartContext";
 
 const toAbs = (path) => {
@@ -57,10 +56,6 @@ function getColorHex(obj) {
   return obj?.couleurCodeHex ?? obj?.colorCodeHex ?? obj?.codeHex ?? obj?.codehex ?? "#ddd";
 }
 
-function getSizeId(obj) {
-  return normalizeId(obj?.tailleId ?? obj?.sizeId ?? obj?.id);
-}
-
 function getVariationColorId(v) {
   return normalizeId(v?.couleurId ?? v?.colorId ?? v?.couleur?.id ?? v?.color?.id);
 }
@@ -96,11 +91,10 @@ function getVariationImages(v, article) {
   return [article?.imageUrl, article?.imageUrl2, article?.imageUrl3, article?.imageUrl4].filter(Boolean);
 }
 
-export default function ProductDetailsPage({ me, setMe }) {
+export default function ProductDetailsPage() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const { t } = useTranslation();
-  const { addToCart, cartItems } = useCart();
+  const { addToCart } = useCart();
 
   const [article, setArticle] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -116,24 +110,33 @@ export default function ProductDetailsPage({ me, setMe }) {
   const [selectedSizeId, setSelectedSizeId] = useState("");
   const [cartMessage, setCartMessage] = useState("");
 
-  const cartCount = useMemo(() => {
-    return (cartItems || []).reduce((sum, item) => sum + Number(item.qty || 0), 0);
-  }, [cartItems]);
-
   async function loadData() {
     setError("");
 
-    const [detailRes, reviewsRes, listRes] = await Promise.all([
+    const [detailRes, reviewsRes, listRes] = await Promise.allSettled([
       api.get(`/api/articles/${id}`),
       api.get(`/api/articles/${id}/reviews`),
       api.get("/api/articles"),
     ]);
 
-    const detailProduct = detailRes.data;
-    const all = Array.isArray(listRes.data) ? listRes.data : [];
+    if (detailRes.status !== "fulfilled") {
+      throw detailRes.reason;
+    }
+
+    const detailProduct = detailRes.value.data;
+    const all =
+      listRes.status === "fulfilled" && Array.isArray(listRes.value.data)
+        ? listRes.value.data
+        : [];
 
     setArticle(detailProduct);
-    setReviews(Array.isArray(reviewsRes.data) ? reviewsRes.data : []);
+
+    if (reviewsRes.status === "fulfilled") {
+      setReviews(Array.isArray(reviewsRes.value.data) ? reviewsRes.value.data : []);
+    } else {
+      console.error("Reviews request failed:", reviewsRes.reason);
+      setReviews([]);
+    }
 
     const rel = all
       .filter((a) => a.actif !== false)
@@ -149,13 +152,31 @@ export default function ProductDetailsPage({ me, setMe }) {
   }
 
   useEffect(() => {
-    setLoading(true);
-    loadData()
-      .catch((e) => {
+    let mounted = true;
+
+    async function run() {
+      setLoading(true);
+      try {
+        if (mounted) {
+          await loadData();
+        }
+      } catch (e) {
         console.error(e);
-        setError(e?.response?.data?.message || t("product.cannotLoad", "Cannot load product"));
-      })
-      .finally(() => setLoading(false));
+        if (mounted) {
+          setError(e?.response?.data?.message || t("product.cannotLoad", "Cannot load product"));
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    run();
+
+    return () => {
+      mounted = false;
+    };
   }, [id, t]);
 
   const variations = useMemo(() => {
@@ -279,20 +300,20 @@ export default function ProductDetailsPage({ me, setMe }) {
   async function submitReview(e) {
     e.preventDefault();
 
-    if (!me) {
-      alert(t("auth.loginFirst", "Login first"));
-      return;
+    try {
+      await api.post(`/api/articles/${id}/reviews`, {
+        rating,
+        comment: reviewText,
+      });
+
+      setReviewText("");
+      setRating(5);
+      await loadData();
+      setTab("reviews");
+    } catch (e2) {
+      console.error(e2);
+      alert(e2?.response?.data?.message || "Cannot submit review right now");
     }
-
-    await api.post(`/api/articles/${id}/reviews`, {
-      rating,
-      comment: reviewText,
-    });
-
-    setReviewText("");
-    setRating(5);
-    await loadData();
-    setTab("reviews");
   }
 
   function handleAddToCart() {
@@ -344,33 +365,6 @@ export default function ProductDetailsPage({ me, setMe }) {
 
   return (
     <div className="pdPage">
-      <header className="storeHeader pdNav">
-        <Link to="/" className="logo">EMIRIO</Link>
-
-        <nav className="mainNav">
-          <Link to="/">{t("nav.home", "Home")}</Link>
-          <Link to="/catalog">{t("nav.catalog", "Catalog")}</Link>
-          <Link to="/cart">{t("nav.cart", "Cart")}</Link>
-          <a href="#pd-reviews">{t("product.reviews", "Reviews")}</a>
-          <a href="#pd-related">{t("product.related", "Related")}</a>
-        </nav>
-
-        <div className="headerActions">
-          <button type="button" className="cartHeaderBtn" onClick={() => navigate("/cart")}>
-            <span>🛒</span>
-            <span>{t("nav.cart", "Cart")}</span>
-            {cartCount > 0 ? <span className="cartBadge">{cartCount}</span> : null}
-          </button>
-
-          <button type="button" className="viewAllBtn" onClick={() => navigate("/catalog")}>
-            {t("product.shop", "Shop")}
-          </button>
-
-          <LanguageMenu />
-          <UserIconMenu me={me} setMe={setMe} />
-        </div>
-      </header>
-
       <div className="pdContainer">
         <div className="pdBreadcrumb">
           <Link to="/">{t("nav.home", "Home")}</Link>
@@ -475,7 +469,9 @@ export default function ProductDetailsPage({ me, setMe }) {
               })}
             </div>
 
-            <div className="pdLabel" style={{ marginTop: 18 }}>{t("product.size", "Size")}</div>
+            <div className="pdLabel" style={{ marginTop: 18 }}>
+              {t("product.size", "Size")}
+            </div>
             <div className="pdSizeRow">
               {sizeOptions.map((v) => {
                 const sizeId = getVariationSizeId(v);
@@ -510,7 +506,9 @@ export default function ProductDetailsPage({ me, setMe }) {
 
             <div className="pdCartRow">
               <div className="qtyBox">
-                <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))}>-</button>
+                <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))}>
+                  -
+                </button>
                 <strong>{qty}</strong>
                 <button
                   type="button"
@@ -570,7 +568,9 @@ export default function ProductDetailsPage({ me, setMe }) {
           {tab === "reviews" && (
             <div className="pdLongInfo" id="pd-reviews">
               <div className="pdReviewsHead">
-                <h3>{t("product.allReviews", "All Reviews")} ({reviews.length})</h3>
+                <h3>
+                  {t("product.allReviews", "All Reviews")} ({reviews.length})
+                </h3>
               </div>
 
               <form className="reviewForm" onSubmit={submitReview}>
@@ -645,6 +645,8 @@ export default function ProductDetailsPage({ me, setMe }) {
           </div>
         </section>
       </div>
+
+      <Footer />
     </div>
   );
 }

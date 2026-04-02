@@ -1,0 +1,47 @@
+.staticPage {
+  min-height: 60vh;
+  padding: 40px 20px;
+}
+
+.staticPageContainer {
+  max-width: 1000px;
+  margin: 0 auto;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+.staticPageContainer h1 {
+  margin-top: 0;
+  margin-bottom: 18px;
+  font-size: 34px;
+  font-weight: 800;
+  color: #111111;
+}
+
+.staticPageContainer h2 {
+  margin-top: 28px;
+  margin-bottom: 12px;
+  font-size: 24px;
+  font-weight: 800;
+  color: #111111;
+}
+
+.staticPageContainer p,
+.staticPageContainer li,
+.staticPageContainer a {
+  font-size: 16px;
+  line-height: 1.8;
+  color: #333333;
+}
+
+.staticPageContainer a {
+  color: #d81b60;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.staticPageContainer ul {
+  padding-left: 20px;
+}

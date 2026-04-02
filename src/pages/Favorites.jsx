@@ -1,11 +1,9 @@
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import "../styles/home.css";
 import "../styles/catalog.css";
-import UserIconMenu from "../components/UserIconMenu";
-import LanguageMenu from "../components/LanguageMenu";
 
 const toAbs = (path) => {
   if (!path) return "";
@@ -168,7 +166,7 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
   );
 }
 
-export default function FavoritesPage({ me, setMe }) {
+export default function FavoritesPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -236,42 +234,21 @@ export default function FavoritesPage({ me, setMe }) {
 
   return (
     <div className="homePage catalogPageWrap">
-      <div className="topStrip">
-        <span>{t("home.topStrip")}</span>
-      </div>
-
-      <header className="storeHeader">
-        <Link to="/" className="logo">EMIRIO</Link>
-
-        <nav className="mainNav">
-          <Link to="/">{t("nav.home")}</Link>
-          <Link to="/catalog">{t("nav.catalog")}</Link>
-          <button type="button" className="catalogNavFavBtn">
-            {t("nav.favorites")} ({favorites.length})
-          </button>
-        </nav>
-
-        <div className="headerActions">
-          <div className="searchBar">
-            <input
-              type="text"
-              placeholder={t("common.searchProducts")}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-
-          <LanguageMenu />
-          <UserIconMenu me={me} setMe={setMe} />
-        </div>
-      </header>
-
       <div className="catalogLayout">
         <section className="catalogContent fadeInUp" style={{ width: "100%" }}>
           <div className="catalogTop">
             <div>
               <h2>{t("nav.favorites")} ({filtered.length})</h2>
               <p>{filtered.length} {t("catalog.found")}</p>
+            </div>
+
+            <div className="searchBar" style={{ maxWidth: 320 }}>
+              <input
+                type="text"
+                placeholder={t("common.searchProducts")}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
             </div>
           </div>
 

@@ -1,11 +1,10 @@
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
+import Footer from "../components/Footer";
 import "../styles/home.css";
 import "../styles/catalog.css";
-import UserIconMenu from "../components/UserIconMenu";
-import LanguageMenu from "../components/LanguageMenu";
 
 const toAbs = (path, mimeType) => {
   if (!path) return "";
@@ -34,16 +33,6 @@ function readFavorites() {
     return Array.isArray(value) ? value : [];
   } catch {
     return [];
-  }
-}
-
-function getCartCount() {
-  try {
-    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
-    if (!Array.isArray(cart)) return 0;
-    return cart.reduce((sum, item) => sum + Number(item.qty || 0), 0);
-  } catch {
-    return 0;
   }
 }
 
@@ -319,7 +308,7 @@ function ProductCard({
   );
 }
 
-export default function CatalogPage({ me, setMe }) {
+export default function CatalogPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -344,7 +333,6 @@ export default function CatalogPage({ me, setMe }) {
   const [nowTick, setNowTick] = useState(Date.now());
 
   const [favorites, setFavorites] = useState(readFavorites);
-  const [cartCount, setCartCount] = useState(getCartCount);
 
   useEffect(() => {
     const tick = setInterval(() => setNowTick(Date.now()), 1000);
@@ -386,21 +374,6 @@ export default function CatalogPage({ me, setMe }) {
   useEffect(() => {
     localStorage.setItem("favorites", JSON.stringify(favorites));
   }, [favorites]);
-
-  useEffect(() => {
-    const syncCart = () => setCartCount(getCartCount());
-    syncCart();
-
-    window.addEventListener("storage", syncCart);
-    window.addEventListener("focus", syncCart);
-    window.addEventListener("cart-updated", syncCart);
-
-    return () => {
-      window.removeEventListener("storage", syncCart);
-      window.removeEventListener("focus", syncCart);
-      window.removeEventListener("cart-updated", syncCart);
-    };
-  }, []);
 
   const filtered = useMemo(() => {
     return articles.filter((a) => {
@@ -477,47 +450,6 @@ export default function CatalogPage({ me, setMe }) {
 
   return (
     <div className="homePage catalogPageWrap">
-      <div className="topStrip">
-        <span>{t("home.topStrip")}</span>
-      </div>
-
-      <header className="storeHeader">
-        <Link to="/" className="logo">EMIRIO</Link>
-
-        <nav className="mainNav">
-          <Link to="/">{t("nav.home", "Home")}</Link>
-          <a href="#catalog-grid">{t("nav.catalog", "Catalog")}</a>
-          <a href="#filters">{t("nav.filters", "Filters")}</a>
-          <button
-            type="button"
-            className="catalogNavFavBtn"
-            onClick={() => setFavoritesOnly((v) => !v)}
-          >
-            {t("nav.favorites", "Favorites")} ({favorites.length})
-          </button>
-        </nav>
-
-        <div className="headerActions">
-          <div className="searchBar">
-            <input
-              type="text"
-              placeholder={t("common.searchProducts", "Search products")}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-
-          <button type="button" className="cartHeaderBtn" onClick={() => navigate("/cart")}>
-            <span>🛒</span>
-            <span>{t("nav.cart", "Cart")}</span>
-            {cartCount > 0 ? <span className="cartBadge">{cartCount}</span> : null}
-          </button>
-
-          <LanguageMenu />
-          <UserIconMenu me={me} setMe={setMe} />
-        </div>
-      </header>
-
       <div className="catalogLayout">
         <aside className="filterSidebar slideInLeft" id="filters">
           <div className="filterHead">
@@ -676,7 +608,9 @@ export default function CatalogPage({ me, setMe }) {
           <div className="catalogTop">
             <div>
               <h2>{t("catalog.title", "Catalog")}</h2>
-              <p>{filtered.length} {t("catalog.found", "found")}</p>
+              <p>
+                {filtered.length} {t("catalog.found", "found")}
+              </p>
             </div>
           </div>
 
@@ -703,6 +637,7 @@ export default function CatalogPage({ me, setMe }) {
           )}
         </section>
       </div>
+
     </div>
   );
 }
