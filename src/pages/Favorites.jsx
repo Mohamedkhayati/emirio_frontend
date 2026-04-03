@@ -5,17 +5,27 @@ import { api } from "../lib/api";
 import "../styles/home.css";
 import "../styles/catalog.css";
 
-const toAbs = (path) => {
+const toAbs = (path, version = "") => {
   if (!path) return "";
+  if (path.startsWith("data:")) return path;
   if (path.startsWith("http")) return path;
   const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
-  return `${base}${path}`;
+  return `${base}${path}${path.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
 };
 
 const fmtPrice = (v) => {
   if (v === null || v === undefined || v === "") return "-";
   return `${Number(v).toFixed(3)} TND`;
 };
+
+function readFavorites() {
+  try {
+    const value = JSON.parse(localStorage.getItem("favorites") || "[]");
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
 
 function isSaleActive(p) {
   if (!p?.salePrice || Number(p.salePrice) >= Number(p.prix || 0)) return false;
@@ -39,10 +49,52 @@ function getDisplayPrice(p) {
   return isSaleActive(p) ? Number(p.salePrice) : Number(p.prix);
 }
 
+function uniqueImages(list) {
+  return [...new Set(list.filter(Boolean))];
+}
+
+function getImageVersion(p) {
+  return [
+    p?.id ?? "",
+    p?.imageUrl ?? "",
+    p?.imageUrl2 ?? "",
+    p?.imageUrl3 ?? "",
+    p?.imageUrl4 ?? "",
+    ...(Array.isArray(p?.variations)
+      ? p.variations.flatMap((v) => [
+          v?.id ?? "",
+          v?.imageUrl ?? "",
+          v?.imageUrl2 ?? "",
+          v?.imageUrl3 ?? "",
+          v?.imageUrl4 ?? "",
+        ])
+      : []),
+    ...(Array.isArray(p?.colors)
+      ? p.colors.flatMap((c) => [c?.couleurId ?? c?.id ?? "", c?.previewImage ?? ""])
+      : []),
+    p?.salePrice ?? "",
+    p?.saleStartAt ?? "",
+    p?.saleEndAt ?? "",
+    p?.recommended ?? "",
+  ].join("-");
+}
+
 function getProductImages(p) {
-  return [p?.imageUrl, p?.imageUrl2, p?.imageUrl3, p?.imageUrl4]
-    .filter(Boolean)
-    .map((img) => toAbs(img));
+  const version = getImageVersion(p);
+
+  const articleImages = [p?.imageUrl, p?.imageUrl2, p?.imageUrl3, p?.imageUrl4];
+
+  const variationImages = Array.isArray(p?.variations)
+    ? p.variations.flatMap((v) => [v?.imageUrl, v?.imageUrl2, v?.imageUrl3, v?.imageUrl4])
+    : [];
+
+  const colorPreviewImages = Array.isArray(p?.colors)
+    ? p.colors.map((c) => c?.previewImage)
+    : [];
+
+  return uniqueImages([...articleImages, ...variationImages, ...colorPreviewImages]).map((img) =>
+    toAbs(img, version)
+  );
 }
 
 function formatCountdown(endAt, nowTick, t) {
@@ -60,9 +112,16 @@ function formatCountdown(endAt, nowTick, t) {
   return `${minutes}m ${seconds}s`;
 }
 
+function handleKeyboardOpen(e, onOpen, id) {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    onOpen(id);
+  }
+}
+
 function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
   const { t } = useTranslation();
-  const images = getProductImages(p);
+  const images = useMemo(() => getProductImages(p), [p]);
   const [currentImage, setCurrentImage] = useState(0);
 
   const onSale = isSaleActive(p);
@@ -71,7 +130,7 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
 
   useEffect(() => {
     setCurrentImage(0);
-  }, [p.id]);
+  }, [p.id, images.length]);
 
   useEffect(() => {
     if (images.length <= 1) return;
@@ -89,10 +148,10 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
       onClick={() => onOpen(p.id)}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => e.key === "Enter" && onOpen(p.id)}
+      onKeyDown={(e) => handleKeyboardOpen(e, onOpen, p.id)}
     >
       <div className="productImageWrap">
-        {onSale ? <div className="saleRibbon pulse">SALE -{discount}%</div> : null}
+        {onSale && discount !== null ? <div className="saleRibbon pulse">SALE -{discount}%</div> : null}
 
         <button
           type="button"
@@ -137,7 +196,7 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
       <div className="productName">{p.nom}</div>
 
       <div className="productMeta">
-        {p.marque || "EMIRIO"} {p.recommended ? `• ${t("nav.bestChoice")}` : ""}
+        {p.marque || "EMIRIO"} {p.recommended ? `• ${t("nav.bestChoice", "Best choice")}` : ""}
       </div>
 
       {onSale ? (
@@ -149,7 +208,7 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
       <div className="productPriceRow">
         <span className="priceNow">{fmtPrice(getDisplayPrice(p))}</span>
         {onSale ? <span className="priceOld">{fmtPrice(p.prix)}</span> : null}
-        {onSale && discount ? <span className="discountTag">-{discount}%</span> : null}
+        {onSale && discount !== null ? <span className="discountTag">-{discount}%</span> : null}
       </div>
 
       <button
@@ -175,14 +234,7 @@ export default function FavoritesPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [nowTick, setNowTick] = useState(Date.now());
-
-  const [favorites, setFavorites] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("favorites") || "[]");
-    } catch {
-      return [];
-    }
-  });
+  const [favorites, setFavorites] = useState(readFavorites);
 
   useEffect(() => {
     const tick = setInterval(() => setNowTick(Date.now()), 1000);
@@ -224,7 +276,7 @@ export default function FavoritesPage() {
       .filter((a) => {
         if (!s) return true;
 
-        return `${a.nom} ${a.description || ""} ${a.marque || ""} ${a.matiere || ""} ${a.sku || ""} ${a.categorieNom || ""}`
+        return `${a.nom || ""} ${a.description || ""} ${a.marque || ""} ${a.matiere || ""} ${a.sku || ""} ${a.categorieNom || ""}`
           .toLowerCase()
           .includes(s);
       });
@@ -238,14 +290,16 @@ export default function FavoritesPage() {
         <section className="catalogContent fadeInUp" style={{ width: "100%" }}>
           <div className="catalogTop">
             <div>
-              <h2>{t("nav.favorites")} ({filtered.length})</h2>
-              <p>{filtered.length} {t("catalog.found")}</p>
+              <h2>{t("nav.favorites", "Favorites")} ({filtered.length})</h2>
+              <p>
+                {filtered.length} {t("catalog.found", "found")}
+              </p>
             </div>
 
             <div className="searchBar" style={{ maxWidth: 320 }}>
               <input
                 type="text"
-                placeholder={t("common.searchProducts")}
+                placeholder={t("common.searchProducts", "Search products")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -253,7 +307,7 @@ export default function FavoritesPage() {
           </div>
 
           {loading ? (
-            <div className="homeInfo">{t("common.loading")}</div>
+            <div className="homeInfo">{t("common.loading", "Loading...")}</div>
           ) : error ? (
             <div className="homeInfo error">{error}</div>
           ) : !filtered.length ? (

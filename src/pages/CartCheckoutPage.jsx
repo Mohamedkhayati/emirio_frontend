@@ -12,14 +12,28 @@ const PAYMENT_METHODS = [
   { value: "VIREMENT", label: "Virement bancaire" },
 ];
 
-const toAbs = (path) => {
+const toAbs = (path, version = "") => {
   if (!path) return "";
+  if (path.startsWith("data:")) return path;
   if (path.startsWith("http")) return path;
   const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
-  return `${base}${path}`;
+  return `${base}${path}${path.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
 };
 
 const fmtPrice = (v) => `${Number(v || 0).toFixed(3)} TND`;
+
+function getCartImageVersion(item) {
+  return [
+    item?.articleId ?? "",
+    item?.variationId ?? "",
+    item?.imageUrl ?? "",
+    item?.nom ?? "",
+    item?.couleurNom ?? "",
+    item?.taillePointure ?? "",
+    item?.qty ?? "",
+    item?.prix ?? "",
+  ].join("-");
+}
 
 export default function CartCheckoutPage({ me }) {
   const { t } = useTranslation();
@@ -67,19 +81,29 @@ export default function CartCheckoutPage({ me }) {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ratio = Math.max(window.devicePixelRatio || 1, 1);
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = Math.max(320, Math.floor(rect.width * ratio));
-    canvas.height = Math.floor(180 * ratio);
+    const setupCanvas = () => {
+      const ratio = Math.max(window.devicePixelRatio || 1, 1);
+      const rect = canvas.getBoundingClientRect();
+      const displayWidth = Math.max(320, Math.floor(rect.width || 320));
+      const displayHeight = 180;
 
-    const ctx = canvas.getContext("2d");
-    ctx.scale(ratio, ratio);
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "#111827";
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, rect.width || 320, 180);
+      canvas.width = Math.floor(displayWidth * ratio);
+      canvas.height = Math.floor(displayHeight * ratio);
+
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(ratio, ratio);
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#111827";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, displayWidth, displayHeight);
+    };
+
+    setupCanvas();
+    window.addEventListener("resize", setupCanvas);
+    return () => window.removeEventListener("resize", setupCanvas);
   }, []);
 
   const subtotal = useMemo(
@@ -120,7 +144,9 @@ export default function CartCheckoutPage({ me }) {
   }
 
   function startDraw(e) {
+    e.preventDefault();
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext("2d");
     const point = getCanvasPoint(e);
     drawingRef.current = true;
@@ -130,7 +156,11 @@ export default function CartCheckoutPage({ me }) {
 
   function draw(e) {
     if (!drawingRef.current) return;
+    e.preventDefault();
+
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
     const ctx = canvas.getContext("2d");
     const point = getCanvasPoint(e);
     ctx.lineTo(point.x, point.y);
@@ -148,6 +178,7 @@ export default function CartCheckoutPage({ me }) {
 
   function clearSignature() {
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext("2d");
     const rect = canvas.getBoundingClientRect();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -279,57 +310,67 @@ export default function CartCheckoutPage({ me }) {
             </div>
           ) : (
             <div className="cartList">
-              {items.map((item) => (
-                <article className="cartItem" key={`${item.articleId}-${item.variationId}`}>
-                  <div className="cartItemLeft">
-                    <div className="cartThumb">
-                      {item.imageUrl ? (
-                        <img src={toAbs(item.imageUrl)} alt={item.nom} />
-                      ) : (
-                        <div className="cartNoImage">{t("common.noImage", "No image")}</div>
-                      )}
+              {items.map((item) => {
+                const imageSrc = item.imageUrl
+                  ? toAbs(item.imageUrl, getCartImageVersion(item))
+                  : "";
+
+                return (
+                  <article className="cartItem" key={`${item.articleId}-${item.variationId}`}>
+                    <div className="cartItemLeft">
+                      <div className="cartThumb">
+                        {imageSrc ? (
+                          <img src={imageSrc} alt={item.nom} />
+                        ) : (
+                          <div className="cartNoImage">{t("common.noImage", "No image")}</div>
+                        )}
+                      </div>
+
+                      <div className="cartMeta">
+                        <h3>{item.nom}</h3>
+                        <p>
+                          {[item.couleurNom, item.taillePointure].filter(Boolean).join(" • ") ||
+                            "Product option"}
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="cartMeta">
-                      <h3>{item.nom}</h3>
-                      <p>
-                        {[item.couleurNom, item.taillePointure].filter(Boolean).join(" • ") ||
-                          "Product option"}
-                      </p>
-                    </div>
-                  </div>
+                    <div className="cartItemRight">
+                      <div className="qtyControl">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateCartItemQty(item.variationId, Number(item.qty || 1) - 1)
+                          }
+                        >
+                          −
+                        </button>
+                        <span>{item.qty}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateCartItemQty(item.variationId, Number(item.qty || 1) + 1)
+                          }
+                        >
+                          +
+                        </button>
+                      </div>
 
-                  <div className="cartItemRight">
-                    <div className="qtyControl">
+                      <div className="linePrice">
+                        {fmtPrice(Number(item.prix || 0) * Number(item.qty || 0))}
+                      </div>
+
                       <button
                         type="button"
-                        onClick={() => updateCartItemQty(item.variationId, Number(item.qty || 1) - 1)}
+                        className="removeBtn"
+                        onClick={() => removeFromCart(item.variationId)}
                       >
-                        −
-                      </button>
-                      <span>{item.qty}</span>
-                      <button
-                        type="button"
-                        onClick={() => updateCartItemQty(item.variationId, Number(item.qty || 1) + 1)}
-                      >
-                        +
+                        🗑
                       </button>
                     </div>
-
-                    <div className="linePrice">
-                      {fmtPrice(Number(item.prix || 0) * Number(item.qty || 0))}
-                    </div>
-
-                    <button
-                      type="button"
-                      className="removeBtn"
-                      onClick={() => removeFromCart(item.variationId)}
-                    >
-                      🗑
-                    </button>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>
@@ -508,7 +549,9 @@ export default function CartCheckoutPage({ me }) {
                   checked={form.acceptTerms}
                   onChange={onChange}
                 />
-                <span>J'accepte la facture proforma, le mode de paiement choisi et les conditions de commande.</span>
+                <span>
+                  J'accepte la facture proforma, le mode de paiement choisi et les conditions de commande.
+                </span>
               </label>
 
               <div className="summaryBox">

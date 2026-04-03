@@ -6,7 +6,7 @@ import Footer from "../components/Footer";
 import "../styles/home.css";
 import "../styles/catalog.css";
 
-const toAbs = (path, mimeType) => {
+const toAbs = (path, version = "") => {
   if (!path) return "";
 
   const value = String(path);
@@ -14,12 +14,8 @@ const toAbs = (path, mimeType) => {
   if (value.startsWith("data:")) return value;
   if (value.startsWith("http")) return value;
 
-  if (mimeType && !value.startsWith("/")) {
-    return `data:${mimeType};base64,${value}`;
-  }
-
   const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
-  return `${base}${value}`;
+  return `${base}${value}${value.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
 };
 
 const fmtPrice = (v) => {
@@ -151,48 +147,88 @@ function articleMatchesSize(a, sizeId) {
   return getArticleSizeIds(a).includes(normalizeId(sizeId));
 }
 
-function getImagesFromObject(obj) {
+function uniqueImages(list) {
+  return [...new Set(list.filter(Boolean))];
+}
+
+function getImageVersion(product) {
+  return [
+    product?.id ?? "",
+    product?.imageUrl ?? "",
+    product?.imageUrl2 ?? "",
+    product?.imageUrl3 ?? "",
+    product?.imageUrl4 ?? "",
+    ...(Array.isArray(product?.variations)
+      ? product.variations.flatMap((v) => [
+          v?.id ?? "",
+          v?.imageUrl ?? "",
+          v?.imageUrl2 ?? "",
+          v?.imageUrl3 ?? "",
+          v?.imageUrl4 ?? "",
+        ])
+      : []),
+    ...(Array.isArray(product?.colors)
+      ? product.colors.flatMap((c) => [c?.couleurId ?? c?.id ?? "", c?.previewImage ?? ""])
+      : []),
+    product?.salePrice ?? "",
+    product?.saleStartAt ?? "",
+    product?.saleEndAt ?? "",
+    product?.recommended ?? "",
+  ].join("-");
+}
+
+function getImagesFromObject(obj, version) {
   if (!obj) return [];
 
-  const images = [
+  return uniqueImages([
     obj?.imageUrl,
     obj?.imageUrl2,
     obj?.imageUrl3,
     obj?.imageUrl4,
-
-    obj?.imageData1 ? toAbs(obj.imageData1, obj?.imageType1 ?? obj?.imagetype1) : "",
-    obj?.imageData2 ? toAbs(obj.imageData2, obj?.imageType2 ?? obj?.imagetype2) : "",
-    obj?.imageData3 ? toAbs(obj.imageData3, obj?.imageType3 ?? obj?.imagetype3) : "",
-    obj?.imageData4 ? toAbs(obj.imageData4, obj?.imageType4 ?? obj?.imagetype4) : "",
-
-    obj?.imagedata1 ? toAbs(obj.imagedata1, obj?.imagetype1 ?? obj?.imageType1) : "",
-    obj?.imagedata2 ? toAbs(obj.imagedata2, obj?.imagetype2 ?? obj?.imageType2) : "",
-    obj?.imagedata3 ? toAbs(obj.imagedata3, obj?.imagetype3 ?? obj?.imageType3) : "",
-    obj?.imagedata4 ? toAbs(obj.imagedata4, obj?.imagetype4 ?? obj?.imageType4) : "",
-  ].filter(Boolean);
-
-  return [...new Set(images.map((img) => toAbs(img)))];
+    obj?.previewImage,
+  ]).map((img) => toAbs(img, version));
 }
 
 function getProductImages(product, selectedColorId) {
-  const articleImages = getImagesFromObject(product);
+  const version = getImageVersion(product);
+  const articleImages = getImagesFromObject(product, version);
   const variations = Array.isArray(product?.variations) ? product.variations : [];
+  const colors = Array.isArray(product?.colors) ? product.colors : [];
 
   if (selectedColorId) {
     const matchingVariations = variations.filter(
       (v) => String(getVariationColorId(v)) === String(normalizeId(selectedColorId))
     );
 
-    const matchingImages = [...new Set(matchingVariations.flatMap((v) => getImagesFromObject(v)))];
-    if (matchingImages.length) return matchingImages;
+    const matchingVariationImages = uniqueImages(
+      matchingVariations.flatMap((v) => getImagesFromObject(v, version))
+    );
+
+    if (matchingVariationImages.length) return matchingVariationImages;
+
+    const matchingColorPreview = colors
+      .filter((c) => String(normalizeId(c?.couleurId ?? c?.id)) === String(normalizeId(selectedColorId)))
+      .flatMap((c) => getImagesFromObject(c, version));
+
+    if (matchingColorPreview.length) return uniqueImages(matchingColorPreview);
   }
 
   if (articleImages.length) return articleImages;
 
-  const variationImages = [...new Set(variations.flatMap((v) => getImagesFromObject(v)))];
+  const variationImages = uniqueImages(variations.flatMap((v) => getImagesFromObject(v, version)));
   if (variationImages.length) return variationImages;
 
+  const colorPreviewImages = uniqueImages(colors.flatMap((c) => getImagesFromObject(c, version)));
+  if (colorPreviewImages.length) return colorPreviewImages;
+
   return [];
+}
+
+function handleKeyboardOpen(e, onOpen, id) {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    onOpen(id);
+  }
 }
 
 function ProductCard({
@@ -231,10 +267,10 @@ function ProductCard({
       onClick={() => onOpen(p.id)}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => e.key === "Enter" && onOpen(p.id)}
+      onKeyDown={(e) => handleKeyboardOpen(e, onOpen, p.id)}
     >
       <div className="productImageWrap">
-        {onSale ? <div className="saleRibbon pulse">SALE -{discount}%</div> : null}
+        {onSale && discount !== null ? <div className="saleRibbon pulse">SALE -{discount}%</div> : null}
 
         <button
           type="button"
@@ -638,6 +674,7 @@ export default function CatalogPage() {
         </section>
       </div>
 
+      <Footer />
     </div>
   );
 }

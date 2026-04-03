@@ -7,11 +7,11 @@ import "../styles/home.css";
 import "../styles/product-details.css";
 import { useCart } from "../context/CartContext";
 
-const toAbs = (path) => {
+const toAbs = (path, version = "") => {
   if (!path) return "";
   if (path.startsWith("http")) return path;
   const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
-  return `${base}${path}`;
+  return `${base}${path}${path.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
 };
 
 const fmtPrice = (v) => {
@@ -83,12 +83,6 @@ function getVariationStock(v) {
 function getVariationPrice(v, article) {
   const val = v?.prix ?? article?.prix;
   return Number(val || 0);
-}
-
-function getVariationImages(v, article) {
-  const variationImages = [v?.imageUrl, v?.imageUrl2, v?.imageUrl3, v?.imageUrl4].filter(Boolean);
-  if (variationImages.length) return variationImages;
-  return [article?.imageUrl, article?.imageUrl2, article?.imageUrl3, article?.imageUrl4].filter(Boolean);
 }
 
 export default function ProductDetailsPage() {
@@ -278,15 +272,31 @@ export default function ProductDetailsPage() {
     return sizeOptions.find((v) => String(getVariationSizeId(v)) === String(selectedSizeId)) || null;
   }, [sizeOptions, selectedSizeId]);
 
+  const imageVersion = useMemo(() => {
+    if (selectedVariation?.id) return `var-${selectedVariation.id}`;
+    if (article?.id) return `article-${article.id}`;
+    return `route-${id}`;
+  }, [selectedVariation, article, id]);
+
   const gallery = useMemo(() => {
-    if (selectedVariation) return getVariationImages(selectedVariation, article);
+    if (selectedVariation) {
+      const exactImages = [
+        selectedVariation.imageUrl,
+        selectedVariation.imageUrl2,
+        selectedVariation.imageUrl3,
+        selectedVariation.imageUrl4,
+      ].filter(Boolean);
 
-    const colorPreviewVariation = variations.find(
-      (v) => String(getVariationColorId(v)) === String(selectedColorId)
-    );
+      if (exactImages.length > 0) return exactImages;
+    }
 
-    return getVariationImages(colorPreviewVariation, article);
-  }, [selectedVariation, article, variations, selectedColorId]);
+    return [
+      article?.imageUrl,
+      article?.imageUrl2,
+      article?.imageUrl3,
+      article?.imageUrl4,
+    ].filter(Boolean);
+  }, [selectedVariation, article]);
 
   useEffect(() => {
     setActiveImage(gallery[0] || "");
@@ -381,19 +391,23 @@ export default function ProductDetailsPage() {
             <div className="pdThumbs">
               {gallery.map((img, i) => (
                 <button
-                  key={i}
+                  key={`${img}-${i}`}
                   type="button"
                   className={`pdThumb ${activeImage === img ? "active" : ""}`}
                   onClick={() => setActiveImage(img)}
                 >
-                  <img src={toAbs(img)} alt="" />
+                  <img src={toAbs(img, imageVersion)} alt={`${article.nom} ${i + 1}`} />
                 </button>
               ))}
             </div>
 
             <div className="pdMainImageWrap">
               {activeImage ? (
-                <img src={toAbs(activeImage)} alt={article.nom} className="pdMainImage" />
+                <img
+                  src={toAbs(activeImage, imageVersion)}
+                  alt={article.nom}
+                  className="pdMainImage"
+                />
               ) : (
                 <div className="pdEmptyImage">{t("common.noImage", "No image")}</div>
               )}
@@ -629,7 +643,11 @@ export default function ProductDetailsPage() {
                 <Link key={p.id} to={`/product/${p.id}`} className="pdProductCard">
                   <div className="pdProductImageWrap">
                     {relatedImage ? (
-                      <img src={toAbs(relatedImage)} alt={p.nom} className="pdProductImage" />
+                      <img
+                        src={toAbs(relatedImage, `related-${p.id}`)}
+                        alt={p.nom}
+                        className="pdProductImage"
+                      />
                     ) : (
                       <div className="pdEmptySmall">{t("common.noImage", "No image")}</div>
                     )}

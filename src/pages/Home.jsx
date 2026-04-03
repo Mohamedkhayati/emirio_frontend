@@ -5,11 +5,11 @@ import { api } from "../lib/api";
 import Footer from "../components/Footer";
 import "../styles/home.css";
 
-const toAbs = (path) => {
+const toAbs = (path, version = "") => {
   if (!path) return "";
   if (path.startsWith("http")) return path;
   const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
-  return `${base}${path}`;
+  return `${base}${path}${path.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
 };
 
 const fmtPrice = (v) => {
@@ -48,10 +48,52 @@ function getDisplayPrice(p) {
   return isSaleActive(p) ? Number(p.salePrice) : Number(p.prix);
 }
 
+function uniqueImages(list) {
+  return [...new Set(list.filter(Boolean))];
+}
+
+function getImageVersion(p) {
+  return [
+    p?.id ?? "",
+    p?.imageUrl ?? "",
+    p?.imageUrl2 ?? "",
+    p?.imageUrl3 ?? "",
+    p?.imageUrl4 ?? "",
+    ...(Array.isArray(p?.variations)
+      ? p.variations.flatMap((v) => [
+          v?.id ?? "",
+          v?.imageUrl ?? "",
+          v?.imageUrl2 ?? "",
+          v?.imageUrl3 ?? "",
+          v?.imageUrl4 ?? "",
+        ])
+      : []),
+    ...(Array.isArray(p?.colors)
+      ? p.colors.flatMap((c) => [c?.couleurId ?? "", c?.previewImage ?? ""])
+      : []),
+    p?.salePrice ?? "",
+    p?.saleStartAt ?? "",
+    p?.saleEndAt ?? "",
+    p?.recommended ?? "",
+  ].join("-");
+}
+
 function getProductImages(p) {
-  return [p?.imageUrl, p?.imageUrl2, p?.imageUrl3, p?.imageUrl4]
-    .filter(Boolean)
-    .map((img) => toAbs(img));
+  const version = getImageVersion(p);
+
+  const articleImages = [p?.imageUrl, p?.imageUrl2, p?.imageUrl3, p?.imageUrl4];
+
+  const variationImages = Array.isArray(p?.variations)
+    ? p.variations.flatMap((v) => [v?.imageUrl, v?.imageUrl2, v?.imageUrl3, v?.imageUrl4])
+    : [];
+
+  const colorPreviewImages = Array.isArray(p?.colors)
+    ? p.colors.map((c) => c?.previewImage)
+    : [];
+
+  return uniqueImages([...articleImages, ...variationImages, ...colorPreviewImages]).map((img) =>
+    toAbs(img, version)
+  );
 }
 
 function getMainProductImage(p) {
@@ -72,6 +114,13 @@ function formatCountdown(endAt, nowTick, t) {
   if (days > 0) return `${days}d ${hours}h ${minutes}m ${seconds}s`;
   if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
   return `${minutes}m ${seconds}s`;
+}
+
+function handleKeyboardOpen(e, onOpen, id) {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    onOpen(id);
+  }
 }
 
 function SaleHeroSlider({ articles, onOpen, nowTick }) {
@@ -162,7 +211,7 @@ function SaleHeroSlider({ articles, onOpen, nowTick }) {
           onClick={() => onOpen(current.id)}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => e.key === "Enter" && onOpen(current.id)}
+          onKeyDown={(e) => handleKeyboardOpen(e, onOpen, current.id)}
         >
           {heroImage ? (
             <img src={heroImage} alt={current.nom} className="saleHeroImage" />
@@ -201,7 +250,7 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
 
   useEffect(() => {
     setCurrentImage(0);
-  }, [p.id]);
+  }, [p.id, images.length]);
 
   useEffect(() => {
     if (images.length <= 1) return;
@@ -219,10 +268,10 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
       onClick={() => onOpen(p.id)}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => e.key === "Enter" && onOpen(p.id)}
+      onKeyDown={(e) => handleKeyboardOpen(e, onOpen, p.id)}
     >
       <div className="productImageWrap">
-        {onSale ? <div className="saleRibbon pulse">SALE -{discount}%</div> : null}
+        {onSale && discount ? <div className="saleRibbon pulse">SALE -{discount}%</div> : null}
 
         <button
           type="button"
@@ -506,6 +555,7 @@ export default function Home() {
         )}
       </section>
 
+      <Footer />
     </div>
   );
 }

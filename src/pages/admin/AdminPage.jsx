@@ -20,12 +20,44 @@ const fmtPrice = (v) => {
   return `${Number(v).toFixed(3)} TND`;
 };
 
-const fullImageUrl = (path) => {
+const fullImageUrl = (path, version = "") => {
   if (!path) return "";
+  if (path.startsWith("data:")) return path;
   if (path.startsWith("http")) return path;
   const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
-  return `${base}${path}`;
+  return `${base}${path}${path.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
 };
+
+function articleImageVersion(a) {
+  return [
+    a?.id ?? "",
+    a?.imageUrl ?? "",
+    a?.imageUrl2 ?? "",
+    a?.imageUrl3 ?? "",
+    a?.imageUrl4 ?? "",
+    a?.updatedAt ?? "",
+    a?.salePrice ?? "",
+    a?.saleStartAt ?? "",
+    a?.saleEndAt ?? "",
+    a?.recommended ?? "",
+  ].join("-");
+}
+
+function variationImageVersion(v) {
+  return [
+    v?.id ?? "",
+    v?.imageUrl ?? "",
+    v?.imageUrl2 ?? "",
+    v?.imageUrl3 ?? "",
+    v?.imageUrl4 ?? "",
+    v?.prix ?? "",
+    v?.quantiteStock ?? "",
+    v?.couleurId ?? "",
+    v?.tailleId ?? "",
+    v?.updatedAt ?? "",
+  ].join("-");
+}
+
 
 const toInputDateTime = (v) => {
   if (!v) return "";
@@ -69,6 +101,14 @@ const emptyArticleForm = {
   saleStartAt: "",
   saleEndAt: "",
   recommended: false,
+  imageFile1: null,
+  imageFile2: null,
+  imageFile3: null,
+  imageFile4: null,
+  existingImage1: "",
+  existingImage2: "",
+  existingImage3: "",
+  existingImage4: "",
 };
 
 const emptyVariationForm = {
@@ -80,8 +120,11 @@ const emptyVariationForm = {
   imageFile2: null,
   imageFile3: null,
   imageFile4: null,
+  existingImage1: "",
+  existingImage2: "",
+  existingImage3: "",
+  existingImage4: "",
 };
-
 const emptyCategoryForm = { nom: "", description: "" };
 const emptyColorForm = { nom: "", codeHex: "#000000" };
 const emptySizeForm = { pointure: "" };
@@ -261,11 +304,11 @@ export default function AdminPage() {
   const isAdminGeneral = useMemo(() => isAdminRole(role), [role]);
   const isVendeur = useMemo(() => isVendeurRole(role), [role]);
 
- const allowedSections = useMemo(() => {
-  if (isAdminGeneral) return ["customers", "catalog", "dashboard", "orders"];
-  if (isVendeur) return ["catalog"];
-  return [];
-}, [isAdminGeneral, isVendeur]);
+  const allowedSections = useMemo(() => {
+    if (isAdminGeneral) return ["customers", "catalog", "dashboard", "orders"];
+    if (isVendeur) return ["catalog"];
+    return [];
+  }, [isAdminGeneral, isVendeur]);
   const [section, setSection] = useState("catalog");
 
   const [rows, setRows] = useState([]);
@@ -500,19 +543,19 @@ export default function AdminPage() {
     document.documentElement.dir = i18n.dir(lng);
   }
   async function updateUserRole(id, role) {
-  setError("");
-  setBusyId(id);
+    setError("");
+    setBusyId(id);
 
-  try {
-    const res = await api.put(`/api/admin/users/${id}/role`, { role });
-    setSelected(res.data);
-    await loadList(false);
-  } catch (e) {
-    setError(e?.response?.data?.message || "Role update failed");
-  } finally {
-    setBusyId(null);
+    try {
+      const res = await api.put(`/api/admin/users/${id}/role`, { role });
+      setSelected(res.data);
+      await loadList(false);
+    } catch (e) {
+      setError(e?.response?.data?.message || "Role update failed");
+    } finally {
+      setBusyId(null);
+    }
   }
-}
 
   function closeDialog(ref) {
     ref.current?.close();
@@ -603,7 +646,7 @@ export default function AdminPage() {
           limitCount: res.data.limitCount ?? 12,
         });
       }
-    } catch {}
+    } catch { }
   }
 
   async function saveRecommendationConfig() {
@@ -688,8 +731,8 @@ export default function AdminPage() {
       const list = Array.isArray(res.data)
         ? res.data
         : Array.isArray(res.data?.content)
-        ? res.data.content
-        : [];
+          ? res.data.content
+          : [];
       setReclamations(list);
       if (!selectedReclamation && list.length) setSelectedReclamation(list[0]);
       if (!list.length) setSelectedReclamation(null);
@@ -749,47 +792,63 @@ export default function AdminPage() {
       setCatalogError(e?.response?.data?.message || e.message || "Cannot load catalog")
     );
 
-    loadReclamations().catch(() => {});
+    loadReclamations().catch(() => { });
 
     if (isAdminGeneral) {
       loadList(true).catch((e) =>
         setError(e?.response?.data?.message || e.message || "Cannot load customers")
       );
-      loadRecommendationConfig().catch(() => {});
-      loadOrders().catch(() => {});
+      loadRecommendationConfig().catch(() => { });
+      loadOrders().catch(() => { });
     } else {
       setRows([]);
       setSelected(null);
       setOrders([]);
     }
   }, [isAdminGeneral]);
-
   function openCreateArticle() {
     setEditingArticleId(null);
-    setArticleForm(emptyArticleForm);
-    articleDialogRef.current?.showModal();
-  }
-
-  function openEditArticle(article = selectedArticle) {
-    if (!article) return;
-    setEditingArticleId(article.id);
     setArticleForm({
-      nom: article.nom || "",
-      description: article.description || "",
-      details: article.details || "",
-      prix: article.prix ?? "",
-      actif: !!article.actif,
-      categorieId: article.categorieId || "",
-      marque: article.marque || "",
-      matiere: article.matiere || "",
-      sku: article.sku || "",
-      salePrice: article.salePrice ?? "",
-      saleStartAt: toInputDateTime(article.saleStartAt),
-      saleEndAt: toInputDateTime(article.saleEndAt),
-      recommended: !!article.recommended,
+      ...emptyArticleForm,
+      imageFile1: null,
+      imageFile2: null,
+      imageFile3: null,
+      imageFile4: null,
+      existingImage1: "",
+      existingImage2: "",
+      existingImage3: "",
+      existingImage4: "",
     });
     articleDialogRef.current?.showModal();
   }
+  function openEditArticle(article = selectedArticle) {
+  if (!article) return;
+  setEditingArticleId(article.id);
+  setArticleForm({
+    nom: article.nom || "",
+    description: article.description || "",
+    details: article.details || "",
+    prix: article.prix ?? "",
+    actif: !!article.actif,
+    categorieId: article.categorieId || "",
+    marque: article.marque || "",
+    matiere: article.matiere || "",
+    sku: article.sku || "",
+    salePrice: article.salePrice ?? "",
+    saleStartAt: toInputDateTime(article.saleStartAt),
+    saleEndAt: toInputDateTime(article.saleEndAt),
+    recommended: !!article.recommended,
+    imageFile1: null,
+    imageFile2: null,
+    imageFile3: null,
+    imageFile4: null,
+    existingImage1: article.imageUrl || "",
+    existingImage2: article.imageUrl2 || "",
+    existingImage3: article.imageUrl3 || "",
+    existingImage4: article.imageUrl4 || "",
+  });
+  articleDialogRef.current?.showModal();
+}
 
   async function saveArticle(e) {
     e.preventDefault();
@@ -853,6 +912,11 @@ export default function AdminPage() {
       const fd = new FormData();
       fd.append("data", new Blob([JSON.stringify(payload)], { type: "application/json" }));
 
+     if (articleForm.imageFile1) fd.append("image1", articleForm.imageFile1);
+if (articleForm.imageFile2) fd.append("image2", articleForm.imageFile2);
+if (articleForm.imageFile3) fd.append("image3", articleForm.imageFile3);
+if (articleForm.imageFile4) fd.append("image4", articleForm.imageFile4);
+
       if (editingArticleId) {
         await api.put(`/api/admin/articles/${editingArticleId}`, fd, {
           headers: { "Content-Type": "multipart/form-data" },
@@ -907,13 +971,17 @@ export default function AdminPage() {
     setVariationError("");
     setVariationForm({
       prix: selectedArticle?.prix ?? "",
-      quantiteStock: "0",
+      quantiteStock: 0,
       couleurId: colors[0]?.id ? String(colors[0].id) : "",
       tailleId: sizes[0]?.id ? String(sizes[0].id) : "",
       imageFile1: null,
       imageFile2: null,
       imageFile3: null,
       imageFile4: null,
+      existingImage1: "",
+      existingImage2: "",
+      existingImage3: "",
+      existingImage4: "",
     });
     variationDialogRef.current?.showModal();
   }
@@ -930,6 +998,10 @@ export default function AdminPage() {
       imageFile2: null,
       imageFile3: null,
       imageFile4: null,
+      existingImage1: v.imageUrl || "",
+      existingImage2: v.imageUrl2 || "",
+      existingImage3: v.imageUrl3 || "",
+      existingImage4: v.imageUrl4 || "",
     });
     variationDialogRef.current?.showModal();
   }
@@ -963,12 +1035,13 @@ export default function AdminPage() {
 
     const duplicateExists = variations.some(
       (v) =>
-        `${Number(v.couleurId)}-${Number(v.tailleId)}` === `${couleurId}-${tailleId}` &&
+        Number(v.couleurId) === couleurId &&
+        Number(v.tailleId) === tailleId &&
         Number(v.id) !== Number(editingVariationId)
     );
 
     if (duplicateExists) {
-      setVariationError("This color / size variation already exists.");
+      setVariationError("This color size variation already exists.");
       return;
     }
 
@@ -996,6 +1069,7 @@ export default function AdminPage() {
 
       closeVariationDialog();
       await loadArticleDetails(selectedArticle.id);
+      await refreshCatalog(false);
     } catch (e2) {
       setCatalogError(e2?.response?.data?.message || "Save variation failed");
     } finally {
@@ -1261,7 +1335,7 @@ export default function AdminPage() {
             Catalog
           </button>
 
-          
+
 
           {isAdminGeneral && (
             <button
@@ -1502,7 +1576,7 @@ export default function AdminPage() {
                             <div>
                               {order.cardLast4 ? `Card **** ${order.cardLast4}` : null}
                               {order.cardLast4 &&
-                              (order.d17Phone || order.d17Reference || order.bankReference)
+                                (order.d17Phone || order.d17Reference || order.bankReference)
                                 ? " • "
                                 : null}
                               {order.d17Phone ? `D17: ${order.d17Phone}` : null}
@@ -1676,30 +1750,30 @@ export default function AdminPage() {
                           >
                             {t("admin.common.delete") || "Delete"}
                           </button>
-                          
-                           <button
-    className="admBtn mini"
-    disabled={busyId === u.id}
-    onClick={() => updateUserRole(u.id, "USER")}
-  >
-    USER
-  </button>
 
-  <button
-    className="admBtn mini"
-    disabled={busyId === u.id}
-    onClick={() => updateUserRole(u.id, "VENDEUR")}
-  >
-    VENDEUR
-  </button>
+                          <button
+                            className="admBtn mini"
+                            disabled={busyId === u.id}
+                            onClick={() => updateUserRole(u.id, "USER")}
+                          >
+                            USER
+                          </button>
 
-  <button
-    className="admBtn mini"
-    disabled={busyId === u.id}
-    onClick={() => updateUserRole(u.id, "ADMIN_GENERAL")}
-  >
-    ADMIN
-  </button>
+                          <button
+                            className="admBtn mini"
+                            disabled={busyId === u.id}
+                            onClick={() => updateUserRole(u.id, "VENDEUR")}
+                          >
+                            VENDEUR
+                          </button>
+
+                          <button
+                            className="admBtn mini"
+                            disabled={busyId === u.id}
+                            onClick={() => updateUserRole(u.id, "ADMIN_GENERAL")}
+                          >
+                            ADMIN
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -1815,8 +1889,11 @@ export default function AdminPage() {
                           <div className="articleCell">
                             <div className="articleThumbWrap">
                               {a.imageUrl ? (
-                                <img src={fullImageUrl(a.imageUrl)} alt={a.nom} className="articleThumb" />
-                              ) : (
+                                <img
+                                  src={fullImageUrl(a.imageUrl, articleImageVersion(a))}
+                                  alt={a.nom}
+                                  className="articleThumb"
+                                />) : (
                                 <div className="articleThumb empty">{t("admin.common.noImage") || "No image"}</div>
                               )}
                             </div>
@@ -1865,12 +1942,12 @@ export default function AdminPage() {
                       <div className="admSideTop articleSideTop">
                         {selectedArticle.imageUrl ? (
                           <img
-                            src={fullImageUrl(selectedArticle.imageUrl)}
+                            src={fullImageUrl(selectedArticle.imageUrl, articleImageVersion(selectedArticle))}
                             alt={selectedArticle.nom}
                             className="selectedArticleImage"
                           />
                         ) : (
-                          <div className="selectedArticleImage empty">{t("admin.common.noImage") || "No image"}</div>
+                          <div className="selectedArticleImage empty">{t("admin.common.noImage", "No image")}</div>
                         )}
 
                         <div>
@@ -1954,8 +2031,8 @@ export default function AdminPage() {
                               <div className="varImageCell">
                                 {v.imageUrl ? (
                                   <img
-                                    src={fullImageUrl(v.imageUrl)}
-                                    alt={v.couleurNom}
+                                    src={fullImageUrl(v.imageUrl, variationImageVersion(v))}
+                                    alt={`${v.couleurNom} ${v.taillePointure}`}
                                     className="articleThumb"
                                   />
                                 ) : (
@@ -2119,9 +2196,7 @@ export default function AdminPage() {
                     <span>Category</span>
                     <select
                       value={articleForm.categorieId}
-                      onChange={(e) =>
-                        setArticleForm({ ...articleForm, categorieId: e.target.value })
-                      }
+                      onChange={(e) => setArticleForm({ ...articleForm, categorieId: e.target.value })}
                       required
                     >
                       <option value="">Select category</option>
@@ -2161,9 +2236,7 @@ export default function AdminPage() {
                     <input
                       type="datetime-local"
                       value={articleForm.saleStartAt}
-                      onChange={(e) =>
-                        setArticleForm({ ...articleForm, saleStartAt: e.target.value })
-                      }
+                      onChange={(e) => setArticleForm({ ...articleForm, saleStartAt: e.target.value })}
                     />
                   </label>
 
@@ -2172,9 +2245,7 @@ export default function AdminPage() {
                     <input
                       type="datetime-local"
                       value={articleForm.saleEndAt}
-                      onChange={(e) =>
-                        setArticleForm({ ...articleForm, saleEndAt: e.target.value })
-                      }
+                      onChange={(e) => setArticleForm({ ...articleForm, saleEndAt: e.target.value })}
                     />
                   </label>
 
@@ -2215,9 +2286,7 @@ export default function AdminPage() {
                     <input
                       type="checkbox"
                       checked={articleForm.recommended}
-                      onChange={(e) =>
-                        setArticleForm({ ...articleForm, recommended: e.target.checked })
-                      }
+                      onChange={(e) => setArticleForm({ ...articleForm, recommended: e.target.checked })}
                     />
                     <span>Best choice</span>
                   </label>
@@ -2227,9 +2296,7 @@ export default function AdminPage() {
                     <textarea
                       rows="4"
                       value={articleForm.description}
-                      onChange={(e) =>
-                        setArticleForm({ ...articleForm, description: e.target.value })
-                      }
+                      onChange={(e) => setArticleForm({ ...articleForm, description: e.target.value })}
                     />
                   </label>
 
@@ -2241,6 +2308,101 @@ export default function AdminPage() {
                       onChange={(e) => setArticleForm({ ...articleForm, details: e.target.value })}
                     />
                   </label>
+
+                 <label>
+  <span>Article image 1</span>
+  <input
+    type="file"
+    accept="image/*"
+    onChange={(e) =>
+      setArticleForm({
+        ...articleForm,
+        imageFile1: e.target.files?.[0] || null,
+      })
+    }
+  />
+</label>
+
+<label>
+  <span>Article image 2</span>
+  <input
+    type="file"
+    accept="image/*"
+    onChange={(e) =>
+      setArticleForm({
+        ...articleForm,
+        imageFile2: e.target.files?.[0] || null,
+      })
+    }
+  />
+</label>
+
+<label>
+  <span>Article image 3</span>
+  <input
+    type="file"
+    accept="image/*"
+    onChange={(e) =>
+      setArticleForm({
+        ...articleForm,
+        imageFile3: e.target.files?.[0] || null,
+      })
+    }
+  />
+</label>
+
+<label>
+  <span>Article image 4</span>
+  <input
+    type="file"
+    accept="image/*"
+    onChange={(e) =>
+      setArticleForm({
+        ...articleForm,
+        imageFile4: e.target.files?.[0] || null,
+      })
+    }
+  />
+</label>
+
+                  {(articleForm.existingImage1 ||
+                    articleForm.existingImage2 ||
+                    articleForm.existingImage3 ||
+                    articleForm.existingImage4) && (
+                      <div className="fullCol variationCurrentImages">
+                        <div className="variationHelp">Current article images</div>
+                        <div className="variationPreviewGrid">
+                          {articleForm.existingImage1 ? (
+                            <img
+                              src={fullImageUrl(articleForm.existingImage1, editingArticleId || "new")}
+                              alt="Article 1"
+                              className="variationPreviewThumb"
+                            />
+                          ) : null}
+                          {articleForm.existingImage2 ? (
+                            <img
+                              src={fullImageUrl(articleForm.existingImage2, editingArticleId || "new")}
+                              alt="Article 2"
+                              className="variationPreviewThumb"
+                            />
+                          ) : null}
+                          {articleForm.existingImage3 ? (
+                            <img
+                              src={fullImageUrl(articleForm.existingImage3, editingArticleId || "new")}
+                              alt="Article 3"
+                              className="variationPreviewThumb"
+                            />
+                          ) : null}
+                          {articleForm.existingImage4 ? (
+                            <img
+                              src={fullImageUrl(articleForm.existingImage4, editingArticleId || "new")}
+                              alt="Article 4"
+                              className="variationPreviewThumb"
+                            />
+                          ) : null}
+                        </div>
+                      </div>
+                    )}
 
                   <div className="admDialogActions fullCol">
                     <button type="submit" className="admBtn primary" disabled={busyCatalog}>
@@ -2387,6 +2549,45 @@ export default function AdminPage() {
                       }
                     />
                   </label>
+
+                  {(variationForm.existingImage1 ||
+                    variationForm.existingImage2 ||
+                    variationForm.existingImage3 ||
+                    variationForm.existingImage4) && (
+                      <div className="fullCol variationCurrentImages">
+                        <div className="variationHelp">Current variation images</div>
+                        <div className="variationPreviewGrid">
+                          {variationForm.existingImage1 ? (
+                            <img
+                              src={fullImageUrl(variationForm.existingImage1, editingVariationId || "new")}
+                              alt="Variation 1"
+                              className="variationPreviewThumb"
+                            />
+                          ) : null}
+                          {variationForm.existingImage2 ? (
+                            <img
+                              src={fullImageUrl(variationForm.existingImage2, editingVariationId || "new")}
+                              alt="Variation 2"
+                              className="variationPreviewThumb"
+                            />
+                          ) : null}
+                          {variationForm.existingImage3 ? (
+                            <img
+                              src={fullImageUrl(variationForm.existingImage3, editingVariationId || "new")}
+                              alt="Variation 3"
+                              className="variationPreviewThumb"
+                            />
+                          ) : null}
+                          {variationForm.existingImage4 ? (
+                            <img
+                              src={fullImageUrl(variationForm.existingImage4, editingVariationId || "new")}
+                              alt="Variation 4"
+                              className="variationPreviewThumb"
+                            />
+                          ) : null}
+                        </div>
+                      </div>
+                    )}
 
                   <div className="fullCol variationHelp">
                     Add images for this color / size variation here.
