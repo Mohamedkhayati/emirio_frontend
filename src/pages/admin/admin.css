@@ -421,6 +421,26 @@ body{
   gap: 12px;
   margin-top: 10px;
 }
+.variationModelBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.03);
+}
+
+.variationModelMeta {
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.variationModelMeta a {
+  color: inherit;
+  text-decoration: underline;
+}
 
 .variationPreviewThumb {
   width: 100%;

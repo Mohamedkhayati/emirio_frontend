@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import Footer from "../components/Footer";
+import ProductModelViewer from "../components/ProductModelViewer";
 import "../styles/home.css";
 import "../styles/product-details.css";
 import { useCart } from "../context/CartContext";
@@ -85,6 +86,32 @@ function getVariationPrice(v, article) {
   return Number(val || 0);
 }
 
+function pickModelUrl(obj) {
+  return (
+    obj?.model3dUrl ||
+    obj?.model3DUrl ||
+    obj?.modelUrl ||
+    obj?.modele3dUrl ||
+    obj?.modele3DUrl ||
+    obj?.previewModel3dUrl ||
+    obj?.previewModel3DUrl ||
+    ""
+  );
+}
+
+function pickImageList(obj) {
+  return [
+    obj?.imageUrl,
+    obj?.imageUrl2,
+    obj?.imageUrl3,
+    obj?.imageUrl4,
+    obj?.image1Url,
+    obj?.image2Url,
+    obj?.image3Url,
+    obj?.image4Url,
+  ].filter(Boolean);
+}
+
 export default function ProductDetailsPage() {
   const { id } = useParams();
   const { t } = useTranslation();
@@ -94,6 +121,8 @@ export default function ProductDetailsPage() {
   const [reviews, setReviews] = useState([]);
   const [related, setRelated] = useState([]);
   const [activeImage, setActiveImage] = useState("");
+  const [activeMediaType, setActiveMediaType] = useState("");
+  const [resolvedModelSrc, setResolvedModelSrc] = useState("");
   const [reviewText, setReviewText] = useState("");
   const [rating, setRating] = useState(5);
   const [loading, setLoading] = useState(true);
@@ -103,6 +132,10 @@ export default function ProductDetailsPage() {
   const [selectedColorId, setSelectedColorId] = useState("");
   const [selectedSizeId, setSelectedSizeId] = useState("");
   const [cartMessage, setCartMessage] = useState("");
+
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [fullscreenType, setFullscreenType] = useState("");
+  const [fullscreenSrc, setFullscreenSrc] = useState("");
 
   async function loadData() {
     setError("");
@@ -118,6 +151,7 @@ export default function ProductDetailsPage() {
     }
 
     const detailProduct = detailRes.value.data;
+
     const all =
       listRes.status === "fulfilled" && Array.isArray(listRes.value.data)
         ? listRes.value.data
@@ -128,7 +162,6 @@ export default function ProductDetailsPage() {
     if (reviewsRes.status === "fulfilled") {
       setReviews(Array.isArray(reviewsRes.value.data) ? reviewsRes.value.data : []);
     } else {
-      console.error("Reviews request failed:", reviewsRes.reason);
       setReviews([]);
     }
 
@@ -155,7 +188,6 @@ export default function ProductDetailsPage() {
           await loadData();
         }
       } catch (e) {
-        console.error(e);
         if (mounted) {
           setError(e?.response?.data?.message || t("product.cannotLoad", "Cannot load product"));
         }
@@ -174,7 +206,13 @@ export default function ProductDetailsPage() {
   }, [id, t]);
 
   const variations = useMemo(() => {
-    return Array.isArray(article?.variations) ? article.variations : [];
+    const raw =
+      article?.variations ??
+      article?.variationArticles ??
+      article?.variationDtos ??
+      article?.variantes ??
+      [];
+    return Array.isArray(raw) ? raw : [];
   }, [article]);
 
   const colors = useMemo(() => {
@@ -190,7 +228,8 @@ export default function ProductDetailsPage() {
           couleurNom: getVariationColorName(v),
           couleurCodeHex: getVariationColorHex(v),
           totalStock: 0,
-          previewImage: v?.imageUrl || "",
+          previewImage: pickImageList(v)[0] || "",
+          previewModel3dUrl: pickModelUrl(v),
         });
       }
 
@@ -201,7 +240,10 @@ export default function ProductDetailsPage() {
       if (!row.couleurCodeHex || row.couleurCodeHex === "#ddd") {
         row.couleurCodeHex = getVariationColorHex(v);
       }
-      if (!row.previewImage && v?.imageUrl) row.previewImage = v.imageUrl;
+      if (!row.previewImage) row.previewImage = pickImageList(v)[0] || "";
+      if (!row.previewModel3dUrl) {
+        row.previewModel3dUrl = pickModelUrl(v);
+      }
     });
 
     if (Array.isArray(article?.colors)) {
@@ -215,13 +257,18 @@ export default function ProductDetailsPage() {
             couleurNom: getColorName(c),
             couleurCodeHex: getColorHex(c),
             totalStock: 0,
-            previewImage: "",
+            previewImage: c?.previewImage || "",
+            previewModel3dUrl: pickModelUrl(c),
           });
         } else {
           const row = map.get(colorId);
           if (!row.couleurNom) row.couleurNom = getColorName(c);
           if (!row.couleurCodeHex || row.couleurCodeHex === "#ddd") {
             row.couleurCodeHex = getColorHex(c);
+          }
+          if (!row.previewImage && c?.previewImage) row.previewImage = c.previewImage;
+          if (!row.previewModel3dUrl) {
+            row.previewModel3dUrl = pickModelUrl(c);
           }
         }
       });
@@ -272,6 +319,79 @@ export default function ProductDetailsPage() {
     return sizeOptions.find((v) => String(getVariationSizeId(v)) === String(selectedSizeId)) || null;
   }, [sizeOptions, selectedSizeId]);
 
+  const articleModelUrl = useMemo(() => {
+    return pickModelUrl(article);
+  }, [article]);
+
+  const activeModelUrl = useMemo(() => {
+    if (selectedVariation) {
+      const exactVariationModel = pickModelUrl(selectedVariation);
+
+      if (exactVariationModel) {
+        return toAbs(exactVariationModel, `model-${selectedVariation.id}`);
+      }
+
+      if (selectedVariation?.id) {
+        const forcedUrl = `/api/variations/${selectedVariation.id}/model3d`;
+        return toAbs(forcedUrl, `forced-model-${selectedVariation.id}`);
+      }
+    }
+
+    const colorLevel = colors.find((c) => String(c.couleurId) === String(selectedColorId));
+    if (colorLevel?.previewModel3dUrl) {
+      return toAbs(colorLevel.previewModel3dUrl, `color-model-${colorLevel.couleurId}`);
+    }
+
+    if (articleModelUrl) {
+      return toAbs(articleModelUrl, `article-model-${article?.id || id}`);
+    }
+
+    return "";
+  }, [selectedVariation, colors, selectedColorId, articleModelUrl, article?.id, id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl = "";
+
+    async function loadProtectedModel() {
+      if (!activeModelUrl) {
+        setResolvedModelSrc("");
+        return;
+      }
+
+      try {
+        const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+        const relativeUrl = activeModelUrl.startsWith(base)
+          ? activeModelUrl.slice(base.length)
+          : activeModelUrl;
+
+        const res = await api.get(relativeUrl, {
+          responseType: "blob",
+        });
+
+        objectUrl = URL.createObjectURL(res.data);
+
+        if (!cancelled) {
+          setResolvedModelSrc(objectUrl);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Authenticated model fetch failed:", err);
+          setResolvedModelSrc("");
+        }
+      }
+    }
+
+    loadProtectedModel();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [activeModelUrl]);
+
   const imageVersion = useMemo(() => {
     if (selectedVariation?.id) return `var-${selectedVariation.id}`;
     if (article?.id) return `article-${article.id}`;
@@ -280,32 +400,86 @@ export default function ProductDetailsPage() {
 
   const gallery = useMemo(() => {
     if (selectedVariation) {
-      const exactImages = [
-        selectedVariation.imageUrl,
-        selectedVariation.imageUrl2,
-        selectedVariation.imageUrl3,
-        selectedVariation.imageUrl4,
-      ].filter(Boolean);
-
+      const exactImages = pickImageList(selectedVariation);
       if (exactImages.length > 0) return exactImages;
     }
 
-    return [
-      article?.imageUrl,
-      article?.imageUrl2,
-      article?.imageUrl3,
-      article?.imageUrl4,
-    ].filter(Boolean);
-  }, [selectedVariation, article]);
+    const articleImages = pickImageList(article);
+    if (articleImages.length > 0) return articleImages;
+
+    const colorLevel = colors.find((c) => String(c.couleurId) === String(selectedColorId));
+    if (colorLevel?.previewImage) return [colorLevel.previewImage];
+
+    return [];
+  }, [selectedVariation, article, colors, selectedColorId]);
 
   useEffect(() => {
-    setActiveImage(gallery[0] || "");
-  }, [gallery]);
+    if (!gallery.length) {
+      setActiveImage("");
+      return;
+    }
+
+    if (!gallery.includes(activeImage)) {
+      setActiveImage(gallery[0]);
+    }
+  }, [gallery, activeImage]);
+
+  useEffect(() => {
+    setQty(1);
+  }, [selectedVariation?.id]);
+
+  useEffect(() => {
+    if (resolvedModelSrc) {
+      setActiveMediaType("model");
+    } else if (gallery.length) {
+      setActiveMediaType("image");
+    } else {
+      setActiveMediaType("");
+    }
+  }, [resolvedModelSrc, selectedVariation?.id, selectedColorId, gallery.length]);
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setFullscreenOpen(false);
+      }
+    };
+
+    if (fullscreenOpen) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", onKeyDown);
+    }
+
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [fullscreenOpen]);
 
   const avg = useMemo(() => {
     if (!reviews.length) return 0;
     return reviews.reduce((s, r) => s + Number(r.rating || 0), 0) / reviews.length;
   }, [reviews]);
+
+  function openImageFullscreen() {
+    if (!activeImage) return;
+    setFullscreenType("image");
+    setFullscreenSrc(toAbs(activeImage, `fs-${imageVersion}`));
+    setFullscreenOpen(true);
+  }
+
+  function openModelFullscreen() {
+    if (!resolvedModelSrc) return;
+    setFullscreenType("model");
+    setFullscreenSrc(resolvedModelSrc);
+    setFullscreenOpen(true);
+  }
+
+  function closeFullscreen() {
+    setFullscreenOpen(false);
+    setFullscreenType("");
+    setFullscreenSrc("");
+  }
 
   async function submitReview(e) {
     e.preventDefault();
@@ -389,12 +563,26 @@ export default function ProductDetailsPage() {
         <section className="pdHero">
           <div className="pdGallery">
             <div className="pdThumbs">
+              {resolvedModelSrc ? (
+                <button
+                  type="button"
+                  className={`pdThumb pdThumb3d ${activeMediaType === "model" ? "active" : ""}`}
+                  onClick={() => setActiveMediaType("model")}
+                  title="Show 3D model"
+                >
+                  <span className="pdThumb3dBadge">3D</span>
+                </button>
+              ) : null}
+
               {gallery.map((img, i) => (
                 <button
                   key={`${img}-${i}`}
                   type="button"
-                  className={`pdThumb ${activeImage === img ? "active" : ""}`}
-                  onClick={() => setActiveImage(img)}
+                  className={`pdThumb ${activeMediaType === "image" && activeImage === img ? "active" : ""}`}
+                  onClick={() => {
+                    setActiveImage(img);
+                    setActiveMediaType("image");
+                  }}
                 >
                   <img src={toAbs(img, imageVersion)} alt={`${article.nom} ${i + 1}`} />
                 </button>
@@ -402,12 +590,51 @@ export default function ProductDetailsPage() {
             </div>
 
             <div className="pdMainImageWrap">
-              {activeImage ? (
-                <img
-                  src={toAbs(activeImage, imageVersion)}
-                  alt={article.nom}
-                  className="pdMainImage"
-                />
+              {activeMediaType === "model" && resolvedModelSrc ? (
+                <>
+                  <button
+                    type="button"
+                    className="pdFullscreenBtn"
+                    onClick={openModelFullscreen}
+                  >
+                    Full screen
+                  </button>
+
+                  <div className="pdMediaClickLayer">
+                    <ProductModelViewer src={resolvedModelSrc} alt={article.nom} />
+                  </div>
+                </>
+              ) : activeImage ? (
+                <>
+                  <button
+                    type="button"
+                    className="pdFullscreenBtn"
+                    onClick={openImageFullscreen}
+                  >
+                    Full screen
+                  </button>
+
+                  <img
+                    src={toAbs(activeImage, imageVersion)}
+                    alt={article.nom}
+                    className="pdMainImage clickable"
+                    onClick={openImageFullscreen}
+                  />
+                </>
+              ) : resolvedModelSrc ? (
+                <>
+                  <button
+                    type="button"
+                    className="pdFullscreenBtn"
+                    onClick={openModelFullscreen}
+                  >
+                    Full screen
+                  </button>
+
+                  <div className="pdMediaClickLayer">
+                    <ProductModelViewer src={resolvedModelSrc} alt={article.nom} />
+                  </div>
+                </>
               ) : (
                 <div className="pdEmptyImage">{t("common.noImage", "No image")}</div>
               )}
@@ -663,6 +890,33 @@ export default function ProductDetailsPage() {
           </div>
         </section>
       </div>
+
+      {fullscreenOpen ? (
+        <div className="pdFullscreenOverlay" onClick={closeFullscreen}>
+          <button
+            type="button"
+            className="pdFullscreenClose"
+            onClick={closeFullscreen}
+          >
+            ✕
+          </button>
+
+          <div
+            className="pdFullscreenContent"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {fullscreenType === "model" ? (
+              <ProductModelViewer src={fullscreenSrc} alt={`${article.nom} full screen 3D`} />
+            ) : (
+              <img
+                src={fullscreenSrc}
+                alt={article.nom}
+                className="pdFullscreenImage"
+              />
+            )}
+          </div>
+        </div>
+      ) : null}
 
       <Footer />
     </div>

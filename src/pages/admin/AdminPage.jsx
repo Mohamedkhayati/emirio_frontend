@@ -120,10 +120,13 @@ const emptyVariationForm = {
   imageFile2: null,
   imageFile3: null,
   imageFile4: null,
+  model3dFile: null,
   existingImage1: "",
   existingImage2: "",
   existingImage3: "",
   existingImage4: "",
+  existingModel3dUrl: "",
+  existingModel3dName: "",
 };
 const emptyCategoryForm = { nom: "", description: "" };
 const emptyColorForm = { nom: "", codeHex: "#000000" };
@@ -960,136 +963,152 @@ if (articleForm.imageFile4) fd.append("image4", articleForm.imageFile4);
     variationDialogRef.current?.close();
   }
 
-  function openCreateVariation() {
-    if (!selectedArticle) return;
-    if (!colors.length || !sizes.length) {
-      setCatalogError("Create at least one color and one size before adding a variation.");
-      return;
-    }
-
-    setEditingVariationId(null);
-    setVariationError("");
-    setVariationForm({
-      prix: selectedArticle?.prix ?? "",
-      quantiteStock: 0,
-      couleurId: colors[0]?.id ? String(colors[0].id) : "",
-      tailleId: sizes[0]?.id ? String(sizes[0].id) : "",
-      imageFile1: null,
-      imageFile2: null,
-      imageFile3: null,
-      imageFile4: null,
-      existingImage1: "",
-      existingImage2: "",
-      existingImage3: "",
-      existingImage4: "",
-    });
-    variationDialogRef.current?.showModal();
+ function openCreateVariation() {
+  if (!selectedArticle) return;
+  if (!colors.length || !sizes.length) {
+    setCatalogError("Create at least one color and one size before adding a variation.");
+    return;
   }
 
-  function openEditVariation(v) {
-    setEditingVariationId(v.id);
-    setVariationError("");
-    setVariationForm({
-      prix: v.prix ?? "",
-      quantiteStock: v.quantiteStock ?? "",
-      couleurId: v.couleurId ? String(v.couleurId) : "",
-      tailleId: v.tailleId ? String(v.tailleId) : "",
-      imageFile1: null,
-      imageFile2: null,
-      imageFile3: null,
-      imageFile4: null,
-      existingImage1: v.imageUrl || "",
-      existingImage2: v.imageUrl2 || "",
-      existingImage3: v.imageUrl3 || "",
-      existingImage4: v.imageUrl4 || "",
-    });
-    variationDialogRef.current?.showModal();
+  setEditingVariationId(null);
+  setVariationError("");
+  setVariationForm({
+    prix: selectedArticle?.prix ?? "",
+    quantiteStock: 0,
+    couleurId: colors[0]?.id ? String(colors[0].id) : "",
+    tailleId: sizes[0]?.id ? String(sizes[0].id) : "",
+    imageFile1: null,
+    imageFile2: null,
+    imageFile3: null,
+    imageFile4: null,
+    model3dFile: null,
+    existingImage1: "",
+    existingImage2: "",
+    existingImage3: "",
+    existingImage4: "",
+    existingModel3dUrl: "",
+    existingModel3dName: "",
+  });
+
+  variationDialogRef.current?.showModal();
+}
+ function openEditVariation(v) {
+  setEditingVariationId(v.id);
+  setVariationError("");
+  setVariationForm({
+    prix: v.prix ?? "",
+    quantiteStock: v.quantiteStock ?? "",
+    couleurId: v.couleurId ? String(v.couleurId) : "",
+    tailleId: v.tailleId ? String(v.tailleId) : "",
+    imageFile1: null,
+    imageFile2: null,
+    imageFile3: null,
+    imageFile4: null,
+    model3dFile: null,
+    existingImage1: v.imageUrl || "",
+    existingImage2: v.imageUrl2 || "",
+    existingImage3: v.imageUrl3 || "",
+    existingImage4: v.imageUrl4 || "",
+    existingModel3dUrl: v.model3dUrl || "",
+    existingModel3dName: v.model3dName || "",
+  });
+
+  variationDialogRef.current?.showModal();
+}
+async function saveVariation(e) {
+  e.preventDefault();
+  if (!selectedArticle) return;
+
+  setCatalogError("");
+  setVariationError("");
+
+  if (!variationForm.couleurId || !variationForm.tailleId) {
+    setVariationError("Please select a color and a size.");
+    return;
   }
 
-  async function saveVariation(e) {
-    e.preventDefault();
-    if (!selectedArticle) return;
+  const prix = Number(variationForm.prix);
+  const quantiteStock = Number(variationForm.quantiteStock);
+  const couleurId = Number(variationForm.couleurId);
+  const tailleId = Number(variationForm.tailleId);
 
-    setCatalogError("");
-    setVariationError("");
+  if (!Number.isFinite(prix) || prix <= 0) {
+    setVariationError("Price must be greater than 0.");
+    return;
+  }
 
-    if (!variationForm.couleurId || !variationForm.tailleId) {
-      setVariationError("Please select a color and a size.");
-      return;
-    }
+  if (!Number.isFinite(quantiteStock) || quantiteStock < 0 || !Number.isInteger(quantiteStock)) {
+    setVariationError("Stock must be a whole number equal to or greater than 0.");
+    return;
+  }
 
-    const prix = Number(variationForm.prix);
-    const quantiteStock = Number(variationForm.quantiteStock);
-    const couleurId = Number(variationForm.couleurId);
-    const tailleId = Number(variationForm.tailleId);
+  const duplicateExists = variations.some(
+    (v) =>
+      Number(v.couleurId) === couleurId &&
+      Number(v.tailleId) === tailleId &&
+      Number(v.id) !== Number(editingVariationId)
+  );
 
-    if (!Number.isFinite(prix) || prix <= 0) {
-      setVariationError("Price must be greater than 0.");
-      return;
-    }
+  if (duplicateExists) {
+    setVariationError("This color/size variation already exists.");
+    return;
+  }
 
-    if (!Number.isFinite(quantiteStock) || quantiteStock < 0 || !Number.isInteger(quantiteStock)) {
-      setVariationError("Stock must be a whole number equal to or greater than 0.");
-      return;
-    }
+  setBusyCatalog(true);
 
-    const duplicateExists = variations.some(
-      (v) =>
-        Number(v.couleurId) === couleurId &&
-        Number(v.tailleId) === tailleId &&
-        Number(v.id) !== Number(editingVariationId)
+  try {
+    const payload = { prix, quantiteStock, couleurId, tailleId };
+    const fd = new FormData();
+
+    fd.append(
+      "data",
+      new Blob([JSON.stringify(payload)], { type: "application/json" })
     );
 
-    if (duplicateExists) {
-      setVariationError("This color size variation already exists.");
-      return;
-    }
+    if (variationForm.imageFile1) fd.append("image1", variationForm.imageFile1);
+    if (variationForm.imageFile2) fd.append("image2", variationForm.imageFile2);
+    if (variationForm.imageFile3) fd.append("image3", variationForm.imageFile3);
+    if (variationForm.imageFile4) fd.append("image4", variationForm.imageFile4);
+    if (variationForm.model3dFile) fd.append("model3d", variationForm.model3dFile);
 
-    setBusyCatalog(true);
+    console.log("=== SAVE VARIATION START ===");
+    console.log("variationForm.model3dFile =", variationForm.model3dFile);
+    console.log("variationForm.model3dFile?.name =", variationForm.model3dFile?.name);
+    console.log("variationForm.model3dFile?.type =", variationForm.model3dFile?.type);
+    console.log("variationForm.model3dFile?.size =", variationForm.model3dFile?.size);
 
-    try {
-      const payload = { prix, quantiteStock, couleurId, tailleId };
-      const fd = new FormData();
-      fd.append("data", new Blob([JSON.stringify(payload)], { type: "application/json" }));
-
-      if (variationForm.imageFile1) fd.append("image1", variationForm.imageFile1);
-      if (variationForm.imageFile2) fd.append("image2", variationForm.imageFile2);
-      if (variationForm.imageFile3) fd.append("image3", variationForm.imageFile3);
-      if (variationForm.imageFile4) fd.append("image4", variationForm.imageFile4);
-
-      if (editingVariationId) {
-        await api.put(`/api/admin/variations/${editingVariationId}`, fd, {
-          headers: { "Content-Type": "multipart/form-data" },
+    for (const [key, value] of fd.entries()) {
+      if (value instanceof File) {
+        console.log("FD", key, {
+          name: value.name,
+          type: value.type,
+          size: value.size,
         });
       } else {
-        await api.post(`/api/admin/articles/${selectedArticle.id}/variations`, fd, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        console.log("FD", key, value);
       }
-
-      closeVariationDialog();
-      await loadArticleDetails(selectedArticle.id);
-      await refreshCatalog(false);
-    } catch (e2) {
-      setCatalogError(e2?.response?.data?.message || "Save variation failed");
-    } finally {
-      setBusyCatalog(false);
     }
-  }
 
-  async function deleteVariation(id) {
-    if (!window.confirm("Delete this variation?")) return;
-    setBusyCatalog(true);
-    try {
-      await api.delete(`/api/admin/variations/${id}`);
-      if (selectedArticle?.id) await loadArticleDetails(selectedArticle.id);
-    } catch (e) {
-      setCatalogError(e?.response?.data?.message || "Delete variation failed");
-    } finally {
-      setBusyCatalog(false);
+    if (editingVariationId) {
+      await api.put(`/api/admin/variations/${editingVariationId}`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+    } else {
+      await api.post(`/api/admin/articles/${selectedArticle.id}/variations`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
     }
-  }
 
+    closeVariationDialog();
+    await loadArticleDetails(selectedArticle.id);
+    await refreshCatalog(false);
+  } catch (e2) {
+    console.error("Save variation error:", e2);
+    setCatalogError(e2?.response?.data?.message || "Save variation failed");
+  } finally {
+    setBusyCatalog(false);
+  }
+}
   function openCreateCategory() {
     setEditingCategoryId(null);
     setCategoryForm({ nom: "", description: "" });
@@ -2041,12 +2060,14 @@ if (articleForm.imageFile4) fd.append("image4", articleForm.imageFile4);
                               </div>
 
                               <div className="varInfo">
-                                <div className="admName">
-                                  {v.couleurNom} / {v.taillePointure}
-                                </div>
-                                <div className="admRole">Stock: {v.quantiteStock}</div>
-                              </div>
-
+  <div className="admName">
+    {v.couleurNom} / {v.taillePointure}
+  </div>
+  <div className="admRole">
+    Stock: {v.quantiteStock}
+    {v.model3dUrl ? " • 3D model attached" : " • No 3D model"}
+  </div>
+</div>
                               <div className="varPrice">{fmtPrice(v.prix)}</div>
                             </div>
 
@@ -2400,10 +2421,39 @@ if (articleForm.imageFile4) fd.append("image4", articleForm.imageFile4);
                               className="variationPreviewThumb"
                             />
                           ) : null}
+                          
                         </div>
                       </div>
                     )}
+{(variationForm.existingModel3dUrl || variationForm.model3dFile) && (
+  <div className="fullCol variationCurrentImages">
+    <div className="variationHelp">Current 3D model</div>
 
+    <div className="variationModelBox">
+      {variationForm.model3dFile ? (
+        <div className="variationModelMeta">
+          <strong>New file:</strong> {variationForm.model3dFile.name}
+        </div>
+      ) : null}
+
+      {variationForm.existingModel3dUrl ? (
+        <div className="variationModelMeta">
+          <strong>Saved file:</strong>{" "}
+          <a
+            href={fullImageUrl(variationForm.existingModel3dUrl, editingVariationId || "new")}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {variationForm.existingModel3dName || "Open current 3D model"}
+          </a>
+          {variationForm.existingModel3dType
+            ? ` (${variationForm.existingModel3dType})`
+            : ""}
+        </div>
+      ) : null}
+    </div>
+  </div>
+)}
                   <div className="admDialogActions fullCol">
                     <button type="submit" className="admBtn primary" disabled={busyCatalog}>
                       {editingArticleId ? "Update article" : "Save article"}
@@ -2549,6 +2599,19 @@ if (articleForm.imageFile4) fd.append("image4", articleForm.imageFile4);
                       }
                     />
                   </label>
+                  <label className="fullCol">
+  <span>3D model (.glb or .gltf)</span>
+  <input
+    type="file"
+    accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+    onChange={(e) =>
+      setVariationForm({
+        ...variationForm,
+        model3dFile: e.target.files?.[0] || null,
+      })
+    }
+  />
+</label>
 
                   {(variationForm.existingImage1 ||
                     variationForm.existingImage2 ||
