@@ -19,35 +19,34 @@ function normalizeRole(role) {
   return String(role || "")
     .trim()
     .toUpperCase()
+    .replace(/^ROLE_/, "")
     .replace(/[\s-]+/g, "_");
 }
 
-function getStoredRole() {
-  try {
-    if (meetsRole(localStorage.getItem("role"))) {
-      return normalizeRole(localStorage.getItem("role"));
-    }
-
-    const authRaw = localStorage.getItem("auth");
-    if (!authRaw) return "";
-
-    const auth = JSON.parse(authRaw);
-    return normalizeRole(auth?.role || auth?.user?.role || "");
-  } catch {
-    return "";
-  }
-}
-
-function meetsRole(role) {
+function canAccessAdminPanel(role) {
   const r = normalizeRole(role);
-  return r === "ADMIN_GENERAL" || r === "ADMIN" || r === "VENDEUR" || r === "SELLER";
+
+  return (
+    r === "ADMIN" ||
+    r === "ADMIN_GENERAL" ||
+    r === "GENERAL_ADMIN" ||
+    r === "GENERALE_ADMIN" ||
+    r === "VENDEUR" ||
+    r === "VENDERU" ||
+    r === "SELLER"
+  );
 }
 
 export default function Navbar({ me, setMe }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [cartCount, setCartCount] = useState(getCartCount);
-  const [currentRole, setCurrentRole] = useState(() => normalizeRole(me?.role || getStoredRole()));
+
+  const isLoggedIn = !!me;
+
+  const canAccessAdmin = useMemo(() => {
+    return isLoggedIn && canAccessAdminPanel(me?.role);
+  }, [isLoggedIn, me?.role]);
 
   useEffect(() => {
     const syncCart = () => setCartCount(getCartCount());
@@ -63,12 +62,6 @@ export default function Navbar({ me, setMe }) {
       window.removeEventListener("cart-updated", syncCart);
     };
   }, []);
-
-  useEffect(() => {
-    setCurrentRole(normalizeRole(me?.role || getStoredRole()));
-  }, [me]);
-
-  const canAccessAdmin = useMemo(() => meetsRole(currentRole), [currentRole]);
 
   return (
     <>
@@ -145,7 +138,28 @@ export default function Navbar({ me, setMe }) {
           </button>
 
           <LanguageMenu />
-          <UserIconMenu me={me} setMe={setMe} />
+
+          {!isLoggedIn ? (
+            <div className="navbarAuthBtns">
+              <button
+                type="button"
+                className="navbarLoginBtn"
+                onClick={() => navigate("/auth?mode=login")}
+              >
+                {t("auth.login", "Login")}
+              </button>
+
+              <button
+                type="button"
+                className="navbarSignupBtn"
+                onClick={() => navigate("/auth?mode=signup")}
+              >
+                {t("auth.signUp", "Sign Up")}
+              </button>
+            </div>
+          ) : (
+            <UserIconMenu me={me} setMe={setMe} />
+          )}
         </div>
       </header>
     </>

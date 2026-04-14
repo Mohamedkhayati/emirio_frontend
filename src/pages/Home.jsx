@@ -2,7 +2,6 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
-import Footer from "../components/Footer";
 import "../styles/home.css";
 
 const toAbs = (path, version = "") => {
@@ -554,8 +553,6 @@ export default function Home() {
           </div>
         )}
       </section>
-
-      <Footer />
     </div>
   );
 }

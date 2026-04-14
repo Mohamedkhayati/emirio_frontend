@@ -4,21 +4,14 @@ import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import "../styles/cart-checkout.css";
 import { useCart } from "../context/CartContext";
-
+import { toSafeImageUrl } from "../lib/media";
+import { isAdminRole } from "./admin/adminShared";
 const PAYMENT_METHODS = [
   { value: "CARTE", label: "Carte bancaire" },
   { value: "LIVRAISON", label: "Paiement à la livraison" },
   { value: "D17", label: "Tunisia Poste D17" },
   { value: "VIREMENT", label: "Virement bancaire" },
 ];
-
-const toAbs = (path, version = "") => {
-  if (!path) return "";
-  if (path.startsWith("data:")) return path;
-  if (path.startsWith("http")) return path;
-  const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
-  return `${base}${path}${path.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
-};
 
 const fmtPrice = (v) => `${Number(v || 0).toFixed(3)} TND`;
 
@@ -311,9 +304,7 @@ export default function CartCheckoutPage({ me }) {
           ) : (
             <div className="cartList">
               {items.map((item) => {
-                const imageSrc = item.imageUrl
-                  ? toAbs(item.imageUrl, getCartImageVersion(item))
-                  : "";
+                const imageSrc = toSafeImageUrl(item.imageUrl, getCartImageVersion(item));
 
                 return (
                   <article className="cartItem" key={`${item.articleId}-${item.variationId}`}>

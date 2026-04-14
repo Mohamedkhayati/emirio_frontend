@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import { setToken } from "../lib/auth";
@@ -36,6 +36,7 @@ function startSocialLogin(provider) {
 
 export default function Auth({ setMe }) {
   const nav = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
 
   const [mode, setMode] = useState("login");
@@ -65,38 +66,48 @@ export default function Auth({ setMe }) {
     [isLogin, t]
   );
 
-  async function syncMeAndGo() {
+  const syncMeAndGo = useCallback(async () => {
     try {
       const res = await api.get("/api/profile");
       setMe?.(res.data);
     } catch {
       setMe?.(null);
     }
-    nav("/profile", { replace: true });
-  }
+
+    nav("/profile", {
+      replace: true,
+      state: { fromFreshLogin: true },
+    });
+  }, [nav, setMe]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
+    const requestedMode = params.get("mode");
+    setMode(requestedMode === "signup" ? "signup" : "login");
+  }, [location.search]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
     const socialToken = params.get("socialToken");
     const socialError = params.get("error");
 
     if (socialError) {
       setErr(decodeURIComponent(socialError));
-      window.history.replaceState({}, "", "/auth");
+      window.history.replaceState({}, "", "/auth?mode=login");
       return;
     }
 
     if (socialToken) {
       setToken(decodeURIComponent(socialToken));
-      window.history.replaceState({}, "", "/profile");
       syncMeAndGo();
     }
-  }, [nav, setMe]);
+  }, [location.search, syncMeAndGo]);
 
   function switchMode(next) {
     setErr("");
     setOk("");
     setMode(next);
+    nav(`/auth?mode=${next}`, { replace: true });
   }
 
   async function submit(e) {
@@ -108,7 +119,7 @@ export default function Auth({ setMe }) {
     try {
       if (isLogin) {
         const res = await api.post("/api/auth/login", {
-          email: loginEmail,
+          email: loginEmail.trim(),
           password: loginPassword,
         });
 
@@ -121,12 +132,31 @@ export default function Auth({ setMe }) {
           return;
         }
 
-        await api.post("/api/auth/signup", { nom, prenom, email, password });
+        await api.post("/api/auth/signup", {
+          nom: nom.trim(),
+          prenom: prenom.trim(),
+          email: email.trim(),
+          password,
+        });
 
-        setOk(t("auth.accountCreated"));
-        setMode("login");
-        setLoginEmail(email);
-        setLoginPassword(password);
+        const loginRes = await api.post("/api/auth/login", {
+          email: email.trim(),
+          password,
+        });
+
+        setToken(loginRes.data.token);
+
+        try {
+          const meRes = await api.get("/api/profile");
+          setMe?.(meRes.data);
+        } catch {
+          setMe?.(null);
+        }
+
+        nav("/profile", {
+          replace: true,
+          state: { fromFreshLogin: true },
+        });
       }
     } catch (e2) {
       const data = e2?.response?.data;
@@ -164,6 +194,7 @@ export default function Auth({ setMe }) {
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   placeholder={t("auth.emailPlaceholder")}
+                  required
                 />
 
                 <label className="authLabelReal">{t("auth.password")}</label>
@@ -173,6 +204,7 @@ export default function Auth({ setMe }) {
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                   placeholder={t("auth.passwordPlaceholder")}
+                  required
                 />
 
                 <div className="forgotRowReal">
@@ -227,6 +259,7 @@ export default function Auth({ setMe }) {
                   className="authInputReal"
                   value={nom}
                   onChange={(e) => setNom(e.target.value)}
+                  required
                 />
 
                 <label className="authLabelReal">{t("auth.prenom")}</label>
@@ -234,6 +267,7 @@ export default function Auth({ setMe }) {
                   className="authInputReal"
                   value={prenom}
                   onChange={(e) => setPrenom(e.target.value)}
+                  required
                 />
 
                 <label className="authLabelReal">{t("auth.email")}</label>
@@ -243,6 +277,7 @@ export default function Auth({ setMe }) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={t("auth.emailPlaceholder")}
+                  required
                 />
 
                 <label className="authLabelReal">{t("auth.password")}</label>
@@ -252,6 +287,7 @@ export default function Auth({ setMe }) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={t("auth.passwordMin")}
+                  required
                 />
 
                 <label className="checkRowReal">

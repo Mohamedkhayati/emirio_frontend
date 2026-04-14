@@ -10,9 +10,12 @@ import { useCart } from "../context/CartContext";
 
 const toAbs = (path, version = "") => {
   if (!path) return "";
+  if (path.startsWith("data:")) return path;
+  if (path.startsWith("blob:")) return path;
   if (path.startsWith("http")) return path;
-  const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
-  return `${base}${path}${path.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
+  const base = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8080").replace(/\/+$/, "");
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${cleanPath}${cleanPath.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
 };
 
 const fmtPrice = (v) => {
@@ -43,6 +46,23 @@ function isSaleActive(p) {
 function normalizeId(v) {
   if (v === null || v === undefined || v === "") return "";
   return String(v);
+}
+
+function isLikelyModelUrl(value = "") {
+  const v = String(value || "").toLowerCase();
+  return (
+    v.includes("/model3d") ||
+    v.endsWith(".glb") ||
+    v.endsWith(".gltf") ||
+    v.endsWith(".obj") ||
+    v.endsWith(".fbx") ||
+    v.endsWith(".stl")
+  );
+}
+
+function toSafeCartImagePath(value = "") {
+  if (!value) return "";
+  return isLikelyModelUrl(value) ? "" : value;
 }
 
 function getColorId(obj) {
@@ -99,8 +119,50 @@ function pickModelUrl(obj) {
   );
 }
 
+function normalizeImageItem(img) {
+  if (!img) return "";
+
+  if (typeof img === "string") return img;
+
+  return (
+    img?.imageUrl ||
+    img?.url ||
+    img?.path ||
+    img?.src ||
+    img?.downloadUrl ||
+    img?.previewUrl ||
+    img?.fileUrl ||
+    ""
+  );
+}
+
+function dedupeImages(list = []) {
+  return [...new Set(list.filter((x) => Boolean(x) && !isLikelyModelUrl(x)))];
+}
+
 function pickImageList(obj) {
-  return [
+  if (!obj) return [];
+
+  const arrayCandidates = [
+    obj?.imageUrls,
+    obj?.images,
+    obj?.previewImages,
+    obj?.gallery,
+    obj?.photos,
+    obj?.media,
+  ];
+
+  const fromArrays = arrayCandidates.flatMap((arr) =>
+    Array.isArray(arr) ? arr.map(normalizeImageItem) : []
+  );
+
+  const normalizedArray = dedupeImages(fromArrays);
+
+  if (normalizedArray.length > 0) {
+    return normalizedArray;
+  }
+
+  const legacyFields = [
     obj?.imageUrl,
     obj?.imageUrl2,
     obj?.imageUrl3,
@@ -109,13 +171,16 @@ function pickImageList(obj) {
     obj?.image2Url,
     obj?.image3Url,
     obj?.image4Url,
-  ].filter(Boolean);
+    obj?.previewImage,
+  ];
+
+  return dedupeImages(legacyFields);
 }
 
 export default function ProductDetailsPage() {
   const { id } = useParams();
   const { t } = useTranslation();
-  const { addToCart } = useCart();
+  const { addToCart, cartItems } = useCart();
 
   const [article, setArticle] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -132,7 +197,6 @@ export default function ProductDetailsPage() {
   const [selectedColorId, setSelectedColorId] = useState("");
   const [selectedSizeId, setSelectedSizeId] = useState("");
   const [cartMessage, setCartMessage] = useState("");
-
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [fullscreenType, setFullscreenType] = useState("");
   const [fullscreenSrc, setFullscreenSrc] = useState("");
@@ -222,13 +286,16 @@ export default function ProductDetailsPage() {
       const colorId = getVariationColorId(v);
       if (!colorId) return;
 
+      const variationImages = pickImageList(v);
+
       if (!map.has(colorId)) {
         map.set(colorId, {
           couleurId: colorId,
           couleurNom: getVariationColorName(v),
           couleurCodeHex: getVariationColorHex(v),
           totalStock: 0,
-          previewImage: pickImageList(v)[0] || "",
+          previewImage: variationImages[0] || "",
+          previewImages: variationImages,
           previewModel3dUrl: pickModelUrl(v),
         });
       }
@@ -237,10 +304,15 @@ export default function ProductDetailsPage() {
       row.totalStock += getVariationStock(v);
 
       if (!row.couleurNom) row.couleurNom = getVariationColorName(v);
+
       if (!row.couleurCodeHex || row.couleurCodeHex === "#ddd") {
         row.couleurCodeHex = getVariationColorHex(v);
       }
-      if (!row.previewImage) row.previewImage = pickImageList(v)[0] || "";
+
+      if (!row.previewImage) row.previewImage = variationImages[0] || "";
+
+      row.previewImages = dedupeImages([...(row.previewImages || []), ...variationImages]);
+
       if (!row.previewModel3dUrl) {
         row.previewModel3dUrl = pickModelUrl(v);
       }
@@ -251,22 +323,33 @@ export default function ProductDetailsPage() {
         const colorId = getColorId(c);
         if (!colorId) return;
 
+        const colorImages = pickImageList(c);
+
         if (!map.has(colorId)) {
           map.set(colorId, {
             couleurId: colorId,
             couleurNom: getColorName(c),
             couleurCodeHex: getColorHex(c),
             totalStock: 0,
-            previewImage: c?.previewImage || "",
+            previewImage: colorImages[0] || c?.previewImage || "",
+            previewImages: colorImages,
             previewModel3dUrl: pickModelUrl(c),
           });
         } else {
           const row = map.get(colorId);
+
           if (!row.couleurNom) row.couleurNom = getColorName(c);
+
           if (!row.couleurCodeHex || row.couleurCodeHex === "#ddd") {
             row.couleurCodeHex = getColorHex(c);
           }
-          if (!row.previewImage && c?.previewImage) row.previewImage = c.previewImage;
+
+          if (!row.previewImage) {
+            row.previewImage = colorImages[0] || c?.previewImage || "";
+          }
+
+          row.previewImages = dedupeImages([...(row.previewImages || []), ...colorImages]);
+
           if (!row.previewModel3dUrl) {
             row.previewModel3dUrl = pickModelUrl(c);
           }
@@ -274,8 +357,19 @@ export default function ProductDetailsPage() {
       });
     }
 
-    return Array.from(map.values());
-  }, [article, variations]);
+    return Array.from(map.values()).map((color) => {
+      const reservedInCart = cartItems.reduce((sum, item) => {
+        return String(item.couleurId ?? "") === String(color.couleurId)
+          ? sum + Number(item.qty || 0)
+          : sum;
+      }, 0);
+
+      return {
+        ...color,
+        remainingStock: Math.max(0, Number(color.totalStock || 0) - reservedInCart),
+      };
+    });
+  }, [article, variations, cartItems]);
 
   useEffect(() => {
     if (!colors.length) {
@@ -286,7 +380,9 @@ export default function ProductDetailsPage() {
     const stillExists = colors.some((c) => String(c.couleurId) === String(selectedColorId));
     if (stillExists) return;
 
-    const firstAvailableColor = colors.find((c) => Number(c.totalStock || 0) > 0) || colors[0];
+    const firstAvailableColor =
+      colors.find((c) => Number(c.remainingStock || 0) > 0) || colors[0];
+
     setSelectedColorId(String(firstAvailableColor.couleurId));
   }, [colors, selectedColorId]);
 
@@ -307,7 +403,9 @@ export default function ProductDetailsPage() {
       return;
     }
 
-    const stillExists = sizeOptions.some((v) => String(getVariationSizeId(v)) === String(selectedSizeId));
+    const stillExists = sizeOptions.some(
+      (v) => String(getVariationSizeId(v)) === String(selectedSizeId)
+    );
     if (stillExists) return;
 
     const firstAvailable = sizeOptions.find((v) => getVariationStock(v) > 0) || sizeOptions[0];
@@ -326,14 +424,8 @@ export default function ProductDetailsPage() {
   const activeModelUrl = useMemo(() => {
     if (selectedVariation) {
       const exactVariationModel = pickModelUrl(selectedVariation);
-
       if (exactVariationModel) {
         return toAbs(exactVariationModel, `model-${selectedVariation.id}`);
-      }
-
-      if (selectedVariation?.id) {
-        const forcedUrl = `/api/variations/${selectedVariation.id}/model3d`;
-        return toAbs(forcedUrl, `forced-model-${selectedVariation.id}`);
       }
     }
 
@@ -360,12 +452,18 @@ export default function ProductDetailsPage() {
       }
 
       try {
-        const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
-        const relativeUrl = activeModelUrl.startsWith(base)
-          ? activeModelUrl.slice(base.length)
-          : activeModelUrl;
+        const base = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8080").replace(/\/+$/, "");
+        let requestUrl = activeModelUrl;
 
-        const res = await api.get(relativeUrl, {
+        if (activeModelUrl.startsWith(base)) {
+          requestUrl = activeModelUrl.slice(base.length);
+        }
+
+        if (!requestUrl.startsWith("http") && !requestUrl.startsWith("/")) {
+          requestUrl = `/${requestUrl}`;
+        }
+
+        const res = await api.get(requestUrl, {
           responseType: "blob",
         });
 
@@ -404,11 +502,16 @@ export default function ProductDetailsPage() {
       if (exactImages.length > 0) return exactImages;
     }
 
+    const colorLevel = colors.find((c) => String(c.couleurId) === String(selectedColorId));
+    if (colorLevel?.previewImages?.length) {
+      return colorLevel.previewImages;
+    }
+    if (colorLevel?.previewImage) {
+      return [colorLevel.previewImage];
+    }
+
     const articleImages = pickImageList(article);
     if (articleImages.length > 0) return articleImages;
-
-    const colorLevel = colors.find((c) => String(c.couleurId) === String(selectedColorId));
-    if (colorLevel?.previewImage) return [colorLevel.previewImage];
 
     return [];
   }, [selectedVariation, article, colors, selectedColorId]);
@@ -429,10 +532,10 @@ export default function ProductDetailsPage() {
   }, [selectedVariation?.id]);
 
   useEffect(() => {
-    if (resolvedModelSrc) {
-      setActiveMediaType("model");
-    } else if (gallery.length) {
+    if (gallery.length) {
       setActiveMediaType("image");
+    } else if (resolvedModelSrc) {
+      setActiveMediaType("model");
     } else {
       setActiveMediaType("");
     }
@@ -500,15 +603,33 @@ export default function ProductDetailsPage() {
     }
   }
 
+  const onSale = isSaleActive(article);
+  const currentPrice = onSale
+    ? Number(article?.salePrice)
+    : Number(selectedVariation ? getVariationPrice(selectedVariation, article) : article?.prix);
+
+  const rawStock = selectedVariation ? getVariationStock(selectedVariation) : 0;
+
+  const qtyAlreadyInCart = selectedVariation
+    ? cartItems.reduce((sum, item) => {
+        return Number(item.variationId) === Number(selectedVariation.id)
+          ? sum + Number(item.qty || 0)
+          : sum;
+      }, 0)
+    : 0;
+
+  const remainingStock = Math.max(0, rawStock - qtyAlreadyInCart);
+
   function handleAddToCart() {
     if (!article || !selectedVariation) return;
 
-    if (getVariationStock(selectedVariation) <= 0) {
+    if (remainingStock <= 0) {
       alert(t("product.soldOut", "Sold out"));
       return;
     }
 
-    const limitedQty = Math.min(qty, Math.max(1, getVariationStock(selectedVariation)));
+    const limitedQty = Math.min(qty, remainingStock);
+    const safeCartImage = toSafeCartImagePath(gallery[0] || "");
 
     addToCart(
       {
@@ -519,7 +640,7 @@ export default function ProductDetailsPage() {
         prix: isSaleActive(article)
           ? Number(article.salePrice)
           : getVariationPrice(selectedVariation, article),
-        imageUrl: gallery[0] || "",
+        imageUrl: safeCartImage,
         couleurId: getVariationColorId(selectedVariation),
         couleurNom: getVariationColorName(selectedVariation),
         tailleId: getVariationSizeId(selectedVariation),
@@ -539,13 +660,6 @@ export default function ProductDetailsPage() {
   if (loading) return <div className="pdInfo">{t("common.loading", "Loading...")}</div>;
   if (error) return <div className="pdInfo error">{error}</div>;
   if (!article) return <div className="pdInfo error">{t("product.notFound", "Product not found.")}</div>;
-
-  const onSale = isSaleActive(article);
-  const currentPrice = onSale
-    ? Number(article.salePrice)
-    : Number(selectedVariation ? getVariationPrice(selectedVariation, article) : article.prix);
-
-  const currentStock = selectedVariation ? getVariationStock(selectedVariation) : 0;
 
   return (
     <div className="pdPage">
@@ -584,7 +698,7 @@ export default function ProductDetailsPage() {
                     setActiveMediaType("image");
                   }}
                 >
-                  <img src={toAbs(img, imageVersion)} alt={`${article.nom} ${i + 1}`} />
+                  <img src={toAbs(img, `${imageVersion}-${i}`)} alt={`${article.nom} ${i + 1}`} />
                 </button>
               ))}
             </div>
@@ -615,7 +729,7 @@ export default function ProductDetailsPage() {
                   </button>
 
                   <img
-                    src={toAbs(activeImage, imageVersion)}
+                    src={toAbs(activeImage, `main-${imageVersion}`)}
                     alt={article.nom}
                     className="pdMainImage clickable"
                     onClick={openImageFullscreen}
@@ -691,7 +805,7 @@ export default function ProductDetailsPage() {
             <div className="pdColorRow">
               {colors.map((c) => {
                 const active = String(c.couleurId) === String(selectedColorId);
-                const soldOut = Number(c.totalStock || 0) <= 0;
+                const soldOut = Number(c.remainingStock || 0) <= 0;
 
                 return (
                   <button
@@ -703,7 +817,7 @@ export default function ProductDetailsPage() {
                     <span className="pdColorSwatch" style={{ background: c.couleurCodeHex || "#ddd" }} />
                     <span className="pdColorName">{c.couleurNom || "-"}</span>
                     <span className="pdColorStock">
-                      {soldOut ? "Sold out" : `${c.totalStock} in stock`}
+                      {soldOut ? "Sold out" : `${c.remainingStock} in stock`}
                     </span>
                   </button>
                 );
@@ -713,11 +827,19 @@ export default function ProductDetailsPage() {
             <div className="pdLabel" style={{ marginTop: 18 }}>
               {t("product.size", "Size")}
             </div>
+
             <div className="pdSizeRow">
               {sizeOptions.map((v) => {
                 const sizeId = getVariationSizeId(v);
                 const active = String(sizeId) === String(selectedSizeId);
-                const soldOut = getVariationStock(v) <= 0;
+                const stockForThisSize = getVariationStock(v);
+                const reservedForThisSize = cartItems.reduce((sum, item) => {
+                  return Number(item.variationId) === Number(v.id)
+                    ? sum + Number(item.qty || 0)
+                    : sum;
+                }, 0);
+                const remainingForThisSize = Math.max(0, stockForThisSize - reservedForThisSize);
+                const soldOut = remainingForThisSize <= 0;
 
                 return (
                   <button
@@ -727,16 +849,16 @@ export default function ProductDetailsPage() {
                     onClick={() => setSelectedSizeId(String(sizeId))}
                   >
                     <span>{getVariationSizeLabel(v)}</span>
-                    <small>{soldOut ? "Sold out" : `${getVariationStock(v)} left`}</small>
+                    <small>{soldOut ? "Sold out" : `${remainingForThisSize} left`}</small>
                   </button>
                 );
               })}
             </div>
 
-            <div className={`pdStockNotice ${currentStock > 0 ? "ok" : "bad"}`}>
+            <div className={`pdStockNotice ${remainingStock > 0 ? "ok" : "bad"}`}>
               {selectedVariation
-                ? currentStock > 0
-                  ? `Selected: ${getVariationColorName(selectedVariation)} / ${getVariationSizeLabel(selectedVariation)} · ${currentStock} in stock`
+                ? remainingStock > 0
+                  ? `Selected: ${getVariationColorName(selectedVariation)} / ${getVariationSizeLabel(selectedVariation)} · ${remainingStock} left (${qtyAlreadyInCart} in cart)`
                   : `Selected: ${getVariationColorName(selectedVariation)} / ${getVariationSizeLabel(selectedVariation)} · Sold out`
                 : "Select color and size"}
             </div>
@@ -753,8 +875,8 @@ export default function ProductDetailsPage() {
                 <strong>{qty}</strong>
                 <button
                   type="button"
-                  onClick={() => setQty((q) => Math.min(q + 1, Math.max(1, currentStock)))}
-                  disabled={currentStock <= qty}
+                  onClick={() => setQty((q) => Math.min(q + 1, Math.max(1, remainingStock)))}
+                  disabled={remainingStock <= qty}
                 >
                   +
                 </button>
@@ -764,9 +886,13 @@ export default function ProductDetailsPage() {
                 type="button"
                 className="addCartBtn"
                 onClick={handleAddToCart}
-                disabled={!selectedVariation || currentStock <= 0}
+                disabled={!selectedVariation || remainingStock <= 0}
               >
-                {currentStock > 0 ? t("product.addToCart", "Add to Cart") : t("product.soldOut", "Sold out")}
+                {!selectedVariation
+                  ? "Select size"
+                  : remainingStock > 0
+                  ? t("product.addToCart", "Add to Cart")
+                  : t("product.soldOut", "Sold out")}
               </button>
             </div>
 
@@ -864,7 +990,7 @@ export default function ProductDetailsPage() {
 
           <div className="pdRelatedGrid">
             {related.map((p) => {
-              const relatedImage = [p.imageUrl, p.imageUrl2, p.imageUrl3, p.imageUrl4].filter(Boolean)[0];
+              const relatedImage = pickImageList(p)[0] || "";
 
               return (
                 <Link key={p.id} to={`/product/${p.id}`} className="pdProductCard">

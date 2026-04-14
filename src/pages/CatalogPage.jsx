@@ -389,8 +389,8 @@ export default function CatalogPage() {
         const [aRes, cRes, colorRes, sizeRes] = await Promise.all([
           api.get("/api/articles"),
           api.get("/api/categories"),
-          api.get("/api/admin/colors"),
-          api.get("/api/admin/sizes"),
+          api.get("/api/colors"),
+          api.get("/api/sizes"),
         ]);
 
         setArticles((aRes.data || []).filter((a) => a.actif !== false));
@@ -398,7 +398,7 @@ export default function CatalogPage() {
         setColors(colorRes.data || []);
         setSizes(sizeRes.data || []);
       } catch (e) {
-        setError(e?.response?.data?.message || "Cannot load catalog");
+        setError(e?.response?.data?.message || e.message || "Cannot load catalog");
       } finally {
         setLoading(false);
       }

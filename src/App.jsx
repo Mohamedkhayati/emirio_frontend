@@ -10,12 +10,9 @@ import Home from "./pages/Home.jsx";
 import Auth from "./pages/Auth.jsx";
 import Profile from "./pages/Profile.jsx";
 import ProductDetailsPage from "./pages/ProductDetailsPage.jsx";
-import CatalogPage from "./pages/CatalogPage.jsx";
+import ShopCatalogPage from "./pages/CatalogPage.jsx";
 import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
-
-
 import ResetPassword from "./pages/auth/ResetPassword.jsx";
-import AdminPage from "./pages/admin/AdminPage.jsx";
 import AboutPage from "./pages/AboutPage.jsx";
 import ContactPage from "./pages/ContactPage.jsx";
 
@@ -23,6 +20,12 @@ import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import { CartProvider } from "./context/CartContext";
 import MainLayout from "./layouts/MainLayout.jsx";
 import AuthLayout from "./layouts/AuthLayout.jsx";
+
+import AdminLayout from "./pages/admin/AdminLayout.jsx";
+import AdminCustomersPage from "./pages/admin/CustomersPage.jsx";
+import AdminCatalogPage from "./pages/admin/CatalogPage.jsx";
+import AdminDashboardPage from "./pages/admin/DashboardPage.jsx";
+import AdminOrdersPage from "./pages/admin/OrdersPage.jsx";
 
 export default function App() {
   const [me, setMe] = useState(null);
@@ -53,6 +56,11 @@ export default function App() {
   if (loading) return <div style={{ padding: 20 }}>Loading...</div>;
 
   const role = me?.role;
+  const isAdmin =
+    role === "ADMIN_GENERAL" ||
+    role === "VENDEUR" ||
+    role === "ADMIN" ||
+    role === "SELLER";
 
   return (
     <CartProvider me={me}>
@@ -68,23 +76,34 @@ export default function App() {
 
         <Route element={<MainLayout me={me} setMe={setMe} />}>
           <Route path="/" element={<Home />} />
-          <Route path="/catalog" element={<CatalogPage me={me} setMe={setMe} />} />
+          <Route path="/catalog" element={<ShopCatalogPage me={me} setMe={setMe} />} />
           <Route path="/product/:id" element={<ProductDetailsPage me={me} setMe={setMe} />} />
           <Route path="/favorites" element={<Favorites me={me} setMe={setMe} />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
-          <Route
-            path="/profile"
-            element={me ? <Profile me={me} setMe={setMe} /> : <Navigate to="/auth" replace />}
-          />
           <Route path="/cart" element={<CartCheckoutPage me={me} setMe={setMe} />} />
           <Route path="/orders" element={<OrderHistoryPage me={me} setMe={setMe} />} />
+
+          <Route
+            path="/profile"
+            element={<ProtectedRoute isAllowed={!!me} redirectTo="/auth" />}
+          >
+            <Route index element={<Profile me={me} setMe={setMe} />} />
+          </Route>
+
           <Route
             path="/admin"
-            element={<ProtectedRoute isAllowed={role === "ADMIN_GENERAL" ||role === "VENDEUR" } redirectTo="/profile" />}
+            element={<ProtectedRoute isAllowed={isAdmin} redirectTo="/" />}
           >
-            <Route index element={<AdminPage />} />
+            <Route element={<AdminLayout />}>
+              <Route index element={<Navigate to="catalog" replace />} />
+              <Route path="catalog" element={<AdminCatalogPage />} />
+              <Route path="customers" element={<AdminCustomersPage />} />
+              <Route path="dashboard" element={<AdminDashboardPage />} />
+              <Route path="orders" element={<AdminOrdersPage />} />
+            </Route>
           </Route>
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

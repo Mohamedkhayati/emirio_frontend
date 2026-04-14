@@ -24,10 +24,8 @@ api.interceptors.response.use(
   (error) => {
     if (error?.response?.status === 401) {
       clearToken();
-      if (window.location.pathname !== "/auth") {
-        window.location.href = "/auth";
-      }
     }
+
     return Promise.reject(error);
   }
 );

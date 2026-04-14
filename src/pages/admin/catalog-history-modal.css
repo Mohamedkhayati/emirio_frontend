@@ -1,0 +1,615 @@
+:root {
+  --history-bg: var(--color-bg, #f7f6f2);
+  --history-surface: var(--color-surface, #fbfbf9);
+  --history-surface-2: var(--color-surface-2, #f3f0ec);
+  --history-border: rgba(40, 37, 29, 0.1);
+  --history-text: var(--color-text, #28251d);
+  --history-muted: var(--color-text-muted, #77736b);
+  --history-primary: var(--color-primary, #01696f);
+  --history-success: var(--color-success, #437a22);
+  --history-warning: var(--color-orange, #da7101);
+  --history-danger: var(--color-error, #a12c7b);
+  --history-shadow-lg: 0 30px 80px rgba(0, 0, 0, 0.18);
+  --history-radius-xl: 24px;
+  --history-radius-lg: 18px;
+  --history-radius-md: 14px;
+  --history-radius-sm: 10px;
+}
+
+.historyModalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top, rgba(1, 105, 111, 0.12), transparent 35%),
+    rgba(18, 18, 18, 0.48);
+  backdrop-filter: blur(10px);
+  animation: historyFadeIn 220ms ease;
+}
+
+.historyModalPanel {
+  width: min(1280px, 100%);
+  max-height: min(92vh, 980px);
+  overflow: hidden;
+  border: 1px solid var(--history-border);
+  border-radius: var(--history-radius-xl);
+  background: linear-gradient(180deg, #fffdf9 0%, var(--history-bg) 100%);
+  color: var(--history-text);
+  box-shadow: var(--history-shadow-lg);
+  display: flex;
+  flex-direction: column;
+}
+
+.historyModalEnter {
+  animation: historyPopIn 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.historyModalHead {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 24px 24px 18px;
+  background: linear-gradient(180deg, rgba(255, 253, 249, 0.96), rgba(255, 253, 249, 0.88));
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--history-border);
+}
+
+.historyModalEyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--history-primary);
+  margin-bottom: 8px;
+}
+
+.historyModalTitle {
+  margin: 0;
+  font-size: clamp(1.6rem, 1.2rem + 1vw, 2.2rem);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+.historyModalSubtitle {
+  margin: 10px 0 0;
+  max-width: 68ch;
+  color: var(--history-muted);
+  font-size: 0.98rem;
+}
+
+.historyModalClose {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  border: 1px solid var(--history-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--history-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease;
+}
+
+.historyModalClose:hover {
+  transform: translateY(-1px) rotate(90deg);
+  background: #fff;
+  border-color: rgba(1, 105, 111, 0.24);
+}
+
+.historyModalStats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  padding: 18px 24px 0;
+}
+
+.historyStatCard {
+  border: 1px solid var(--history-border);
+  border-radius: var(--history-radius-lg);
+  background: rgba(255, 255, 255, 0.74);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.historyStatCard strong {
+  font-size: 1.55rem;
+  letter-spacing: -0.03em;
+}
+
+.historyStatCard.create {
+  background: rgba(67, 122, 34, 0.08);
+}
+
+.historyStatCard.update {
+  background: rgba(218, 113, 1, 0.08);
+}
+
+.historyStatCard.delete {
+  background: rgba(161, 44, 123, 0.08);
+}
+
+.historyStatLabel {
+  color: var(--history-muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.historyModalFilters {
+  display: grid;
+  grid-template-columns: 2fr repeat(5, minmax(0, 1fr)) 180px;
+  gap: 12px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--history-border);
+}
+
+.historyField {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.historyField span {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--history-muted);
+}
+
+.historyField input,
+.historyField select {
+  min-height: 46px;
+  border: 1px solid var(--history-border);
+  border-radius: var(--history-radius-md);
+  background: #fff;
+  padding: 0 14px;
+  color: var(--history-text);
+  outline: none;
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.historyField input:focus,
+.historyField select:focus {
+  border-color: rgba(1, 105, 111, 0.44);
+  box-shadow: 0 0 0 4px rgba(1, 105, 111, 0.08);
+}
+
+.historyFieldSearch {
+  grid-column: span 2;
+}
+
+.historyFieldActions {
+  justify-content: flex-end;
+}
+
+.historyClearBtn {
+  min-height: 46px;
+  border-radius: 999px;
+  border: 1px solid var(--history-border);
+  background: #fff;
+  padding: 0 16px;
+  font-weight: 700;
+  transition: transform 180ms ease, background 180ms ease, opacity 180ms ease;
+}
+
+.historyClearBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: #f5faf9;
+}
+
+.historyClearBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.historyModalMetaBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 24px 18px;
+}
+
+.historyResultsCount {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.historyActiveFilters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.historyFilterChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(1, 105, 111, 0.08);
+  color: var(--history-primary);
+  font-size: 0.83rem;
+  font-weight: 700;
+}
+
+.historyModalBody {
+  flex: 1;
+  overflow: auto;
+  padding: 0 24px 24px;
+}
+
+.historyTimeline {
+  display: grid;
+  gap: 16px;
+  padding-right: 4px;
+}
+
+.historyCard {
+  position: relative;
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 16px;
+  border: 1px solid var(--history-border);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.72));
+  padding: 18px;
+  overflow: hidden;
+  transform: translateY(0);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  animation: historyCardRise 320ms ease both;
+}
+
+.historyCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.08);
+}
+
+.historyCard.create .historyCardLine {
+  background: linear-gradient(180deg, rgba(67,122,34,0.9), rgba(67,122,34,0.25));
+}
+
+.historyCard.update .historyCardLine {
+  background: linear-gradient(180deg, rgba(218,113,1,0.9), rgba(218,113,1,0.25));
+}
+
+.historyCard.delete .historyCardLine {
+  background: linear-gradient(180deg, rgba(161,44,123,0.9), rgba(161,44,123,0.25));
+}
+
+.historyCardLine {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+}
+
+.historyActor {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.historyAvatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(1, 105, 111, 0.16);
+  background: #fff;
+}
+
+.historyAvatar.fallback {
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  color: var(--history-primary);
+  background: rgba(1, 105, 111, 0.08);
+}
+
+.historyCardContent {
+  min-width: 0;
+}
+
+.historyCardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.historyCardIdentity {
+  min-width: 0;
+}
+
+.historyActorName {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.historyActorEmail {
+  margin-top: 2px;
+  color: var(--history-muted);
+  font-size: 0.92rem;
+  word-break: break-word;
+}
+
+.historyCardBadges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.historyBadge {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.historyBadge.create {
+  color: #285a12;
+  background: rgba(67, 122, 34, 0.12);
+}
+
+.historyBadge.update {
+  color: #8d4b05;
+  background: rgba(218, 113, 1, 0.12);
+}
+
+.historyBadge.delete {
+  color: #7d1e5e;
+  background: rgba(161, 44, 123, 0.12);
+}
+
+.historyBadge.soft {
+  color: var(--history-text);
+  background: rgba(40, 37, 29, 0.06);
+}
+
+.historyCardMain {
+  margin-top: 14px;
+}
+
+.historyTargetTitle {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.historyVariationLabel {
+  margin-top: 8px;
+  color: var(--history-primary);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.historySummary {
+  margin: 10px 0 0;
+  color: var(--history-text);
+  opacity: 0.88;
+  max-width: 90ch;
+}
+
+.historyCardMeta {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  color: var(--history-muted);
+  font-size: 0.86rem;
+}
+
+.historyCardMeta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.historyDetailsBox {
+  margin-top: 14px;
+  border: 1px solid var(--history-border);
+  border-radius: 14px;
+  background: rgba(247, 246, 242, 0.8);
+  overflow: hidden;
+}
+
+.historyDetailsBox summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 14px;
+  font-weight: 700;
+  user-select: none;
+}
+
+.historyDetailsBox summary::-webkit-details-marker {
+  display: none;
+}
+
+.historyDetailsBox pre {
+  margin: 0;
+  padding: 0 14px 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.82rem;
+  color: var(--history-muted);
+}
+
+.historyEmptyState,
+.historyErrorBox {
+  min-height: 240px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  border: 1px dashed var(--history-border);
+  border-radius: 22px;
+  background: rgba(255,255,255,0.68);
+  padding: 24px;
+}
+
+.historyErrorBox {
+  color: var(--history-danger);
+  border-style: solid;
+  background: rgba(161, 44, 123, 0.06);
+}
+
+.historyTopBtn {
+  position: relative;
+  overflow: hidden;
+}
+
+.historyTopBtn::after {
+  content: "";
+  position: absolute;
+  inset: auto -20% -80% auto;
+  width: 130px;
+  height: 130px;
+  background: radial-gradient(circle, rgba(1, 105, 111, 0.16), transparent 70%);
+  pointer-events: none;
+}
+
+@keyframes historyFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes historyPopIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes historyCardRise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1180px) {
+  .historyModalFilters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .historyFieldSearch {
+    grid-column: 1 / -1;
+  }
+
+  .historyFieldActions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 860px) {
+  .historyModalOverlay {
+    padding: 12px;
+  }
+
+  .historyModalPanel {
+    max-height: 95vh;
+    border-radius: 20px;
+  }
+
+  .historyModalHead,
+  .historyModalStats,
+  .historyModalFilters,
+  .historyModalMetaBar,
+  .historyModalBody {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .historyModalStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .historyModalMetaBar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .historyActiveFilters {
+    justify-content: flex-start;
+  }
+
+  .historyCard {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .historyActor {
+    justify-content: flex-start;
+  }
+
+  .historyCardTop {
+    flex-direction: column;
+  }
+
+  .historyCardBadges {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  .historyModalStats,
+  .historyModalFilters {
+    grid-template-columns: 1fr;
+  }
+
+  .historyModalTitle {
+    font-size: 1.45rem;
+  }
+
+  .historyModalSubtitle {
+    font-size: 0.92rem;
+  }
+
+  .historyStatCard strong {
+    font-size: 1.3rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .historyModalOverlay,
+  .historyModalEnter,
+  .historyCard {
+    animation: none !important;
+  }
+
+  .historyModalClose,
+  .historyClearBtn,
+  .historyCard {
+    transition: none !important;
+  }
+}

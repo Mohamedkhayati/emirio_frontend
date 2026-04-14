@@ -25,6 +25,10 @@ export default function UserIconMenu({ me, setMe }) {
     } finally {
       clearToken();
 
+      localStorage.removeItem("emirio_token");
+      localStorage.removeItem("token");
+      localStorage.removeItem("role");
+      localStorage.removeItem("auth");
       localStorage.removeItem("favorites");
       localStorage.removeItem("user");
       localStorage.removeItem("cart");
@@ -33,13 +37,13 @@ export default function UserIconMenu({ me, setMe }) {
       sessionStorage.clear();
       setMe?.(null);
       setOpen(false);
-      navigate("/auth", { replace: true });
+      navigate("/", { replace: true });
     }
   };
 
   if (!me) {
     return (
-      <Link to="/auth" className="userMenuLoginBtn">
+      <Link to="/auth?mode=login" className="userMenuLoginBtn">
         {t("auth.login")}
       </Link>
     );
