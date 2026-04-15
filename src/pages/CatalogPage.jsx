@@ -674,7 +674,6 @@ export default function CatalogPage() {
         </section>
       </div>
 
-      <Footer />
     </div>
   );
 }

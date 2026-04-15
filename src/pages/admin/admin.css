@@ -2041,3 +2041,673 @@ html[dir="rtl"] .admProfileTop,
 html[dir="rtl"] .variationRowMain{
   flex-direction:row-reverse;
 }
+.admPage {
+    display: grid;
+    gap: 18px;
+}
+
+.admHeader {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.admHeaderRight {
+    display: grid;
+    gap: 12px;
+    flex: 1;
+}
+
+.catalogFiltersRow {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.filterSelect,
+.pagerSelect,
+.historySelect,
+.historySelectWide {
+    min-width: 180px;
+}
+
+.historySelectWide {
+    min-width: 240px;
+}
+
+.admH1 {
+    font-size: 28px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.admH2 {
+    margin-top: 4px;
+    color: #64748b;
+    font-size: 14px;
+}
+
+.catalogActionBar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.admCard {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 18px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+.admCardTop {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.catalogPanelTop {
+    align-items: flex-start;
+}
+
+.admCardTitle {
+    font-size: 18px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.adminDataTableWrap {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.adminDataTable {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 900px;
+}
+
+.compactTable {
+    min-width: 500px;
+}
+
+.adminDataTable thead th {
+    text-align: left;
+    font-size: 13px;
+    color: #475569;
+    font-weight: 700;
+    background: #f8fafc;
+    padding: 14px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+}
+
+.adminDataTable tbody td {
+    padding: 14px 12px;
+    border-bottom: 1px solid #eef2f7;
+    vertical-align: middle;
+    color: #0f172a;
+    font-size: 14px;
+}
+
+.adminDataTable tbody tr:hover {
+    background: #f8fbff;
+}
+
+.adminDataTable tbody tr.isSelectedRow {
+    background: #eff6ff;
+}
+
+.tablePrimaryCell {
+    min-width: 180px;
+}
+
+.admName {
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.admRole {
+    color: #64748b;
+    font-size: 12px;
+    margin-top: 3px;
+}
+
+.admRowActions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: nowrap;
+    align-items: center;
+}
+
+.admRowActions.wrap {
+    flex-wrap: wrap;
+}
+
+.admBtn {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #0f172a;
+    padding: 10px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: 0.2s ease;
+}
+
+.admBtn:hover {
+    background: #f8fafc;
+}
+
+.admBtn.primary {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #fff;
+}
+
+.admBtn.primary:hover {
+    background: #1d4ed8;
+}
+
+.admBtn.danger {
+    background: #fff1f2;
+    border-color: #fecdd3;
+    color: #be123c;
+}
+
+.admBtn.danger:hover {
+    background: #ffe4e6;
+}
+
+.admBtn.mini {
+    padding: 8px 12px;
+    font-size: 12px;
+    border-radius: 9px;
+}
+
+.admBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.admBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.admBadge.ok {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.admBadge.bad {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.admBadge.neutral {
+    background: #e2e8f0;
+    color: #334155;
+}
+
+.admSearchWrap {
+    min-width: 240px;
+    flex: 1;
+}
+
+.admSearch,
+.productForm input,
+.productForm select,
+.productForm textarea {
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    border-radius: 12px;
+    padding: 11px 13px;
+    font-size: 14px;
+    color: #0f172a;
+    outline: none;
+}
+
+.admSearch:focus,
+.productForm input:focus,
+.productForm select:focus,
+.productForm textarea:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.admAlert {
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #b91c1c;
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+}
+
+.admEmpty {
+    padding: 26px;
+    text-align: center;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.admEmpty.slim {
+    padding: 14px;
+}
+
+.admGrid {
+    display: grid;
+    gap: 18px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admGrid.singleCol {
+    grid-template-columns: 1fr;
+}
+
+.refsGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.selectedArticleSummary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.summaryBlock {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 14px;
+    color: #334155;
+}
+
+.variationHint {
+    font-size: 13px;
+    color: #64748b;
+    margin-top: 4px;
+}
+
+.variationTableInfo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 220px;
+}
+
+.variationThumbWrap {
+    flex: 0 0 auto;
+}
+
+.variationTableThumb {
+    width: 58px;
+    height: 58px;
+    object-fit: cover;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.variationTableThumb.fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    font-size: 11px;
+}
+
+.tablePager {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+}
+
+.tablePagerLeft,
+.tablePagerRight {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.tablePagerReport {
+    font-size: 13px;
+    color: #475569;
+    font-weight: 600;
+}
+
+.colorCell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.colorDot {
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    flex: 0 0 auto;
+}
+
+.admHistoryList {
+    display: grid;
+    gap: 12px;
+}
+
+.admHistoryItem {
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 14px;
+    background: #fff;
+}
+
+.admHistoryTop {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: 10px;
+}
+
+.admProfileTop {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.admAvatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    object-fit: cover;
+    border: 1px solid #e2e8f0;
+}
+
+.admAvatar.fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-weight: 800;
+}
+
+.admHistoryText {
+    color: #334155;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.admHistoryMeta {
+    color: #64748b;
+    font-size: 12px;
+}
+
+.productForm {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.productForm label {
+    display: grid;
+    gap: 8px;
+}
+
+.productForm label > span {
+    font-size: 13px;
+    font-weight: 700;
+    color: #334155;
+}
+
+.productForm .fullCol {
+    grid-column: 1 / -1;
+}
+
+.checkRow {
+    display: flex !important;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+}
+
+.checkRow input {
+    width: auto;
+}
+
+.admDialog {
+    width: min(920px, calc(100vw - 32px));
+    border: none;
+    border-radius: 18px;
+    padding: 0;
+    overflow: hidden;
+    box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
+}
+
+.admDialog::backdrop {
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.productDialog {
+    width: min(720px, calc(100vw - 32px));
+}
+
+.admDialogWide {
+    width: min(1100px, calc(100vw - 32px));
+}
+
+.admDialogHead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 20px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.admDialogTitle {
+    font-size: 18px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.admDialogBody {
+    padding: 20px;
+}
+
+.admDialogActions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
+}
+
+.variationCurrentImages,
+.variationModelBox {
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    border-radius: 14px;
+    padding: 14px;
+}
+
+.variationPreviewGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.variationPreviewItem {
+    display: grid;
+    gap: 8px;
+}
+
+.variationPreviewThumb {
+    width: 100%;
+    height: 90px;
+    object-fit: cover;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+}
+
+.variationPreviewName,
+.variationModelMeta {
+    font-size: 12px;
+    color: #475569;
+    word-break: break-word;
+}
+
+.sizeStockGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.sizeStockCard {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    border-radius: 14px;
+    padding: 14px;
+    display: grid;
+    gap: 10px;
+}
+
+.sizeStockCard.active {
+    border-color: #2563eb;
+    background: #eff6ff;
+}
+
+.sizeStockCard.disabled {
+    opacity: 0.7;
+    background: #f8fafc;
+}
+
+.sizeStockTop,
+.sizeStockBody,
+.historyToolbar,
+.historyToolbarActions {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.sizeStockCheck {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.fadeInUp {
+    animation: fadeInUp 0.35s ease;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (max-width: 1100px) {
+    .refsGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .selectedArticleSummary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .admHeader,
+    .catalogActionBar,
+    .catalogFiltersRow,
+    .historyToolbar,
+    .historyToolbarActions,
+    .tablePager {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .admGrid,
+    .refsGrid,
+    .selectedArticleSummary,
+    .productForm {
+        grid-template-columns: 1fr;
+    }
+
+    .admCard {
+        padding: 14px;
+    }
+
+    .admDialog,
+    .admDialogWide,
+    .productDialog {
+        width: calc(100vw - 16px);
+    }
+}
+.variationPreviewItem {
+    position: relative;
+}
+
+.variationPreviewRemove {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+}
+
+.variationPreviewRemove:hover {
+    background: #c62828;
+}
+
+.variationAccessoryBox {
+    display: grid;
+    gap: 12px;
+}

@@ -17,28 +17,35 @@ export const fmtPrice = (v) => {
   return `${n.toFixed(3)} TND`;
 };
 
+const appendVersion = (url, version) => {
+  if (version === null || version === undefined || version === "") return url;
+  return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
+};
 export const fullImageUrl = (path, version = "") => {
   if (!path) return "";
 
   const raw = String(path).trim();
   if (!raw) return "";
 
-  if (raw.startsWith("data:")) return raw;
-  if (raw.startsWith("blob:")) return raw;
+  if (raw.startsWith("data:") || raw.startsWith("blob:")) return raw;
+
+  const appendVersion = (url) => {
+    if (version === null || version === undefined || version === "") return url;
+    return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
+  };
 
   if (/^https?:\/\//i.test(raw)) {
-    return `${raw}${raw.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
+    return appendVersion(raw);
   }
 
   const base = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8080").replace(/\/+$/, "");
+  const normalized = raw.replace(/\\/g, "/").trim();
 
-  let normalized = raw.replace(/\\/g, "/").trim();
-
-  if (!normalized.startsWith("/")) {
-    normalized = `/${normalized}`;
+  if (normalized.startsWith("/")) {
+    return appendVersion(`${base}${normalized}`);
   }
 
-  return `${base}${normalized}${normalized.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
+  return appendVersion(`${base}/${normalized.replace(/^\/+/, "")}`);
 };
 
 export function articleImageVersion(a) {
