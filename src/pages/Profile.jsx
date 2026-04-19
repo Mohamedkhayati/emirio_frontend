@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import { clearToken } from "../lib/auth";
+import { clearStoredAuth } from "./admin/adminShared";
 import "../styles/profile.css";
 
 function initials(nom, prenom) {
@@ -13,6 +14,7 @@ function initials(nom, prenom) {
 
 function calcAge(dateString) {
   if (!dateString) return null;
+
   const birth = new Date(dateString);
   if (Number.isNaN(birth.getTime())) return null;
 
@@ -26,6 +28,11 @@ function calcAge(dateString) {
 
   if (age < 0 || age > 130) return null;
   return age;
+}
+
+function extractErrorMessage(e, fallback) {
+  const data = e?.response?.data;
+  return data?.message || data?.error || (typeof data === "string" ? data : "") || fallback;
 }
 
 function Avatar({ src, text, className = "", big = false }) {
@@ -77,6 +84,7 @@ export default function Profile({ setMe }) {
   useEffect(() => {
     if (showOnboarding) document.body.classList.add("modal-open");
     else document.body.classList.remove("modal-open");
+
     return () => document.body.classList.remove("modal-open");
   }, [showOnboarding]);
 
@@ -90,13 +98,17 @@ export default function Profile({ setMe }) {
   async function loadPhoto() {
     try {
       const res = await api.get("/api/profile/photo", { responseType: "blob" });
-      const url = URL.createObjectURL(res.data);
+      const nextUrl = URL.createObjectURL(res.data);
+
       setPhotoUrl((old) => {
         if (old) URL.revokeObjectURL(old);
-        return url;
+        return nextUrl;
       });
     } catch {
-      setPhotoUrl("");
+      setPhotoUrl((old) => {
+        if (old) URL.revokeObjectURL(old);
+        return "";
+      });
     }
   }
 
@@ -114,8 +126,14 @@ export default function Profile({ setMe }) {
       sexe: user.sexe || "",
     });
 
-    if (user.hasPhoto) await loadPhoto();
-    else setPhotoUrl("");
+    if (user.hasPhoto) {
+      await loadPhoto();
+    } else {
+      setPhotoUrl((old) => {
+        if (old) URL.revokeObjectURL(old);
+        return "";
+      });
+    }
 
     setShowOnboarding(loginTriggeredRef.current && !user.profileCompleted);
   }
@@ -123,6 +141,7 @@ export default function Profile({ setMe }) {
   useEffect(() => {
     load().catch(() => {
       clearToken();
+      clearStoredAuth();
       setMe?.(null);
       nav("/auth", { replace: true });
     });
@@ -179,12 +198,7 @@ export default function Profile({ setMe }) {
       setShowOnboarding(false);
       setMsg(t("profile.updated", "Profile updated successfully."));
     } catch (e2) {
-      const apiMsg =
-        e2?.response?.data?.message ||
-        e2?.response?.data?.error ||
-        (typeof e2?.response?.data === "string" ? e2.response.data : "");
-
-      setErr(apiMsg || t("profile.saveFailed", "Failed to save profile."));
+      setErr(extractErrorMessage(e2, t("profile.saveFailed", "Failed to save profile.")));
     } finally {
       setSaving(false);
     }
@@ -222,12 +236,12 @@ export default function Profile({ setMe }) {
       await loadPhoto();
       setMsg(t("profile.photoUpdated", "Profile photo updated successfully."));
     } catch (e2) {
-      const apiMsg =
-        e2?.response?.data?.message ||
-        e2?.response?.data?.error ||
-        (typeof e2?.response?.data === "string" ? e2.response.data : "");
-
-      setErr(apiMsg || t("profile.photoUploadFailed", "Failed to upload profile photo."));
+      setErr(
+        extractErrorMessage(
+          e2,
+          t("profile.photoUploadFailed", "Failed to upload profile photo.")
+        )
+      );
     } finally {
       setUploadingPhoto(false);
     }
@@ -235,11 +249,14 @@ export default function Profile({ setMe }) {
 
   function logout() {
     clearToken();
+    clearStoredAuth();
     setMe?.(null);
     nav("/auth", { replace: true });
   }
 
-  if (!data) return <div className="pagePad">{t("common.loading", "Loading...")}</div>;
+  if (!data) {
+    return <div className="pagePad">{t("common.loading", "Loading...")}</div>;
+  }
 
   const displayedAge = previewAge ?? data.age ?? "—";
   const displayedGender = form.sexe || data.sexe || "—";

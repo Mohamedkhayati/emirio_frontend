@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import { setToken } from "../lib/auth";
+import { persistAuth, normalizeRole } from "./admin/adminShared";
 import rightImg from "../assets/auth-right.jpg";
 import "../styles/auth-swap.css";
 
@@ -32,6 +33,11 @@ function FacebookIcon() {
 
 function startSocialLogin(provider) {
   window.location.href = `${API_BASE}/oauth2/authorization/${provider}`;
+}
+
+function extractErrorMessage(e, fallback) {
+  const data = e?.response?.data;
+  return data?.message || data?.error || (typeof data === "string" ? data : "") || fallback;
 }
 
 export default function Auth({ setMe }) {
@@ -66,19 +72,27 @@ export default function Auth({ setMe }) {
     [isLogin, t]
   );
 
-  const syncMeAndGo = useCallback(async () => {
-    try {
-      const res = await api.get("/api/profile");
-      setMe?.(res.data);
-    } catch {
-      setMe?.(null);
-    }
+  const syncMeAndGo = useCallback(
+    async (tokenValue = "") => {
+      try {
+        const res = await api.get("/api/profile");
+        const me = res.data;
+        setMe?.(me);
 
-    nav("/profile", {
-      replace: true,
-      state: { fromFreshLogin: true },
-    });
-  }, [nav, setMe]);
+        if (tokenValue) {
+          persistAuth(tokenValue, normalizeRole(me?.role || ""));
+        }
+      } catch {
+        setMe?.(null);
+      }
+
+      nav("/profile", {
+        replace: true,
+        state: { fromFreshLogin: true },
+      });
+    },
+    [nav, setMe]
+  );
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -98,8 +112,9 @@ export default function Auth({ setMe }) {
     }
 
     if (socialToken) {
-      setToken(decodeURIComponent(socialToken));
-      syncMeAndGo();
+      const decodedToken = decodeURIComponent(socialToken);
+      setToken(decodedToken);
+      syncMeAndGo(decodedToken);
     }
   }, [location.search, syncMeAndGo]);
 
@@ -123,8 +138,9 @@ export default function Auth({ setMe }) {
           password: loginPassword,
         });
 
-        setToken(res.data.token);
-        await syncMeAndGo();
+        const token = res?.data?.token || "";
+        setToken(token);
+        await syncMeAndGo(token);
       } else {
         if (!agree) {
           setErr(t("auth.acceptTerms"));
@@ -144,29 +160,17 @@ export default function Auth({ setMe }) {
           password,
         });
 
-        setToken(loginRes.data.token);
-
-        try {
-          const meRes = await api.get("/api/profile");
-          setMe?.(meRes.data);
-        } catch {
-          setMe?.(null);
-        }
-
-        nav("/profile", {
-          replace: true,
-          state: { fromFreshLogin: true },
-        });
+        const token = loginRes?.data?.token || "";
+        setToken(token);
+        await syncMeAndGo(token);
       }
     } catch (e2) {
-      const data = e2?.response?.data;
-      const msg =
-        data?.message ||
-        (typeof data === "string" ? data : "") ||
-        data?.error ||
-        `Request failed (${e2?.response?.status || "no status"})`;
-
-      setErr(msg || t("auth.signupFailed"));
+      setErr(
+        extractErrorMessage(
+          e2,
+          isLogin ? t("auth.loginFailed", "Login failed.") : t("auth.signupFailed", "Signup failed.")
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -287,6 +291,7 @@ export default function Auth({ setMe }) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={t("auth.passwordMin")}
+                  minLength={8}
                   required
                 />
 

@@ -25,16 +25,23 @@ function normalizeRole(role) {
 
 function canAccessAdminPanel(role) {
   const r = normalizeRole(role);
-
-  return (
+  
+  console.log("🔍 canAccessAdminPanel - Input role:", role);
+  console.log("🔍 canAccessAdminPanel - Normalized role:", r);
+  
+  const hasAccess = (
     r === "ADMIN" ||
     r === "ADMIN_GENERAL" ||
     r === "GENERAL_ADMIN" ||
     r === "GENERALE_ADMIN" ||
     r === "VENDEUR" ||
     r === "VENDERU" ||
-    r === "SELLER"
+    r === "SELLER" ||
+    r === "CONTROLEUR"
   );
+  
+  console.log("🔍 canAccessAdminPanel - Has access:", hasAccess);
+  return hasAccess;
 }
 
 export default function Navbar({ me, setMe }) {
@@ -43,14 +50,19 @@ export default function Navbar({ me, setMe }) {
   const [cartCount, setCartCount] = useState(getCartCount);
 
   const isLoggedIn = !!me;
+  
+  console.log("📊 Navbar - me object:", me);
+  console.log("📊 Navbar - isLoggedIn:", isLoggedIn);
+  console.log("📊 Navbar - user role:", me?.role);
 
   const canAccessAdmin = useMemo(() => {
-    return isLoggedIn && canAccessAdminPanel(me?.role);
+    const access = isLoggedIn && canAccessAdminPanel(me?.role);
+    console.log("📊 Navbar - canAccessAdmin computed:", access);
+    return access;
   }, [isLoggedIn, me?.role]);
 
   useEffect(() => {
     const syncCart = () => setCartCount(getCartCount());
-
     syncCart();
     window.addEventListener("storage", syncCart);
     window.addEventListener("focus", syncCart);
@@ -120,7 +132,10 @@ export default function Navbar({ me, setMe }) {
             <button
               type="button"
               className="navbarAdminBtn"
-              onClick={() => navigate("/admin")}
+              onClick={() => {
+                console.log("🖱️ Admin button clicked, navigating to /admin");
+                navigate("/admin");
+              }}
             >
               <span className="navbarAdminBtnIcon">⚙</span>
               <span>{t("nav.adminPanel", "Admin Panel")}</span>

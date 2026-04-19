@@ -1110,3 +1110,166 @@
     font-size: 12px;
   }
 }
+/* Category Path Styles - Improved */
+.pdCategoryPath {
+  margin: 8px 0 16px;
+  padding: 8px 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pdCategoryPathLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: #9ca3af;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.pdCategoryPathSeparator {
+  color: #d1d5db;
+  font-size: 12px;
+  margin: 0 4px;
+}
+
+.pdCategoryPathItem {
+  font-size: 13px;
+  color: #6b7280;
+  transition: color 0.2s ease;
+}
+
+.pdCategoryPathLink {
+  font-size: 13px;
+  color: #4b5563;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.pdCategoryPathLink:hover {
+  color: #000;
+  text-decoration: underline;
+}
+
+.pdCategoryPathCurrent {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* Alternative: Simple inline category display */
+.pdCategoryInline {
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pdCategoryInlineIcon {
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+.pdCategoryInlineText {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.pdCategoryInlineValue {
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+}
+
+/* Breadcrumb style for category */
+.pdCategoryBreadcrumb {
+  margin: 12px 0 16px;
+  padding: 10px 0;
+  border-top: 1px solid #f0f0f0;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pdCategoryBreadcrumbIcon {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.pdCategoryBreadcrumbItem {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.pdCategoryBreadcrumbLink {
+  font-size: 12px;
+  color: #6b7280;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.pdCategoryBreadcrumbLink:hover {
+  color: #000;
+  text-decoration: underline;
+}
+
+.pdCategoryBreadcrumbCurrent {
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* Horizontal category pill style */
+.pdCategoryPill {
+  margin: 12px 0 16px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pdCategoryPillItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #f3f4f6;
+  border-radius: 20px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.pdCategoryPillItem:last-child {
+  background: #111;
+  color: #fff;
+}
+
+.pdCategoryPillSeparator {
+  color: #d1d5db;
+  font-size: 10px;
+}
+
+/* For the meta grid category display */
+.pdMetaGrid .categoryFullPath {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 4px;
+  display: block;
+  word-break: break-word;
+}
+
+.pdMetaGrid div {
+  position: relative;
+}
+
+.pdMetaGrid .categoryFullPath::before {
+  content: "📁 ";
+  font-size: 10px;
+}

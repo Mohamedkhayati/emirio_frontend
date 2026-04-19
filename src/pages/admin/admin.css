@@ -2711,3 +2711,121 @@ html[dir="rtl"] .variationRowMain{
     display: grid;
     gap: 12px;
 }
+.ordersHistoryOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 1000;
+}
+
+.ordersHistoryModal {
+  width: min(820px, 100%);
+  max-height: 85vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.22);
+}
+
+.ordersHistoryHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.ordersHistoryHead h3 {
+  margin: 0;
+}
+
+.ordersHistoryHead p {
+  margin: 4px 0 0;
+  color: #64748b;
+}
+
+.ordersHistoryList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ordersHistoryItem {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.ordersHistoryDot {
+  width: 12px;
+  height: 12px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: #0f766e;
+  flex: 0 0 12px;
+}
+
+.ordersHistoryContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.ordersHistoryTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.ordersHistoryMeta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.92rem;
+  color: #475569;
+  margin-bottom: 6px;
+}
+
+.ordersHistoryDetails {
+  color: #0f172a;
+  line-height: 1.5;
+}
+.paymentTransactionItem {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 14px;
+  background: #fafcff;
+}
+.paymentTransactionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.paymentTransactionMeta {
+  font-size: 0.85rem;
+  color: #475569;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.paymentTransactionDetails {
+  font-size: 0.85rem;
+  color: #334155;
+  border-top: 1px solid #eef2f6;
+  padding-top: 8px;
+  margin-top: 6px;
+}

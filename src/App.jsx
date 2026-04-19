@@ -56,11 +56,17 @@ export default function App() {
   if (loading) return <div style={{ padding: 20 }}>Loading...</div>;
 
   const role = me?.role;
+  
+  // FIX: Add CONTROLEUR to the admin roles
   const isAdmin =
     role === "ADMIN_GENERAL" ||
     role === "VENDEUR" ||
     role === "ADMIN" ||
-    role === "SELLER";
+    role === "SELLER" ||
+    role === "CONTROLEUR";  // ← ADD THIS LINE
+
+  console.log("🔍 App.jsx - User role:", role);
+  console.log("🔍 App.jsx - isAdmin:", isAdmin);
 
   return (
     <CartProvider me={me}>
@@ -95,8 +101,8 @@ export default function App() {
             path="/admin"
             element={<ProtectedRoute isAllowed={isAdmin} redirectTo="/" />}
           >
-            <Route element={<AdminLayout />}>
-              <Route index element={<Navigate to="catalog" replace />} />
+            <Route element={<AdminLayout me={me} />}>
+              <Route index element={<Navigate to="orders" replace />} />
               <Route path="catalog" element={<AdminCatalogPage />} />
               <Route path="customers" element={<AdminCustomersPage />} />
               <Route path="dashboard" element={<AdminDashboardPage />} />

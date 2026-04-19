@@ -5,9 +5,11 @@ import { api } from "../../lib/api";
 import "./admin.css";
 import {
   clearStoredAuth,
+  getStoredRole,
   getStoredToken,
   isAdminRole,
   isVendeurRole,
+  isControleurRole,
   normalizeRole,
   persistAuth,
 } from "./adminShared";
@@ -27,17 +29,19 @@ export default function AdminLayout() {
   const { t, i18n } = useTranslation();
   const location = useLocation();
 
-  const [role, setRole] = useState("");
+  const [role, setRole] = useState(getStoredRole());
   const [roleLoading, setRoleLoading] = useState(true);
 
   const isAdminGeneral = useMemo(() => isAdminRole(role), [role]);
   const isVendeur = useMemo(() => isVendeurRole(role), [role]);
+  const isControleur = useMemo(() => isControleurRole(role), [role]);
 
   const allowedSections = useMemo(() => {
     if (isAdminGeneral) return ["customers", "catalog", "dashboard", "orders"];
     if (isVendeur) return ["catalog"];
+    if (isControleur) return ["orders"];
     return [];
-  }, [isAdminGeneral, isVendeur]);
+  }, [isAdminGeneral, isVendeur, isControleur]);
 
   const currentLang = useMemo(() => {
     const lng =
@@ -45,6 +49,7 @@ export default function AdminLayout() {
       i18n.language ||
       localStorage.getItem("language") ||
       "en";
+
     if (lng.startsWith("fr")) return "fr";
     if (lng.startsWith("ar")) return "ar";
     return "en";
@@ -80,6 +85,7 @@ export default function AdminLayout() {
     }
 
     bootstrapRole();
+
     return () => {
       mounted = false;
     };
@@ -106,7 +112,7 @@ export default function AdminLayout() {
     );
   }
 
-  if (!isAdminGeneral && !isVendeur) {
+  if (!isAdminGeneral && !isVendeur && !isControleur) {
     return (
       <div className="adminLayout">
         <main className="adminContent">
@@ -125,11 +131,20 @@ export default function AdminLayout() {
   const currentSection = location.pathname.split("/").filter(Boolean).pop();
 
   if (location.pathname === "/admin") {
+    if (isControleur) return <Navigate to="/admin/orders" replace />;
+    if (isVendeur) return <Navigate to="/admin/catalog" replace />;
     return <Navigate to="/admin/catalog" replace />;
   }
 
   if (currentSection && !allowedSections.includes(currentSection)) {
     return <Navigate to={`/admin/${allowedSections[0]}`} replace />;
+  }
+
+  function getPanelTitle() {
+    if (isAdminGeneral) return "Admin General Panel";
+    if (isControleur) return "Order Controller Panel";
+    if (isVendeur) return "Vendeur Panel";
+    return "Panel";
   }
 
   return (
@@ -138,9 +153,7 @@ export default function AdminLayout() {
         <div className="adminSidebarTop">
           <div className="adminBrandBlock">
             <div className="adminBrandTitle">EMIRIO</div>
-            <div className="adminBrandSub">
-              {isAdminGeneral ? "Admin General Panel" : "Vendeur Panel"}
-            </div>
+            <div className="adminBrandSub">{getPanelTitle()}</div>
           </div>
 
           <div className="adminLangBox">
@@ -163,9 +176,13 @@ export default function AdminLayout() {
 
         <div className="adminMenu onlyMenu">
           {isAdminGeneral && <SidebarLink to="/admin/customers" label="Customers" />}
-          <SidebarLink to="/admin/catalog" label="Catalog" />
+          {(isAdminGeneral || isVendeur) && !isControleur && (
+            <SidebarLink to="/admin/catalog" label="Catalog" />
+          )}
           {isAdminGeneral && <SidebarLink to="/admin/dashboard" label="Dashboard" />}
-          {isAdminGeneral && <SidebarLink to="/admin/orders" label="Orders" />}
+          {(isAdminGeneral || isControleur) && (
+            <SidebarLink to="/admin/orders" label="Orders" />
+          )}
         </div>
       </aside>
 
@@ -175,6 +192,7 @@ export default function AdminLayout() {
             role,
             isAdminGeneral,
             isVendeur,
+            isControleur,
             currentLang,
             changeLang,
           }}

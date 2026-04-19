@@ -7,6 +7,8 @@ import ProductModelViewer from "../components/ProductModelViewer";
 import "../styles/home.css";
 import "../styles/product-details.css";
 import { useCart } from "../context/CartContext";
+import { useFavorites } from "../hooks/useFavorites";
+
 
 const toAbs = (path, version = "") => {
   if (!path) return "";
@@ -177,14 +179,32 @@ function pickImageList(obj) {
   return dedupeImages(legacyFields);
 }
 
+// Helper function to get full category path
+function getCategoryFullPath(category, allCategories = []) {
+  if (!category) return "-";
+  
+  const path = [];
+  let current = category;
+  
+  while (current) {
+    path.unshift(current.nom);
+    current = current.parent;
+  }
+  
+  return path.join(" > ");
+}
+
 export default function ProductDetailsPage() {
   const { id } = useParams();
   const { t } = useTranslation();
   const { addToCart, cartItems } = useCart();
+  const { favorites, toggleFavorite } = useFavorites();
+  const isFavorite = favorites.includes(Number(id));
 
   const [article, setArticle] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [related, setRelated] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [activeImage, setActiveImage] = useState("");
   const [activeMediaType, setActiveMediaType] = useState("");
   const [resolvedModelSrc, setResolvedModelSrc] = useState("");
@@ -204,10 +224,11 @@ export default function ProductDetailsPage() {
   async function loadData() {
     setError("");
 
-    const [detailRes, reviewsRes, listRes] = await Promise.allSettled([
+    const [detailRes, reviewsRes, listRes, categoriesRes] = await Promise.allSettled([
       api.get(`/api/articles/${id}`),
       api.get(`/api/articles/${id}/reviews`),
       api.get("/api/articles"),
+      api.get("/api/categories"),
     ]);
 
     if (detailRes.status !== "fulfilled") {
@@ -221,7 +242,22 @@ export default function ProductDetailsPage() {
         ? listRes.value.data
         : [];
 
-    setArticle(detailProduct);
+    // Flatten categories from hierarchical structure
+    let flatCategories = [];
+    if (categoriesRes.status === "fulfilled") {
+      const categoryData = categoriesRes.value.data;
+      flatCategories = flattenCategoriesFromStructure(categoryData);
+    }
+    setCategories(flatCategories);
+
+    // Find the full category object for the article
+    const articleCategory = flatCategories.find(c => c.id === detailProduct.categorieId);
+    const categoryWithParent = articleCategory ? {
+      ...articleCategory,
+      parent: flatCategories.find(c => c.id === articleCategory.parentId)
+    } : null;
+    
+    setArticle({ ...detailProduct, fullCategory: categoryWithParent });
 
     if (reviewsRes.status === "fulfilled") {
       setReviews(Array.isArray(reviewsRes.value.data) ? reviewsRes.value.data : []);
@@ -240,6 +276,51 @@ export default function ProductDetailsPage() {
       .slice(0, 4);
 
     setRelated(rel);
+  }
+
+  // Helper function to flatten categories from hierarchical structure
+  function flattenCategoriesFromStructure(categoryStructure) {
+    const flat = [];
+    
+    if (!categoryStructure) return flat;
+    
+    // Handle CHAUSSURES structure
+    if (categoryStructure.chaussures && typeof categoryStructure.chaussures === 'object') {
+      Object.values(categoryStructure.chaussures).forEach(subCategory => {
+        flat.push({
+          id: subCategory.id,
+          nom: subCategory.nom,
+          parentId: null,
+          level: 'SUB'
+        });
+        
+        // Add sub-sub categories
+        if (subCategory.children && Array.isArray(subCategory.children)) {
+          subCategory.children.forEach(child => {
+            flat.push({
+              id: child.id,
+              nom: child.nom,
+              parentId: subCategory.id,
+              level: 'SUB_SUB'
+            });
+          });
+        }
+      });
+    }
+    
+    // Handle ACCESSOIRES structure
+    if (categoryStructure.accessoires && Array.isArray(categoryStructure.accessoires)) {
+      categoryStructure.accessoires.forEach(accessory => {
+        flat.push({
+          id: accessory.id,
+          nom: accessory.nom,
+          parentId: null,
+          level: 'SUB'
+        });
+      });
+    }
+    
+    return flat;
   }
 
   useEffect(() => {
@@ -657,19 +738,38 @@ export default function ProductDetailsPage() {
     }, 2000);
   }
 
+  // Get full category path for display
+  const categoryFullPath = article?.fullCategory ? getCategoryFullPath(article.fullCategory, categories) : "-";
+
   if (loading) return <div className="pdInfo">{t("common.loading", "Loading...")}</div>;
   if (error) return <div className="pdInfo error">{error}</div>;
   if (!article) return <div className="pdInfo error">{t("product.notFound", "Product not found.")}</div>;
 
   return (
     <div className="pdPage">
+      
       <div className="pdContainer">
         <div className="pdBreadcrumb">
           <Link to="/">{t("nav.home", "Home")}</Link>
           <span>/</span>
           <Link to="/catalog">{t("product.shop", "Shop")}</Link>
           <span>/</span>
-          <span>{article.categorieNom || t("product.product", "Product")}</span>
+          {categoryFullPath !== "-" ? (
+            categoryFullPath.split(" > ").map((cat, index, arr) => (
+              <span key={index}>
+                {index < arr.length - 1 ? (
+                  <>
+                    <Link to={`/catalog?category=${encodeURIComponent(cat)}`}>{cat}</Link>
+                    <span>/</span>
+                  </>
+                ) : (
+                  <span>{cat}</span>
+                )}
+              </span>
+            ))
+          ) : (
+            <span>{article.categorieNom || t("product.product", "Product")}</span>
+          )}
           <span>/</span>
           <strong>{article.nom}</strong>
         </div>
@@ -754,24 +854,20 @@ export default function ProductDetailsPage() {
               )}
             </div>
           </div>
+          
 
           <div className="pdSummary">
             <div className="brandTitle">EMIRIO</div>
-            <h1>{article.nom}</h1>
-
-            <div className="pdRatingLine">
-              <span className="stars">{starsText(Math.round(avg || 0))}</span>
-              <span>{avg ? avg.toFixed(1) : "0.0"}/5</span>
-              <span>({reviews.length} {t("product.reviewsLower", "reviews")})</span>
-            </div>
-
-            <div className="pdPriceLine">
-              <span className="pdPriceNow">{fmtPrice(currentPrice)}</span>
-              {onSale ? (
-                <span className="pdPriceOld">
-                  {fmtPrice(selectedVariation ? getVariationPrice(selectedVariation, article) : article.prix)}
-                </span>
-              ) : null}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h1>{article.nom}</h1>
+              <button
+                onClick={() => toggleFavorite(article.id)}
+                className={`favoriteBtnLarge ${isFavorite ? 'active' : ''}`}
+                style={{ fontSize: '2rem', background: 'none', border: 'none', cursor: 'pointer', padding: '0 10px' }}
+                aria-label="Add to favorites"
+              >
+                {isFavorite ? '♥' : '♡'}
+              </button>
             </div>
 
             <p className="pdDesc">
@@ -783,7 +879,7 @@ export default function ProductDetailsPage() {
             <div className="pdMetaGrid">
               <div>
                 <span>{t("catalog.category", "Category")}</span>
-                <strong>{article.categorieNom || "-"}</strong>
+                <strong title={categoryFullPath}>{article.categorieNom || "-"}</strong>
               </div>
               <div>
                 <span>{t("catalog.brand", "Brand")}</span>
@@ -854,6 +950,7 @@ export default function ProductDetailsPage() {
                 );
               })}
             </div>
+            
 
             <div className={`pdStockNotice ${remainingStock > 0 ? "ok" : "bad"}`}>
               {selectedVariation
@@ -895,6 +992,7 @@ export default function ProductDetailsPage() {
                   : t("product.soldOut", "Sold out")}
               </button>
             </div>
+            
 
             {cartMessage ? <div className="cartSuccessMsg">{cartMessage}</div> : null}
           </div>

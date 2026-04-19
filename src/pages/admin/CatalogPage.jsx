@@ -138,6 +138,11 @@ const UI_TEXT = {
     categoryDialogAdd: "Add category",
     categoryDialogEdit: "Edit category",
     categoryName: "Category name",
+    parentCategory: "Parent category",
+    categoryLevel: "Category level",
+    mainCategory: "Main category",
+    displayOrder: "Display order",
+    iconUrl: "Icon URL",
     description: "Description",
     saveCategory: "Save category",
     updateCategory: "Update category",
@@ -191,6 +196,14 @@ const UI_TEXT = {
     confirmDeleteCategory: "Delete this category?",
     confirmDeleteColor: "Delete this color?",
     confirmDeleteSize: "Delete this size?",
+    categoryPath: "Category path",
+    rootCategory: "Root category",
+    mainCategoryLabel: "Main Category",
+    subCategoryLabel: "Sub Category",
+    subSubCategoryLabel: "Product Type",
+    selectMainCategory: "Select main category",
+    selectSubCategory: "Select sub category",
+    selectProductType: "Select product type",
 };
 
 function TablePager({ total, page, setPage, rows, setRows, rowsOptions = [3, 5, 10, 25, 50] }) {
@@ -222,8 +235,8 @@ function TablePager({ total, page, setPage, rows, setRows, rowsOptions = [3, 5, 
 }
 
 export default function CatalogPage() {
-    const { t } = useTranslation();
-    const { isAdminGeneral, isVendeur } = useOutletContext();
+     const { t } = useTranslation();
+    const { isAdminGeneral, isVendeur, isControleur } = useOutletContext(); 
 
     const tx = (key, fallback) => {
         const value = t(key);
@@ -237,7 +250,17 @@ export default function CatalogPage() {
     const [catalogError, setCatalogError] = useState("");
     const [busyCatalog, setBusyCatalog] = useState(false);
 
-    const [categories, setCategories] = useState([]);
+    // Category hierarchy states
+    const [mainCategories, setMainCategories] = useState([]);
+    const [subCategories, setSubCategories] = useState([]);
+    const [subSubCategories, setSubSubCategories] = useState([]);
+    const [allCategories, setAllCategories] = useState([]);
+    
+    // Selection states for article form
+    const [selectedMainCat, setSelectedMainCat] = useState("");
+    const [selectedSubCat, setSelectedSubCat] = useState("");
+    const [selectedSubSubCat, setSelectedSubSubCat] = useState("");
+
     const [colors, setColors] = useState([]);
     const [sizes, setSizes] = useState([]);
     const [variations, setVariations] = useState([]);
@@ -245,7 +268,16 @@ export default function CatalogPage() {
     const [articleForm, setArticleForm] = useState({ ...emptyArticleForm });
     const [variationForm, setVariationForm] = useState({ ...emptyVariationForm });
     const [variationError, setVariationError] = useState("");
-    const [categoryForm, setCategoryForm] = useState({ ...emptyCategoryForm });
+    const [categoryForm, setCategoryForm] = useState({
+        nom: "",
+        description: "",
+        parentId: null,
+        level: "",
+        mainCategory: "",
+        displayOrder: 0,
+        iconUrl: "",
+        actif: true
+    });
     const [colorForm, setColorForm] = useState({ ...emptyColorForm });
     const [sizeForm, setSizeForm] = useState({ ...emptySizeForm });
 
@@ -304,8 +336,24 @@ export default function CatalogPage() {
     const isAccessoryCategory = useMemo(() => {
         const raw = selectedArticle?.categorieNom || "";
         const normalized = raw.trim().toLowerCase();
-        return normalized === "accessoire" || normalized === "accessory" || normalized === "accessories";
+        return normalized === "sac a main" || normalized === "sac à main" || normalized === "pochette de soirée";
     }, [selectedArticle?.categorieNom]);
+
+    function getCategoryFullPath(categoryId) {
+        const category = allCategories.find(c => c.id === categoryId);
+        if (!category) return "-";
+        
+        if (category.parentId) {
+            const parent = allCategories.find(c => c.id === category.parentId);
+            if (parent && parent.parentId) {
+                const grandParent = allCategories.find(c => c.id === parent.parentId);
+                return `${grandParent?.nom || ""} > ${parent.nom} > ${category.nom}`;
+            } else if (parent) {
+                return `${parent.nom} > ${category.nom}`;
+            }
+        }
+        return category.nom;
+    }
 
     function variationDisplayName(v) {
         if (!v) return "";
@@ -355,7 +403,6 @@ export default function CatalogPage() {
             }));
             return;
         }
-
         setVariationForm((prev) => ({
             ...prev,
             existingImageUrls: (prev.existingImageUrls || []).filter((_, index) => index !== indexToRemove),
@@ -366,7 +413,6 @@ export default function CatalogPage() {
         const map = new Map();
         for (const v of variations) {
             const colorKey = String(v.couleurId || v.couleurNom || v.id);
-
             if (!map.has(colorKey)) {
                 map.set(colorKey, {
                     key: colorKey,
@@ -382,23 +428,19 @@ export default function CatalogPage() {
                     items: [],
                 });
             }
-
             const group = map.get(colorKey);
             group.items.push(v);
             group.quantiteStock += Number(v.quantiteStock || 0);
-
             if (!group.model3dUrl && v.model3dUrl) {
                 group.model3dUrl = v.model3dUrl;
                 group.model3dName = v.model3dName || "";
                 group.model3dType = v.model3dType || "";
             }
-
             const currentImages = getVariationImageUrls(v);
             if (!group.imageUrls?.length && currentImages.length) {
                 group.imageUrls = currentImages;
             }
         }
-
         return Array.from(map.values()).map((group) => ({
             ...group,
             sizesLabel: group.items.length
@@ -418,7 +460,7 @@ export default function CatalogPage() {
 
     const pagedArticles = useMemo(() => filteredArticles.slice((articlePage - 1) * articleRows, (articlePage - 1) * articleRows + articleRows), [filteredArticles, articlePage, articleRows]);
     const pagedVariations = useMemo(() => groupedVariationRows.slice((variationPage - 1) * variationRows, (variationPage - 1) * variationRows + variationRows), [groupedVariationRows, variationPage, variationRows]);
-    const pagedCategories = useMemo(() => categories.slice((categoryPage - 1) * categoryRows, (categoryPage - 1) * categoryRows + categoryRows), [categories, categoryPage, categoryRows]);
+    const pagedCategories = useMemo(() => allCategories.slice((categoryPage - 1) * categoryRows, (categoryPage - 1) * categoryRows + categoryRows), [allCategories, categoryPage, categoryRows]);
     const pagedColors = useMemo(() => colors.slice((colorPage - 1) * colorRows, (colorPage - 1) * colorRows + colorRows), [colors, colorPage, colorRows]);
     const pagedSizes = useMemo(() => sizes.slice((sizePage - 1) * sizeRows, (sizePage - 1) * sizeRows + sizeRows), [sizes, sizePage, sizeRows]);
 
@@ -515,40 +557,76 @@ export default function CatalogPage() {
             const nextVariationId = stillExists ? selectedVariationHistoryId : mergedVariations[0]?.id ? String(mergedVariations[0].id) : "";
             setSelectedVariationHistoryId(nextVariationId);
         }
-
         await syncHistory(articleData, mergedVariations);
     }
 
     async function refreshCatalog(pickFirst = false) {
-        const [a, c, co, s] = await Promise.all([
-            api.get("/api/admin/articles"),
-            api.get("/api/admin/categories"),
-            api.get("/api/admin/colors"),
-            api.get("/api/admin/sizes"),
-        ]);
+        try {
+            const [a, mainCat, allCat, co, s] = await Promise.all([
+                api.get("/api/admin/articles"),
+                api.get("/api/categories/main"),
+                api.get("/api/admin/categories"),
+                api.get("/api/admin/colors"),
+                api.get("/api/admin/sizes"),
+            ]);
 
-        const list = a.data || [];
-        setArticles(list);
-        setCategories(c.data || []);
-        setColors(co.data || []);
-        setSizes(s.data || []);
+            const list = a.data || [];
+            setArticles(list);
 
-        if (!list.length) {
-            setSelectedArticle(null);
-            setVariations([]);
-            setHistoryRows([]);
-            setSelectedVariationHistoryId("");
+            const mainCats = mainCat.data || [];
+            setMainCategories(mainCats);
+
+            const allCats = allCat.data || [];
+            setAllCategories(allCats);
+
+            setColors(co.data || []);
+            setSizes(s.data || []);
+
+            if (!list.length) {
+                setSelectedArticle(null);
+                setVariations([]);
+                setHistoryRows([]);
+                setSelectedVariationHistoryId("");
+                return;
+            }
+
+            if (pickFirst) {
+                await loadArticleDetails(list[0].id);
+                return;
+            }
+
+            const stillExists = selectedArticle && list.some((x) => x.id === selectedArticle.id);
+            if (stillExists) await loadArticleDetails(selectedArticle.id);
+            else await loadArticleDetails(list[0].id);
+        } catch (error) {
+            setCatalogError(error?.response?.data?.message || error.message || UI_TEXT.errLoadCatalog);
+        }
+    }
+
+    async function loadSubCategories(mainCategoryId) {
+        if (!mainCategoryId) {
+            setSubCategories([]);
             return;
         }
+        try {
+            const res = await api.get(`/api/categories/parent/${mainCategoryId}/children`);
+            setSubCategories(res.data || []);
+        } catch (error) {
+            setSubCategories([]);
+        }
+    }
 
-        if (pickFirst) {
-            await loadArticleDetails(list[0].id);
+    async function loadSubSubCategories(subCategoryId) {
+        if (!subCategoryId) {
+            setSubSubCategories([]);
             return;
         }
-
-        const stillExists = selectedArticle && list.some((x) => x.id === selectedArticle.id);
-        if (stillExists) await loadArticleDetails(selectedArticle.id);
-        else await loadArticleDetails(list[0].id);
+        try {
+            const res = await api.get(`/api/categories/parent/${subCategoryId}/children`);
+            setSubSubCategories(res.data || []);
+        } catch (error) {
+            setSubSubCategories([]);
+        }
     }
 
     useEffect(() => { refreshCatalog(true).catch((e) => setCatalogError(e?.response?.data?.message || e.message || UI_TEXT.errLoadCatalog)); }, []);
@@ -595,7 +673,6 @@ export default function CatalogPage() {
             setVariationForm((prev) => ({ ...prev, couleurId: colorId }));
             return;
         }
-
         setVariationForm((prev) => ({
             ...prev,
             couleurId: colorId,
@@ -613,11 +690,54 @@ export default function CatalogPage() {
         }));
     }
 
-    function openCreateArticle() { setEditingArticleId(null); setArticleForm({ ...emptyArticleForm }); articleDialogRef.current?.showModal(); }
+    function resetCategorySelections() {
+        setSelectedMainCat("");
+        setSelectedSubCat("");
+        setSelectedSubSubCat("");
+        setSubCategories([]);
+        setSubSubCategories([]);
+        setArticleForm(prev => ({ ...prev, categorieId: "" }));
+    }
+
+    function openCreateArticle() {
+        setEditingArticleId(null);
+        resetCategorySelections();
+        setArticleForm({ ...emptyArticleForm });
+        articleDialogRef.current?.showModal();
+    }
 
     function openEditArticle(article = selectedArticle) {
         if (!article) return;
         setEditingArticleId(article.id);
+        
+        // Find the category and its parents
+        const category = allCategories.find(c => c.id === article.categorieId);
+        if (category) {
+            if (category.parentId) {
+                const parent = allCategories.find(c => c.id === category.parentId);
+                if (parent && parent.parentId) {
+                    // Three levels deep
+                    const grandParent = allCategories.find(c => c.id === parent.parentId);
+                    setSelectedMainCat(grandParent?.id || "");
+                    setSelectedSubCat(parent.id);
+                    setSelectedSubSubCat(category.id);
+                    loadSubCategories(grandParent?.id);
+                    loadSubSubCategories(parent.id);
+                } else if (parent) {
+                    // Two levels deep
+                    setSelectedMainCat(parent.id);
+                    setSelectedSubCat(category.id);
+                    setSelectedSubSubCat("");
+                    loadSubCategories(parent.id);
+                }
+            } else {
+                // One level only
+                setSelectedMainCat(category.id);
+                setSelectedSubCat("");
+                setSelectedSubSubCat("");
+            }
+        }
+        
         setArticleForm({
             nom: article.nom || "", description: article.description || "", details: article.details || "", prix: article.prix ?? "", actif: !!article.actif,
             categorieId: article.categorieId || "", marque: article.marque || "", matiere: article.matiere || "", sku: article.sku || "", salePrice: article.salePrice ?? "",
@@ -632,12 +752,16 @@ export default function CatalogPage() {
         setCatalogError("");
         const prix = Number(articleForm.prix);
         const salePrice = articleForm.salePrice !== "" ? Number(articleForm.salePrice) : null;
-
+ if (!articleForm.categorieId) {
+        setCatalogError("Please select a complete category path (Main > Sub > Product Type)");
+        setBusyCatalog(false);
+        return;
+    }
         if (!articleForm.nom.trim()) { setCatalogError(UI_TEXT.validationArticleName); setBusyCatalog(false); return; }
         if (!articleForm.categorieId) { setCatalogError(UI_TEXT.validationCategoryRequired); setBusyCatalog(false); return; }
         if (!Number.isFinite(prix) || prix <= 0) { setCatalogError(UI_TEXT.validationPriceGreaterThanZero); setBusyCatalog(false); return; }
         if (salePrice !== null && (!Number.isFinite(salePrice) || salePrice < 0 || salePrice >= prix)) { setCatalogError(UI_TEXT.validationSaleLower); setBusyCatalog(false); return; }
-        
+
         if (articleForm.saleStartAt && articleForm.saleEndAt) {
             if (new Date(articleForm.saleEndAt).getTime() < new Date(articleForm.saleStartAt).getTime()) { setCatalogError(UI_TEXT.validationSaleDates); setBusyCatalog(false); return; }
         }
@@ -655,6 +779,7 @@ export default function CatalogPage() {
             else await api.post("/api/admin/articles", fd, { headers: { "Content-Type": "multipart/form-data" } });
 
             articleDialogRef.current?.close();
+            resetCategorySelections();
             await refreshCatalog(true);
         } catch (e2) { setCatalogError(e2?.response?.data?.message || UI_TEXT.errSaveArticle); } finally { setBusyCatalog(false); }
     }
@@ -827,7 +952,6 @@ export default function CatalogPage() {
                 if (variationGroupForm.model3dFile) fd.append("model3d", variationGroupForm.model3dFile);
                 await api.put(`/api/admin/variations/${row.variationId}`, fd, { headers: { "Content-Type": "multipart/form-data" } });
             }
-
             if (newRows.length) {
                 const fd = new FormData();
                 const payload = { prix: Number(newRows[0].prix), couleurId, sizes: newRows.map((row) => ({ tailleId: Number(row.tailleId), quantiteStock: Number(row.quantiteStock) })) };
@@ -836,7 +960,6 @@ export default function CatalogPage() {
                 if (variationGroupForm.model3dFile) fd.append("model3d", variationGroupForm.model3dFile);
                 await api.post(`/api/admin/articles/${selectedArticle.id}/variations`, fd, { headers: { "Content-Type": "multipart/form-data" } });
             }
-
             setEditingVariationGroup(null); variationDialogRef.current?.close(); await loadArticleDetails(selectedArticle.id); await refreshCatalog(false);
         } catch (e2) { setCatalogError(e2?.response?.data?.message || UI_TEXT.errSaveVariation); } finally { setBusyCatalog(false); }
     }
@@ -884,24 +1007,79 @@ export default function CatalogPage() {
         } catch (e2) { setCatalogError(e2?.response?.data?.message || UI_TEXT.errStockUpdate); } finally { setBusyCatalog(false); }
     }
 
-    function openCreateCategory() { setEditingCategoryId(null); setCategoryForm({ nom: "", description: "" }); categoryDialogRef.current?.showModal(); }
-    function openEditCategory(c) { setEditingCategoryId(c.id); setCategoryForm({ nom: c.nom || "", description: c.description || "" }); categoryDialogRef.current?.showModal(); }
+    function openCreateCategory() {
+        setEditingCategoryId(null);
+        setCategoryForm({
+            nom: "",
+            description: "",
+            parentId: null,
+            level: "",
+            mainCategory: "",
+            displayOrder: 0,
+            iconUrl: "",
+            actif: true
+        });
+        categoryDialogRef.current?.showModal();
+    }
+
+    function openEditCategory(c) {
+        setEditingCategoryId(c.id);
+        setCategoryForm({
+            nom: c.nom || "",
+            description: c.description || "",
+            parentId: c.parentId || null,
+            level: c.level || "",
+            mainCategory: c.mainCategory || "",
+            displayOrder: c.displayOrder || 0,
+            iconUrl: c.iconUrl || "",
+            actif: c.actif !== undefined ? c.actif : true
+        });
+        categoryDialogRef.current?.showModal();
+    }
 
     async function saveCategory(e) {
-        e.preventDefault(); setBusyCatalog(true); setCatalogError("");
-        if (!categoryForm.nom.trim()) { setCatalogError(UI_TEXT.validationCategoryName); setBusyCatalog(false); return; }
+        e.preventDefault();
+        setBusyCatalog(true);
+        setCatalogError("");
+        if (!categoryForm.nom.trim()) {
+            setCatalogError(UI_TEXT.validationCategoryName);
+            setBusyCatalog(false);
+            return;
+        }
         try {
-            const payload = { nom: categoryForm.nom.trim(), description: categoryForm.description?.trim() || "" };
+            const payload = {
+                nom: categoryForm.nom.trim(),
+                description: categoryForm.description?.trim() || "",
+                parentId: categoryForm.parentId || null,
+                level: categoryForm.level,
+                mainCategory: categoryForm.mainCategory,
+                displayOrder: categoryForm.displayOrder || 0,
+                iconUrl: categoryForm.iconUrl || "",
+                actif: categoryForm.actif
+            };
             if (editingCategoryId) await api.put(`/api/admin/categories/${editingCategoryId}`, payload);
             else await api.post("/api/admin/categories", payload);
-            categoryDialogRef.current?.close(); setCategoryForm({ nom: "", description: "" }); await refreshCatalog(false);
-        } catch (e2) { setCatalogError(e2?.response?.data?.message || UI_TEXT.errSaveCategory); } finally { setBusyCatalog(false); }
+            categoryDialogRef.current?.close();
+            setCategoryForm({ nom: "", description: "", parentId: null, level: "", mainCategory: "", displayOrder: 0, iconUrl: "", actif: true });
+            await refreshCatalog(false);
+        } catch (e2) {
+            setCatalogError(e2?.response?.data?.message || UI_TEXT.errSaveCategory);
+        } finally {
+            setBusyCatalog(false);
+        }
     }
 
     async function deleteCategory(id) {
         if (!window.confirm(UI_TEXT.confirmDeleteCategory)) return;
         setBusyCatalog(true);
-        try { await api.delete(`/api/admin/categories/${id}`); await refreshCatalog(false); } catch (e) { setCatalogError(e?.response?.data?.message || UI_TEXT.errDeleteCategory); } finally { setBusyCatalog(false); }
+        try {
+            await api.delete(`/api/admin/categories/${id}`);
+            await refreshCatalog(false);
+        } catch (e) {
+            setCatalogError(e?.response?.data?.message || UI_TEXT.errDeleteCategory);
+        } finally {
+            setBusyCatalog(false);
+        }
     }
 
     function openCreateColor() { setEditingColorId(null); setColorForm({ nom: "", codeHex: "#000000" }); colorDialogRef.current?.showModal(); }
@@ -963,7 +1141,6 @@ export default function CatalogPage() {
                             <div className="admH1">{tx("admin.catalog.title", UI_TEXT.headerTitle)}</div>
                             <div className="admH2">{tx("admin.catalog.subtitle", UI_TEXT.headerSubtitle)}</div>
                         </div>
-
                         <div className="admHeaderRight">
                             <div className="catalogFiltersRow">
                                 <div className="admSearchWrap">
@@ -971,10 +1148,9 @@ export default function CatalogPage() {
                                 </div>
                                 <select className="admSearch filterSelect" value={selectedCategoryFilter} onChange={(e) => { setSelectedCategoryFilter(e.target.value); setArticlePage(1); }}>
                                     <option value="">{UI_TEXT.allCategories}</option>
-                                    {categories.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                                    {allCategories.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
                                 </select>
                             </div>
-
                             <div className="catalogActionBar">
                                 <button type="button" className="admBtn" onClick={() => refreshCatalog(false)}>{tx("admin.common.refresh", UI_TEXT.refresh)}</button>
                                 <button type="button" className="admBtn" onClick={scrollToHistory}>{UI_TEXT.history}</button>
@@ -992,7 +1168,6 @@ export default function CatalogPage() {
                         <div className="admCardTop">
                             <div className="admCardTitle">{filteredArticles.length} {tx("admin.common.articlesCount", UI_TEXT.articlesCount)}</div>
                         </div>
-
                         <div className="adminDataTableWrap">
                             <table className="adminDataTable">
                                 <thead>
@@ -1008,6 +1183,7 @@ export default function CatalogPage() {
                                 <tbody>
                                     {pagedArticles.map((a) => {
                                         const saleLive = isSaleActive(a);
+                                        const categoryPath = a.categorieId ? getCategoryFullPath(a.categorieId) : "-";
                                         return (
                                             <tr key={a.id} className={selectedArticle?.id === a.id ? "isSelectedRow" : ""}>
                                                 <td>
@@ -1018,7 +1194,14 @@ export default function CatalogPage() {
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td>{a.categorieNom || "-"}</td>
+                                                <td>
+                                                    <div className="categoryCell">
+                                                        <div className="categoryName">{a.categorieNom || "-"}</div>
+                                                        {categoryPath !== "-" && categoryPath !== a.categorieNom && (
+                                                            <div className="categoryPath" style={{ fontSize: "11px", color: "#666" }}>{categoryPath}</div>
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td>{a.marque || "-"}</td>
                                                 <td>{saleLive ? `${fmtPrice(a.salePrice)} / ${fmtPrice(a.prix)}` : fmtPrice(a.prix)}</td>
                                                 <td><span className={`admBadge ${a.actif ? "ok" : "bad"}`}>{a.actif ? UI_TEXT.active : UI_TEXT.inactive}</span></td>
@@ -1038,7 +1221,6 @@ export default function CatalogPage() {
                                 </tbody>
                             </table>
                         </div>
-
                         <TablePager total={filteredArticles.length} page={articlePage} setPage={setArticlePage} rows={articleRows} setRows={setArticleRows} rowsOptions={[5, 10, 25, 50]} />
                     </div>
 
@@ -1046,13 +1228,8 @@ export default function CatalogPage() {
                         <div className="admCard">
                             <div className="admCardTop catalogPanelTop">
                                 <div>
-                                    <div className="admCardTitle">
-                                        {tx("admin.catalog.variations", UI_TEXT.variations)}
-                                        {selectedArticle ? ` — ${selectedArticle.nom}` : ""}
-                                    </div>
-                                    <div className="variationHint">
-                                        {!selectedArticle ? UI_TEXT.selectArticle : isAccessoryCategory ? UI_TEXT.variationsHintAccessory : UI_TEXT.variationsHint}
-                                    </div>
+                                    <div className="admCardTitle">{tx("admin.catalog.variations", UI_TEXT.variations)}{selectedArticle ? ` — ${selectedArticle.nom}` : ""}</div>
+                                    <div className="variationHint">{!selectedArticle ? UI_TEXT.selectArticle : isAccessoryCategory ? UI_TEXT.variationsHintAccessory : UI_TEXT.variationsHint}</div>
                                 </div>
                                 <div className="admRowActions">
                                     {selectedArticle ? (
@@ -1063,7 +1240,6 @@ export default function CatalogPage() {
                                     ) : null}
                                 </div>
                             </div>
-
                             {!selectedArticle ? (
                                 <div className="admEmpty">{tx("admin.catalog.selectArticle", UI_TEXT.selectArticle)}</div>
                             ) : (
@@ -1076,7 +1252,6 @@ export default function CatalogPage() {
                                         <div className="summaryBlock"><strong>{UI_TEXT.sku}:</strong> {selectedArticle.sku || "-"}</div>
                                         <div className="summaryBlock"><strong>{UI_TEXT.onSaleNow}:</strong> {isSaleActive(selectedArticle) ? UI_TEXT.yes : UI_TEXT.no}</div>
                                     </div>
-
                                     <div className="adminDataTableWrap">
                                         <table className="adminDataTable">
                                             <thead>
@@ -1095,7 +1270,6 @@ export default function CatalogPage() {
                                                     const rawPreviewUrl = group.imageUrls?.[0] || "";
                                                     const previewSrc = rawPreviewUrl ? fullImageUrl(rawPreviewUrl, variationImageVersion(group.items?.[0] || {})) : "";
                                                     const imageBroken = previewSrc ? isVariationImageBroken(group.key, previewSrc) : true;
-
                                                     return (
                                                         <tr key={group.key}>
                                                             <td>
@@ -1121,13 +1295,7 @@ export default function CatalogPage() {
                                                             </td>
                                                             <td>
                                                                 <div className="sizesStockList">
-                                                                    {group.items.length ? (
-                                                                        group.items.map((item) => (
-                                                                            <span key={item.id} className="sizeStockBadge">{item.taillePointure || UI_TEXT.stockOnly}: {Number(item.quantiteStock || 0)}</span>
-                                                                        ))
-                                                                    ) : (
-                                                                        <span className="admRole">{UI_TEXT.noSizesInColor}</span>
-                                                                    )}
+                                                                    {group.items.length ? group.items.map((item) => (<span key={item.id} className="sizeStockBadge">{item.taillePointure || UI_TEXT.stockOnly}: {Number(item.quantiteStock || 0)}</span>)) : <span className="admRole">{UI_TEXT.noSizesInColor}</span>}
                                                                 </div>
                                                             </td>
                                                             <td>{fmtPrice(group.prix)}</td>
@@ -1148,9 +1316,7 @@ export default function CatalogPage() {
                                                         </tr>
                                                     );
                                                 })}
-                                                {!pagedVariations.length && (
-                                                    <tr><td colSpan="7"><div className="admEmpty">{UI_TEXT.noVariations}</div></td></tr>
-                                                )}
+                                                {!pagedVariations.length && (<tr><td colSpan="7"><div className="admEmpty">{UI_TEXT.noVariations}</div></td></tr>)}
                                             </tbody>
                                         </table>
                                     </div>
@@ -1170,33 +1336,22 @@ export default function CatalogPage() {
                                         <option value="article">{UI_TEXT.articleHistory}</option>
                                         <option value="variation">{UI_TEXT.variationHistory}</option>
                                     </select>
-                                    {historyMode === "variation" ? (
-                                        <select className="admSearch historySelectWide" value={selectedVariationHistoryId} onChange={(e) => { const id = e.target.value; setSelectedVariationHistoryId(id); if (id) { loadVariationHistory(id); } else { setHistoryRows([]); } }}>
+                                    {historyMode === "variation" && (
+                                        <select className="admSearch historySelectWide" value={selectedVariationHistoryId} onChange={(e) => { const id = e.target.value; setSelectedVariationHistoryId(id); if (id) loadVariationHistory(id); else setHistoryRows([]); }}>
                                             <option value="">{UI_TEXT.selectVariation}</option>
                                             {variations.map((v) => <option key={v.id} value={v.id}>{variationDisplayName(v)}</option>)}
                                         </select>
-                                    ) : null}
+                                    )}
                                 </div>
                             </div>
                             <div className="admHistoryList">
-                                {historyLoading ? (
-                                    <div className="admEmpty">{UI_TEXT.loadingHistory}</div>
-                                ) : !historyRows.length ? (
-                                    <div className="admEmpty slim">{UI_TEXT.noHistory}</div>
-                                ) : (
+                                {historyLoading ? (<div className="admEmpty">{UI_TEXT.loadingHistory}</div>) : !historyRows.length ? (<div className="admEmpty slim">{UI_TEXT.noHistory}</div>) : (
                                     historyRows.map((row) => (
                                         <div key={row.id} className="admHistoryItem">
                                             <div className="admHistoryTop">
                                                 <div className="admProfileTop">
-                                                    {row.actorPhotoUrl && !isHistoryActorBroken(row) ? (
-                                                        <img src={fullImageUrl(row.actorPhotoUrl, row.actorUserId || row.id)} alt={row.actorName || "User"} className="admAvatar" onError={() => handleHistoryActorError(row)} />
-                                                    ) : (
-                                                        <div className="admAvatar fallback">{initials(row.actorName)}</div>
-                                                    )}
-                                                    <div>
-                                                        <div className="admName">{row.actorName || "-"}</div>
-                                                        <div className="admRole">{row.actorEmail || "-"}</div>
-                                                    </div>
+                                                    {row.actorPhotoUrl && !isHistoryActorBroken(row) ? (<img src={fullImageUrl(row.actorPhotoUrl, row.actorUserId || row.id)} alt={row.actorName || "User"} className="admAvatar" onError={() => handleHistoryActorError(row)} />) : (<div className="admAvatar fallback">{initials(row.actorName)}</div>)}
+                                                    <div><div className="admName">{row.actorName || "-"}</div><div className="admRole">{row.actorEmail || "-"}</div></div>
                                                 </div>
                                                 <span className={`admBadge ${row.action === "CREATE" ? "ok" : row.action === "DELETE" ? "bad" : "neutral"}`}>{row.action}</span>
                                             </div>
@@ -1211,55 +1366,44 @@ export default function CatalogPage() {
 
                     <div className="admGrid refsGrid">
                         <div className="admCard">
-                            <div className="admCardTop">
-                                <div className="admCardTitle">{tx("admin.catalog.categories", UI_TEXT.categories)}</div>
-                                <button type="button" className="admBtn mini" onClick={openCreateCategory}>{tx("admin.catalog.addCategory", UI_TEXT.addCategory)}</button>
-                            </div>
+                            <div className="admCardTop"><div className="admCardTitle">{tx("admin.catalog.categories", UI_TEXT.categories)}</div><button type="button" className="admBtn mini" onClick={openCreateCategory}>{tx("admin.catalog.addCategory", UI_TEXT.addCategory)}</button></div>
                             <div className="adminDataTableWrap">
                                 <table className="adminDataTable compactTable">
-                                    <thead><tr><th>{UI_TEXT.categories}</th><th>{UI_TEXT.tableActions}</th></tr></thead>
+                                    <thead>
+                                        <tr>
+                                            <th>{UI_TEXT.categories}</th>
+                                            <th>{UI_TEXT.categoryPath}</th>
+                                            <th>{UI_TEXT.tableActions}</th>
+                                        </tr>
+                                    </thead>
                                     <tbody>
-                                        {pagedCategories.map((c) => (
-                                            <tr key={c.id}>
-                                                <td><div className="admName">{c.nom}</div><div className="admRole">{c.description || "-"}</div></td>
-                                                <td>
-                                                    <div className="admRowActions">
-                                                        <button type="button" className="admBtn mini" onClick={() => openEditCategory(c)}>{tx("admin.common.edit", UI_TEXT.edit)}</button>
-                                                        <button type="button" className="admBtn mini danger" onClick={() => deleteCategory(c.id)}>{tx("admin.common.delete", UI_TEXT.delete)}</button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                        {!pagedCategories.length && (<tr><td colSpan="2"><div className="admEmpty">{UI_TEXT.noCategories}</div></td></tr>)}
+                                        {pagedCategories.map((c) => {
+                                            const categoryPath = getCategoryFullPath(c.id);
+                                            return (
+                                                <tr key={c.id}>
+                                                    <td><div className="admName">{c.nom}</div><div className="admRole">{c.description || "-"}</div></td>
+                                                    <td><div className="categoryPath" style={{ fontSize: "12px", color: "#666" }}>{categoryPath}</div></td>
+                                                    <td><div className="admRowActions"><button type="button" className="admBtn mini" onClick={() => openEditCategory(c)}>{tx("admin.common.edit", UI_TEXT.edit)}</button><button type="button" className="admBtn mini danger" onClick={() => deleteCategory(c.id)}>{tx("admin.common.delete", UI_TEXT.delete)}</button></div></td>
+                                                </tr>
+                                            );
+                                        })}
+                                        {!pagedCategories.length && (<tr><td colSpan="3"><div className="admEmpty">{UI_TEXT.noCategories}</div></td></tr>)}
                                     </tbody>
                                 </table>
                             </div>
-                            <TablePager total={categories.length} page={categoryPage} setPage={setCategoryPage} rows={categoryRows} setRows={setCategoryRows} rowsOptions={[3, 5, 10]} />
+                            <TablePager total={allCategories.length} page={categoryPage} setPage={setCategoryPage} rows={categoryRows} setRows={setCategoryRows} rowsOptions={[3, 5, 10]} />
                         </div>
 
                         <div className="admCard">
-                            <div className="admCardTop">
-                                <div className="admCardTitle">{tx("admin.catalog.colors", UI_TEXT.colors)}</div>
-                                <button type="button" className="admBtn mini" onClick={openCreateColor}>{tx("admin.catalog.addColor", UI_TEXT.addColor)}</button>
-                            </div>
+                            <div className="admCardTop"><div className="admCardTitle">{tx("admin.catalog.colors", UI_TEXT.colors)}</div><button type="button" className="admBtn mini" onClick={openCreateColor}>{tx("admin.catalog.addColor", UI_TEXT.addColor)}</button></div>
                             <div className="adminDataTableWrap">
                                 <table className="adminDataTable compactTable">
                                     <thead><tr><th>{UI_TEXT.colors}</th><th>{UI_TEXT.tableActions}</th></tr></thead>
                                     <tbody>
                                         {pagedColors.map((c) => (
                                             <tr key={c.id}>
-                                                <td>
-                                                    <div className="colorCell">
-                                                        <span className="colorDot" style={{ background: c.codeHex }} />
-                                                        <div><div className="admName">{c.nom}</div><div className="admRole">{c.codeHex}</div></div>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div className="admRowActions">
-                                                        <button type="button" className="admBtn mini" onClick={() => openEditColor(c)}>{tx("admin.common.edit", UI_TEXT.edit)}</button>
-                                                        <button type="button" className="admBtn mini danger" onClick={() => deleteColor(c.id)}>{tx("admin.common.delete", UI_TEXT.delete)}</button>
-                                                    </div>
-                                                </td>
+                                                <td><div className="colorCell"><span className="colorDot" style={{ background: c.codeHex }} /><div><div className="admName">{c.nom}</div><div className="admRole">{c.codeHex}</div></div></div></td>
+                                                <td><div className="admRowActions"><button type="button" className="admBtn mini" onClick={() => openEditColor(c)}>{tx("admin.common.edit", UI_TEXT.edit)}</button><button type="button" className="admBtn mini danger" onClick={() => deleteColor(c.id)}>{tx("admin.common.delete", UI_TEXT.delete)}</button></div></td>
                                             </tr>
                                         ))}
                                         {!pagedColors.length && (<tr><td colSpan="2"><div className="admEmpty">{UI_TEXT.noColors}</div></td></tr>)}
@@ -1270,10 +1414,7 @@ export default function CatalogPage() {
                         </div>
 
                         <div className="admCard">
-                            <div className="admCardTop">
-                                <div className="admCardTitle">{tx("admin.catalog.sizes", UI_TEXT.sizes)}</div>
-                                <button type="button" className="admBtn mini" onClick={openCreateSize}>{tx("admin.catalog.addSize", UI_TEXT.addSize)}</button>
-                            </div>
+                            <div className="admCardTop"><div className="admCardTitle">{tx("admin.catalog.sizes", UI_TEXT.sizes)}</div><button type="button" className="admBtn mini" onClick={openCreateSize}>{tx("admin.catalog.addSize", UI_TEXT.addSize)}</button></div>
                             <div className="adminDataTableWrap">
                                 <table className="adminDataTable compactTable">
                                     <thead><tr><th>{UI_TEXT.sizes}</th><th>{UI_TEXT.tableActions}</th></tr></thead>
@@ -1281,12 +1422,7 @@ export default function CatalogPage() {
                                         {pagedSizes.map((s) => (
                                             <tr key={s.id}>
                                                 <td><div className="admName">{s.pointure}</div></td>
-                                                <td>
-                                                    <div className="admRowActions">
-                                                        <button type="button" className="admBtn mini" onClick={() => openEditSize(s)}>{tx("admin.common.edit", UI_TEXT.edit)}</button>
-                                                        <button type="button" className="admBtn mini danger" onClick={() => deleteSize(s.id)}>{tx("admin.common.delete", UI_TEXT.delete)}</button>
-                                                    </div>
-                                                </td>
+                                                <td><div className="admRowActions"><button type="button" className="admBtn mini" onClick={() => openEditSize(s)}>{tx("admin.common.edit", UI_TEXT.edit)}</button><button type="button" className="admBtn mini danger" onClick={() => deleteSize(s.id)}>{tx("admin.common.delete", UI_TEXT.delete)}</button></div></td>
                                             </tr>
                                         ))}
                                         {!pagedSizes.length && (<tr><td colSpan="2"><div className="admEmpty">{UI_TEXT.noSizes}</div></td></tr>)}
@@ -1299,6 +1435,7 @@ export default function CatalogPage() {
                 </div>
             </div>
 
+            {/* Article Dialog with 3-LEVEL Category Selection */}
             <dialog ref={articleDialogRef} className="admDialog productDialog">
                 <div className="admDialogHead">
                     <div className="admDialogTitle">{editingArticleId ? UI_TEXT.articleDialogEdit : UI_TEXT.articleDialogAdd}</div>
@@ -1306,7 +1443,95 @@ export default function CatalogPage() {
                 </div>
                 <form className="productForm admDialogBody" onSubmit={saveArticle}>
                     <label><span>{UI_TEXT.productName}</span><input value={articleForm.nom} onChange={(e) => setArticleForm({ ...articleForm, nom: e.target.value })} required /></label>
-                    <label><span>{UI_TEXT.tableCategory}</span><select value={articleForm.categorieId} onChange={(e) => setArticleForm({ ...articleForm, categorieId: e.target.value })} required><option value="">{UI_TEXT.selectCategory}</option>{categories.map((c) => (<option key={c.id} value={c.id}>{c.nom}</option>))}</select></label>
+
+                    {/* Level 1: Main Category (CHAUSSURES, ACCESSOIRES) */}
+                    <label>
+                        <span>{UI_TEXT.mainCategoryLabel}</span>
+                        <select
+                            value={selectedMainCat}
+                            onChange={async (e) => {
+                                const mainId = e.target.value;
+                                setSelectedMainCat(mainId);
+                                setSelectedSubCat("");
+                                setSelectedSubSubCat("");
+                                setArticleForm({ ...articleForm, categorieId: "" });
+                                if (mainId) {
+                                    await loadSubCategories(mainId);
+                                } else {
+                                    setSubCategories([]);
+                                    setSubSubCategories([]);
+                                }
+                            }}
+                            required
+                        >
+                            <option value="">{UI_TEXT.selectMainCategory}</option>
+                            {mainCategories.map((c) => (
+                                <option key={c.id} value={c.id}>{c.nom}</option>
+                            ))}
+                        </select>
+                    </label>
+
+                   {/* Level 2: Sub Category */}
+{subCategories.length > 0 && (
+    <label>
+        <span>{UI_TEXT.subCategoryLabel}</span>
+        <select
+            value={selectedSubCat}
+           onChange={async (e) => {
+    const subId = e.target.value;
+    setSelectedSubCat(subId);
+    setSelectedSubSubCat("");
+    
+    // FIX: Set category based on whether sub-sub categories exist
+    if (subSubCategories.length === 0) {
+        // No deeper level - use sub-category
+        setArticleForm({ ...articleForm, categorieId: subId });
+    } else {
+        // Has deeper level - clear until user selects sub-sub
+        setArticleForm({ ...articleForm, categorieId: "" });
+    }
+    
+    if (subId) {
+        await loadSubSubCategories(subId);
+    } else {
+        setSubSubCategories([]);
+    }
+}}
+            required
+        >
+            <option value="">{UI_TEXT.selectSubCategory}</option>
+            {subCategories.map((c) => (
+                <option key={c.id} value={c.id}>{c.nom}</option>
+            ))}
+        </select>
+    </label>
+)}
+                    {/* Level 3: Sub-Sub Category (SPORT, CASUAL, etc.) */}
+                    {subSubCategories.length > 0 && (
+                        <label>
+                            <span>{UI_TEXT.subSubCategoryLabel}</span>
+                            <select
+                                value={selectedSubSubCat}
+                                onChange={(e) => {
+                                    const subSubId = e.target.value;
+                                    setSelectedSubSubCat(subSubId);
+                                    setArticleForm({ ...articleForm, categorieId: subSubId });
+                                }}
+                                required
+                            >
+                                <option value="">{UI_TEXT.selectProductType}</option>
+                                {subSubCategories.map((c) => (
+                                    <option key={c.id} value={c.id}>{c.nom}</option>
+                                ))}
+                            </select>
+                        </label>
+                    )}
+
+                    {/* If no sub-sub categories, use the sub category directly */}
+                    {subCategories.length > 0 && subSubCategories.length === 0 && (
+                        <input type="hidden" value={articleForm.categorieId} />
+                    )}
+
                     <label><span>{UI_TEXT.price}</span><input type="number" step="0.001" min="0.001" value={articleForm.prix} onChange={(e) => setArticleForm({ ...articleForm, prix: e.target.value })} required /></label>
                     <label><span>{UI_TEXT.salePrice}</span><input type="number" step="0.001" min="0" value={articleForm.salePrice} onChange={(e) => setArticleForm({ ...articleForm, salePrice: e.target.value })} /></label>
                     <label><span>{UI_TEXT.saleStart}</span><input type="datetime-local" value={articleForm.saleStartAt} onChange={(e) => setArticleForm({ ...articleForm, saleStartAt: e.target.value })} /></label>
@@ -1322,208 +1547,196 @@ export default function CatalogPage() {
                 </form>
             </dialog>
 
-            <dialog ref={variationDialogRef} className="admDialog admDialogWide">
-                <div className="admDialogHead">
-                    <div className="admDialogTitle">
-                        {editingVariationGroup ? UI_TEXT.bulkEditVariation : editingVariationId ? UI_TEXT.variationDialogEdit : UI_TEXT.variationDialogAdd}
-                    </div>
-                    <button type="button" className="admBtn mini" onClick={closeVariationDialog}>{UI_TEXT.close}</button>
-                </div>
+          <dialog ref={variationDialogRef} className="admDialog admDialogWide">
+    <div className="admDialogHead">
+        <div className="admDialogTitle">
+            {editingVariationGroup ? UI_TEXT.bulkEditVariation : editingVariationId ? UI_TEXT.variationDialogEdit : UI_TEXT.variationDialogAdd}
+        </div>
+        <button type="button" className="admBtn mini" onClick={closeVariationDialog}>{UI_TEXT.close}</button>
+    </div>
 
-                <form className="productForm admDialogBody" onSubmit={editingVariationGroup ? saveVariationGroup : saveVariation}>
-                    <div className="variationHelp fullCol">
-                        {editingVariationGroup ? `${UI_TEXT.colorGroup}: ${variationGroupForm.couleurNom}` : isAccessoryCategory ? UI_TEXT.accessoryVariationCreateHelp : UI_TEXT.variationCreateHelp}
-                    </div>
+    <form className="productForm admDialogBody" onSubmit={editingVariationGroup ? saveVariationGroup : saveVariation}>
+        <div className="variationHelp fullCol">
+            {editingVariationGroup ? `${UI_TEXT.colorGroup}: ${variationGroupForm.couleurNom}` : isAccessoryCategory ? UI_TEXT.accessoryVariationCreateHelp : UI_TEXT.variationCreateHelp}
+        </div>
 
-                    {variationError ? <div className="admAlert fullCol">{variationError}</div> : null}
+        {variationError ? <div className="admAlert fullCol">{variationError}</div> : null}
 
-                    {!editingVariationGroup ? (
-                        <>
-                            <label>
-                                <span>{UI_TEXT.colorLabel}</span>
-                                <select value={variationForm.couleurId} onChange={(e) => handleVariationColorChange(e.target.value)} required disabled={!colors.length}>
-                                    <option value="">{UI_TEXT.selectColor}</option>
-                                    {colors.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
-                                </select>
-                            </label>
-                            <label><span>{UI_TEXT.price}</span><input type="number" min="0.001" step="0.001" value={variationForm.prix} onChange={(e) => setVariationForm({ ...variationForm, prix: e.target.value })} required /></label>
-                        </>
-                    ) : (
-                        <>
-                            <label><span>{UI_TEXT.colorLabel}</span><input value={variationGroupForm.couleurNom} disabled /></label>
-                            <label><span>{UI_TEXT.price}</span><input value={variationGroupForm.prix} disabled /></label>
-                        </>
-                    )}
+        {!editingVariationGroup ? (
+            <>
+                <label>
+                    <span>{UI_TEXT.colorLabel}</span>
+                    <select value={variationForm.couleurId} onChange={(e) => handleVariationColorChange(e.target.value)} required disabled={!colors.length}>
+                        <option value="">{UI_TEXT.selectColor}</option>
+                        {colors.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                    </select>
+                </label>
+                <label><span>{UI_TEXT.price}</span><input type="number" min="0.001" step="0.001" value={variationForm.prix} onChange={(e) => setVariationForm({ ...variationForm, prix: e.target.value })} required /></label>
+            </>
+        ) : (
+            <>
+                <label><span>{UI_TEXT.colorLabel}</span><input value={variationGroupForm.couleurNom} disabled /></label>
+                <label><span>{UI_TEXT.price}</span><input value={variationGroupForm.prix} disabled /></label>
+            </>
+        )}
 
-                    {isAccessoryCategory ? (
-                        <div className="fullCol variationAccessoryBox">
-                            <div className="variationHelp">{editingVariationGroup ? UI_TEXT.accessoryVariationEditHelp : UI_TEXT.accessoryVariationCreateHelp}</div>
-                            <label className="fullCol">
+        {isAccessoryCategory ? (
+            <div className="fullCol variationAccessoryBox">
+                <div className="variationHelp">{editingVariationGroup ? UI_TEXT.accessoryVariationEditHelp : UI_TEXT.accessoryVariationCreateHelp}</div>
+                <label className="fullCol">
+                    <span>{UI_TEXT.stockLabel}</span>
+                    <input type="number" min="0" step="1" value={editingVariationGroup ? variationGroupForm.rows?.[0]?.quantiteStock ?? 0 : variationForm.quantiteStock ?? 0} onChange={(e) => {
+                        const value = e.target.value;
+                        if (editingVariationGroup) {
+                            setVariationGroupForm((prev) => ({ ...prev, rows: (prev.rows || []).length ? prev.rows.map((row, index) => index === 0 ? { ...row, quantiteStock: value } : row) : [{ tailleId: null, label: UI_TEXT.stockOnly, variationId: null, checked: true, quantiteStock: value, prix: prev.prix ?? selectedArticle?.prix ?? "" }] }));
+                        } else {
+                            setVariationForm((prev) => ({ ...prev, quantiteStock: value }));
+                        }
+                    }} required />
+                </label>
+            </div>
+        ) : (
+            <div className="fullCol variationCurrentImages">
+                <div className="variationHelp">{editingVariationGroup ? `${UI_TEXT.colorGroup}: ${variationGroupForm.couleurNom}` : `${UI_TEXT.selectedSizes}: ${variationSelectedCount}`}</div>
+                <div className="sizeStockGrid">
+                    {(editingVariationGroup ? variationGroupForm.rows : variationForm.sizeStocks || []).map((item) => (
+                        <label key={item.tailleId} className={`sizeStockCard ${item.checked ? "active" : ""} ${item.disabled ? "disabled" : ""}`}>
+                            <div className="sizeStockTop">
+                                <div className="sizeStockCheck">
+                                    <input type="checkbox" checked={!!item.checked} disabled={!editingVariationGroup && item.disabled} onChange={(e) => {
+                                        if (editingVariationGroup) {
+                                            setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, checked: e.target.checked } : row) }));
+                                        } else {
+                                            toggleVariationSize(item.tailleId, e.target.checked);
+                                        }
+                                    }} />
+                                    <span>{UI_TEXT.sizeLabel} {item.label} {!editingVariationGroup && item.disabled ? ` • ${UI_TEXT.alreadyExists}` : ""}</span>
+                                </div>
+                            </div>
+                            <div className="sizeStockBody">
                                 <span>{UI_TEXT.stockLabel}</span>
-                                <input type="number" min="0" step="1" value={editingVariationGroup ? variationGroupForm.rows?.[0]?.quantiteStock ?? 0 : variationForm.quantiteStock ?? 0} onChange={(e) => {
-                                    const value = e.target.value;
+                                <input type="number" min="0" step="1" value={item.quantiteStock} disabled={!item.checked} onChange={(e) => {
                                     if (editingVariationGroup) {
-                                        setVariationGroupForm((prev) => ({ ...prev, rows: (prev.rows || []).length ? prev.rows.map((row, index) => index === 0 ? { ...row, quantiteStock: value } : row) : [{ tailleId: null, label: UI_TEXT.stockOnly, variationId: null, checked: true, quantiteStock: value, prix: prev.prix ?? selectedArticle?.prix ?? "" }] }));
+                                        setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, quantiteStock: e.target.value } : row) }));
                                     } else {
-                                        setVariationForm((prev) => ({ ...prev, quantiteStock: value }));
+                                        changeVariationSizeStock(item.tailleId, e.target.value);
                                     }
-                                }} required />
-                            </label>
-                        </div>
-                    ) : (
-                        <div className="fullCol variationCurrentImages">
-                            <div className="variationHelp">{editingVariationGroup ? `${UI_TEXT.colorGroup}: ${variationGroupForm.couleurNom}` : `${UI_TEXT.selectedSizes}: ${variationSelectedCount}`}</div>
-                            <div className="sizeStockGrid">
-                                {(editingVariationGroup ? variationGroupForm.rows : variationForm.sizeStocks || []).map((item) => (
-                                    <label key={item.tailleId} className={`sizeStockCard ${item.checked ? "active" : ""} ${item.disabled ? "disabled" : ""}`}>
-                                        <div className="sizeStockTop">
-                                            <div className="sizeStockCheck">
-                                                <input type="checkbox" checked={!!item.checked} disabled={!editingVariationGroup && item.disabled} onChange={(e) => {
-                                                    if (editingVariationGroup) {
-                                                        setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, checked: e.target.checked } : row) }));
-                                                    } else {
-                                                        toggleVariationSize(item.tailleId, e.target.checked);
-                                                    }
-                                                }} />
-                                                <span>{UI_TEXT.sizeLabel} {item.label} {!editingVariationGroup && item.disabled ? ` • ${UI_TEXT.alreadyExists}` : ""}</span>
-                                            </div>
-                                        </div>
-                                        <div className="sizeStockBody">
-                                            <span>{UI_TEXT.stockLabel}</span>
-                                            <input type="number" min="0" step="1" value={item.quantiteStock} disabled={!item.checked} onChange={(e) => {
-                                                if (editingVariationGroup) {
-                                                    setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, quantiteStock: e.target.value } : row) }));
-                                                } else {
-                                                    changeVariationSizeStock(item.tailleId, e.target.value);
-                                                }
-                                            }} />
-                                        </div>
-                                        {editingVariationGroup ? (
-                                            <div className="sizeStockBody">
-                                                <span>{UI_TEXT.price}</span>
-                                                <input type="number" min="0.001" step="0.001" value={item.prix} disabled={!item.checked} onChange={(e) => {
-                                                    setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, prix: e.target.value } : row) }));
-                                                }} />
-                                            </div>
-                                        ) : null}
-                                    </label>
-                                ))}
+                                }} />
                             </div>
-                        </div>
-                    )}
-
-                    <label className="fullCol">
-                        <span>{UI_TEXT.variationImages}</span>
-                        <input type="file" accept="image/*" multiple onChange={(e) => {
-                            const files = Array.from(e.target.files || []);
-                            if (editingVariationGroup) setVariationGroupForm((prev) => ({ ...prev, imageFiles: files }));
-                            else setVariationForm((prev) => ({ ...prev, imageFiles: files }));
-                        }} />
-                    </label>
-
-                    {!!(editingVariationGroup ? variationGroupForm.existingImageUrls : variationForm.existingImageUrls)?.length && (
-                        <div className="fullCol variationCurrentImages">
-                            <div className="variationHelp">{UI_TEXT.savedVariationImages}</div>
-                            <div className="variationPreviewGrid">
-                                {(editingVariationGroup ? variationGroupForm.existingImageUrls : variationForm.existingImageUrls).map((url, index) => {
-                                    const imgSrc = fullImageUrl(url, `${editingVariationGroup?.key || editingVariationId || "variation"}-${index}`);
-                                    return (
-                                        <div key={`${url}-${index}`} className="variationPreviewItem">
-                                            <button type="button" className="variationPreviewRemove" onClick={() => removeExistingVariationImage(index)} title="Remove image">×</button>
-                                            {imgSrc ? (
-                                                <img src={imgSrc} alt={`Variation ${index + 1}`} className="variationPreviewThumb" onError={(e) => { e.currentTarget.style.display = "none"; const fallback = e.currentTarget.nextElementSibling; if (fallback) fallback.style.display = "flex"; }} />
-                                            ) : null}
-                                            <div className="variationPreviewThumb fallback" style={{ display: imgSrc ? "none" : "flex" }}>{UI_TEXT.noImage}</div>
-                                            <div className="variationPreviewName">{UI_TEXT.savedImage} {index + 1}</div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-                    <label className="fullCol">
-                        <span>{UI_TEXT.model3d}</span>
-                        <input type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" onChange={(e) => {
-                            const file = e.target.files?.[0] || null;
-                            if (editingVariationGroup) setVariationGroupForm((prev) => ({ ...prev, model3dFile: file }));
-                            else setVariationForm((prev) => ({ ...prev, model3dFile: file }));
-                        }} />
-                    </label>
-
-                    {(editingVariationGroup ? variationGroupForm.existingModel3dUrl || variationGroupForm.model3dFile : variationForm.existingModel3dUrl || variationForm.model3dFile) && (
-                        <div className="fullCol variationCurrentImages">
-                            <div className="variationHelp">{UI_TEXT.currentModel}</div>
-                            <div className="variationModelBox">
-                                {(editingVariationGroup ? variationGroupForm.model3dFile : variationForm.model3dFile) ? (
-                                    <div className="variationModelMeta"><strong>{UI_TEXT.newFile}:</strong> {(editingVariationGroup ? variationGroupForm.model3dFile : variationForm.model3dFile)?.name}</div>
-                                ) : null}
-                                {(editingVariationGroup ? variationGroupForm.existingModel3dUrl : variationForm.existingModel3dUrl) ? (
-                                    <div className="variationModelMeta">
-                                        <strong>{UI_TEXT.savedFile}:</strong>{" "}
-                                        <a href={fullImageUrl(editingVariationGroup ? variationGroupForm.existingModel3dUrl : variationForm.existingModel3dUrl, editingVariationGroup?.key || editingVariationId || "model")} target="_blank" rel="noreferrer">
-                                            {(editingVariationGroup ? variationGroupForm.existingModel3dName : variationForm.existingModel3dName) || UI_TEXT.openCurrentModel}
-                                        </a>
-                                    </div>
-                                ) : null}
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="fullCol variationHelp">{UI_TEXT.variationImageHint}</div>
-
-                    <div className="admDialogActions fullCol">
-                        <button type="submit" className="admBtn primary" disabled={busyCatalog || !colors.length || (!isAccessoryCategory && !sizes.length)}>
-                            {editingVariationGroup ? UI_TEXT.saveAllSizes : editingVariationId ? UI_TEXT.updateVariation : UI_TEXT.saveVariation}
-                        </button>
-                    </div>
-                </form>
-            </dialog>
-
-            <dialog ref={stockDialogRef} className="admDialog productDialog">
-                <div className="admDialogHead">
-                    <div className="admDialogTitle">{stockForm.mode === "increment" ? UI_TEXT.stockDialogRestock : UI_TEXT.stockDialogUse}</div>
-                    <button type="button" className="admBtn mini" onClick={closeStockDialog}>{UI_TEXT.close}</button>
+                            {editingVariationGroup ? (
+                                <div className="sizeStockBody">
+                                    <span>{UI_TEXT.price}</span>
+                                    <input type="number" min="0.001" step="0.001" value={item.prix} disabled={!item.checked} onChange={(e) => {
+                                        setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, prix: e.target.value } : row) }));
+                                    }} />
+                                </div>
+                            ) : null}
+                        </label>
+                    ))}
                 </div>
+            </div>
+        )}
+
+        <label className="fullCol">
+            <span>{UI_TEXT.variationImages}</span>
+            <input type="file" accept="image/*" multiple onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                if (editingVariationGroup) setVariationGroupForm((prev) => ({ ...prev, imageFiles: files }));
+                else setVariationForm((prev) => ({ ...prev, imageFiles: files }));
+            }} />
+        </label>
+
+        {!!(editingVariationGroup ? variationGroupForm.existingImageUrls : variationForm.existingImageUrls)?.length && (
+            <div className="fullCol variationCurrentImages">
+                <div className="variationHelp">{UI_TEXT.savedVariationImages}</div>
+                <div className="variationPreviewGrid">
+                    {(editingVariationGroup ? variationGroupForm.existingImageUrls : variationForm.existingImageUrls).map((url, index) => {
+                        const imgSrc = fullImageUrl(url, `${editingVariationGroup?.key || editingVariationId || "variation"}-${index}`);
+                        return (
+                            <div key={`${url}-${index}`} className="variationPreviewItem">
+                                <button type="button" className="variationPreviewRemove" onClick={() => removeExistingVariationImage(index)} title="Remove image">×</button>
+                                {imgSrc ? (
+                                    <img src={imgSrc} alt={`Variation ${index + 1}`} className="variationPreviewThumb" onError={(e) => { e.currentTarget.style.display = "none"; const fallback = e.currentTarget.nextElementSibling; if (fallback) fallback.style.display = "flex"; }} />
+                                ) : null}
+                                <div className="variationPreviewThumb fallback" style={{ display: imgSrc ? "none" : "flex" }}>{UI_TEXT.noImage}</div>
+                                <div className="variationPreviewName">{UI_TEXT.savedImage} {index + 1}</div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        )}
+
+        <label className="fullCol">
+            <span>{UI_TEXT.model3d}</span>
+            <input type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                if (editingVariationGroup) setVariationGroupForm((prev) => ({ ...prev, model3dFile: file }));
+                else setVariationForm((prev) => ({ ...prev, model3dFile: file }));
+            }} />
+        </label>
+
+        {(editingVariationGroup ? variationGroupForm.existingModel3dUrl || variationGroupForm.model3dFile : variationForm.existingModel3dUrl || variationForm.model3dFile) && (
+            <div className="fullCol variationCurrentImages">
+                <div className="variationHelp">{UI_TEXT.currentModel}</div>
+                <div className="variationModelBox">
+                    {(editingVariationGroup ? variationGroupForm.model3dFile : variationForm.model3dFile) ? (
+                        <div className="variationModelMeta"><strong>{UI_TEXT.newFile}:</strong> {(editingVariationGroup ? variationGroupForm.model3dFile : variationForm.model3dFile)?.name}</div>
+                    ) : null}
+                    {(editingVariationGroup ? variationGroupForm.existingModel3dUrl : variationForm.existingModel3dUrl) ? (
+                        <div className="variationModelMeta">
+                            <strong>{UI_TEXT.savedFile}:</strong>{" "}
+                            <a href={fullImageUrl(editingVariationGroup ? variationGroupForm.existingModel3dUrl : variationForm.existingModel3dUrl, editingVariationGroup?.key || editingVariationId || "model")} target="_blank" rel="noreferrer">
+                                {(editingVariationGroup ? variationGroupForm.existingModel3dName : variationForm.existingModel3dName) || UI_TEXT.openCurrentModel}
+                            </a>
+                        </div>
+                    ) : null}
+                </div>
+            </div>
+        )}
+
+        <div className="fullCol variationHelp">{UI_TEXT.variationImageHint}</div>
+
+        <div className="admDialogActions fullCol">
+            <button type="submit" className="admBtn primary" disabled={busyCatalog || !colors.length || (!isAccessoryCategory && !sizes.length)}>
+                {editingVariationGroup ? UI_TEXT.saveAllSizes : editingVariationId ? UI_TEXT.updateVariation : UI_TEXT.saveVariation}
+            </button>
+        </div>
+    </form>
+</dialog>
+
+            {/* Stock Dialog */}
+            <dialog ref={stockDialogRef} className="admDialog productDialog">
+                <div className="admDialogHead"><div className="admDialogTitle">{stockForm.mode === "increment" ? UI_TEXT.stockDialogRestock : UI_TEXT.stockDialogUse}</div><button type="button" className="admBtn mini" onClick={closeStockDialog}>{UI_TEXT.close}</button></div>
                 <form className="productForm admDialogBody" onSubmit={submitStockUpdate}>
                     <div className="variationHelp fullCol">{UI_TEXT.variationField}: {stockForm.label}</div>
                     <div className="variationHelp fullCol"><strong>{UI_TEXT.currentStock}:</strong> {stockForm.currentStock}</div>
                     {stockError && <div className="admAlert fullCol">{stockError}</div>}
-
-                    <label className="fullCol">
-                        <span>{stockForm.mode === "increment" ? UI_TEXT.addQuantity : UI_TEXT.removeQuantity}</span>
-                        <input type="number" min="1" step="1" value={stockForm.quantity} onChange={(e) => setStockForm({ ...stockForm, quantity: e.target.value })} required />
-                    </label>
-
-                    <div className="variationHelp fullCol" style={{ marginTop: "8px", fontWeight: "bold", color: stockNextValue < 0 ? "#c62828" : "inherit" }}>
-                        {UI_TEXT.newStockAfterUpdate}: {stockNextValue}
-                    </div>
-
-                    <div className="admDialogActions fullCol">
-                        <button type="submit" className="admBtn primary" disabled={busyCatalog || stockNextValue < 0}>
-                            {stockForm.mode === "increment" ? UI_TEXT.confirmRestock : UI_TEXT.confirmStockRemoval}
-                        </button>
-                    </div>
+                    <label className="fullCol"><span>{stockForm.mode === "increment" ? UI_TEXT.addQuantity : UI_TEXT.removeQuantity}</span><input type="number" min="1" step="1" value={stockForm.quantity} onChange={(e) => setStockForm({ ...stockForm, quantity: e.target.value })} required /></label>
+                    <div className="variationHelp fullCol" style={{ marginTop: "8px", fontWeight: "bold", color: stockNextValue < 0 ? "#c62828" : "inherit" }}>{UI_TEXT.newStockAfterUpdate}: {stockNextValue}</div>
+                    <div className="admDialogActions fullCol"><button type="submit" className="admBtn primary" disabled={busyCatalog || stockNextValue < 0}>{stockForm.mode === "increment" ? UI_TEXT.confirmRestock : UI_TEXT.confirmStockRemoval}</button></div>
                 </form>
             </dialog>
 
+            {/* Category Dialog */}
             <dialog ref={categoryDialogRef} className="admDialog productDialog">
-                <div className="admDialogHead">
-                    <div className="admDialogTitle">{editingCategoryId ? UI_TEXT.categoryDialogEdit : UI_TEXT.categoryDialogAdd}</div>
-                    <button type="button" className="admBtn mini" onClick={() => categoryDialogRef.current?.close()}>{UI_TEXT.close}</button>
-                </div>
+                <div className="admDialogHead"><div className="admDialogTitle">{editingCategoryId ? UI_TEXT.categoryDialogEdit : UI_TEXT.categoryDialogAdd}</div><button type="button" className="admBtn mini" onClick={() => categoryDialogRef.current?.close()}>{UI_TEXT.close}</button></div>
                 <form className="productForm admDialogBody" onSubmit={saveCategory}>
                     <label><span>{UI_TEXT.categoryName}</span><input value={categoryForm.nom} onChange={(e) => setCategoryForm({ ...categoryForm, nom: e.target.value })} required /></label>
+                    <label><span>{UI_TEXT.parentCategory}</span><select value={categoryForm.parentId || ""} onChange={(e) => setCategoryForm({ ...categoryForm, parentId: e.target.value ? Number(e.target.value) : null })}><option value="">{UI_TEXT.rootCategory}</option>{allCategories.map((c) => (<option key={c.id} value={c.id} disabled={editingCategoryId === c.id}>{c.nom}</option>))}</select></label>
+                    <label><span>{UI_TEXT.categoryLevel}</span><select value={categoryForm.level} onChange={(e) => setCategoryForm({ ...categoryForm, level: e.target.value })}><option value="">-- Select level --</option><option value="MAIN">MAIN (CHAUSSURES, ACCESSOIRES)</option><option value="SUB">SUB (HOMME, FEMME, KIDS, UNISEX)</option><option value="SUB_SUB">SUB_SUB (SPORT, CASUAL, etc.)</option></select></label>
+                    <label><span>{UI_TEXT.mainCategory}</span><select value={categoryForm.mainCategory} onChange={(e) => setCategoryForm({ ...categoryForm, mainCategory: e.target.value })}><option value="">-- Select main category --</option><option value="CHAUSSURES">CHAUSSURES</option><option value="ACCESSOIRES">ACCESSOIRES</option></select></label>
+                    <label><span>{UI_TEXT.displayOrder}</span><input type="number" min="0" step="1" value={categoryForm.displayOrder} onChange={(e) => setCategoryForm({ ...categoryForm, displayOrder: Number(e.target.value) })} /></label>
+                    <label><span>{UI_TEXT.iconUrl}</span><input value={categoryForm.iconUrl} onChange={(e) => setCategoryForm({ ...categoryForm, iconUrl: e.target.value })} placeholder="/images/category-icon.png" /></label>
+                    <label className="checkRow"><input type="checkbox" checked={categoryForm.actif} onChange={(e) => setCategoryForm({ ...categoryForm, actif: e.target.checked })} /><span>Active</span></label>
                     <label className="fullCol"><span>{UI_TEXT.description}</span><textarea rows="3" value={categoryForm.description} onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} /></label>
                     <div className="admDialogActions fullCol"><button type="submit" className="admBtn primary" disabled={busyCatalog}>{editingCategoryId ? UI_TEXT.updateCategory : UI_TEXT.saveCategory}</button></div>
                 </form>
             </dialog>
 
+            {/* Color Dialog */}
             <dialog ref={colorDialogRef} className="admDialog productDialog">
-                <div className="admDialogHead">
-                    <div className="admDialogTitle">{editingColorId ? UI_TEXT.colorDialogEdit : UI_TEXT.colorDialogAdd}</div>
-                    <button type="button" className="admBtn mini" onClick={() => colorDialogRef.current?.close()}>{UI_TEXT.close}</button>
-                </div>
+                <div className="admDialogHead"><div className="admDialogTitle">{editingColorId ? UI_TEXT.colorDialogEdit : UI_TEXT.colorDialogAdd}</div><button type="button" className="admBtn mini" onClick={() => colorDialogRef.current?.close()}>{UI_TEXT.close}</button></div>
                 <form className="productForm admDialogBody" onSubmit={saveColor}>
                     <label><span>{UI_TEXT.colorName}</span><input value={colorForm.nom} onChange={(e) => setColorForm({ ...colorForm, nom: e.target.value })} required /></label>
                     <label><span>{UI_TEXT.hexColor}</span><input type="color" value={colorForm.codeHex} onChange={(e) => setColorForm({ ...colorForm, codeHex: e.target.value })} required /></label>
@@ -1531,11 +1744,9 @@ export default function CatalogPage() {
                 </form>
             </dialog>
 
+            {/* Size Dialog */}
             <dialog ref={sizeDialogRef} className="admDialog productDialog">
-                <div className="admDialogHead">
-                    <div className="admDialogTitle">{editingSizeId ? UI_TEXT.sizeDialogEdit : UI_TEXT.sizeDialogAdd}</div>
-                    <button type="button" className="admBtn mini" onClick={() => sizeDialogRef.current?.close()}>{UI_TEXT.close}</button>
-                </div>
+                <div className="admDialogHead"><div className="admDialogTitle">{editingSizeId ? UI_TEXT.sizeDialogEdit : UI_TEXT.sizeDialogAdd}</div><button type="button" className="admBtn mini" onClick={() => sizeDialogRef.current?.close()}>{UI_TEXT.close}</button></div>
                 <form className="productForm admDialogBody" onSubmit={saveSize}>
                     <label><span>{UI_TEXT.sizeLabel}</span><input value={sizeForm.pointure} onChange={(e) => setSizeForm({ ...sizeForm, pointure: e.target.value })} required /></label>
                     <div className="admDialogActions fullCol"><button type="submit" className="admBtn primary" disabled={busyCatalog}>{editingSizeId ? UI_TEXT.updateSize : UI_TEXT.saveSize}</button></div>

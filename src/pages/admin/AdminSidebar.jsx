@@ -1,18 +1,28 @@
 export default function AdminSidebar({
   isAdminGeneral,
+  isVendeur,      // ← ADD THIS
+  isControleur,   // ← ADD THIS
   currentLang,
   changeLang,
   t,
   section,
   setSection,
 }) {
+  // Determine panel title
+  const getPanelTitle = () => {
+    if (isAdminGeneral) return "Admin General Panel";
+    if (isControleur) return "Order Controller Panel";
+    if (isVendeur) return "Vendeur Panel";
+    return "Panel";
+  };
+
   return (
     <aside className="adminSidebar clean">
       <div className="adminSidebarTop">
         <div className="adminBrandBlock">
           <div className="adminBrandTitle">EMIRIO</div>
           <div className="adminBrandSub">
-            {isAdminGeneral ? "Admin General Panel" : "Vendeur Panel"}
+            {getPanelTitle()}
           </div>
         </div>
 
@@ -35,6 +45,7 @@ export default function AdminSidebar({
       </div>
 
       <div className="adminMenu onlyMenu">
+        {/* Customers - ONLY Admin General */}
         {isAdminGeneral && (
           <button
             className={`adminMenuItem ${section === "customers" ? "active" : ""}`}
@@ -44,13 +55,17 @@ export default function AdminSidebar({
           </button>
         )}
 
-        <button
-          className={`adminMenuItem ${section === "catalog" ? "active" : ""}`}
-          onClick={() => setSection("catalog")}
-        >
-          Catalog
-        </button>
+        {/* Catalog - Admin General OR Vendeur (NOT Controleur) */}
+        {(isAdminGeneral || isVendeur) && !isControleur && (
+          <button
+            className={`adminMenuItem ${section === "catalog" ? "active" : ""}`}
+            onClick={() => setSection("catalog")}
+          >
+            Catalog
+          </button>
+        )}
 
+        {/* Dashboard - ONLY Admin General */}
         {isAdminGeneral && (
           <button
             className={`adminMenuItem ${section === "dashboard" ? "active" : ""}`}
@@ -60,7 +75,8 @@ export default function AdminSidebar({
           </button>
         )}
 
-        {isAdminGeneral && (
+        {/* Orders - Admin General OR Controleur */}
+        {(isAdminGeneral || isControleur) && (
           <button
             className={`adminMenuItem ${section === "orders" ? "active" : ""}`}
             onClick={() => setSection("orders")}

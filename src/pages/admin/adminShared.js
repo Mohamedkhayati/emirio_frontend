@@ -17,10 +17,6 @@ export const fmtPrice = (v) => {
   return `${n.toFixed(3)} TND`;
 };
 
-const appendVersion = (url, version) => {
-  if (version === null || version === undefined || version === "") return url;
-  return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`;
-};
 export const fullImageUrl = (path, version = "") => {
   if (!path) return "";
 
@@ -201,11 +197,15 @@ export function normalizeRole(role) {
 export function isAdminRole(role) {
   const r = normalizeRole(role);
   return (
-    r === "ADMIN" ||
-    r === "ADMIN_GENERAL" ||
-    r === "GENERAL_ADMIN" ||
-    r === "GENERALE_ADMIN"
+    
+    r === "ADMIN_GENERAL" 
+    
   );
+}
+
+export function isControleurRole(role) {
+  const r = normalizeRole(role);
+  return r === "CONTROLEUR";
 }
 
 export function isVendeurRole(role) {
@@ -218,19 +218,21 @@ export function isUserRole(role) {
 }
 
 export function canOrderRole(role) {
-  return !isAdminRole(role);
+  return !isAdminRole(role) && !isControleurRole(role);
 }
 
 export function canAccessAdminPanel(role) {
-  return isAdminRole(role) || isVendeurRole(role);
+  return isAdminRole(role) || isVendeurRole(role) || isControleurRole(role);
 }
 
 export function getStoredToken() {
   try {
     const direct = localStorage.getItem("emirio_token") || localStorage.getItem("token");
     if (direct) return direct;
+
     const authRaw = localStorage.getItem("auth");
     if (!authRaw) return "";
+
     const auth = JSON.parse(authRaw);
     return auth?.token || "";
   } catch {

@@ -5,12 +5,13 @@ import { api } from "../lib/api";
 import "../styles/cart-checkout.css";
 import { useCart } from "../context/CartContext";
 import { toSafeImageUrl } from "../lib/media";
-import { isAdminRole } from "./admin/adminShared";
+
 const PAYMENT_METHODS = [
   { value: "CARTE", label: "Carte bancaire" },
   { value: "LIVRAISON", label: "Paiement à la livraison" },
   { value: "D17", label: "Tunisia Poste D17" },
   { value: "VIREMENT", label: "Virement bancaire" },
+  { value: "SIMULE", label: "💳 Paiement simulé (instantané, sans frais – pour démo)" }, // 👈 FAKE
 ];
 
 const fmtPrice = (v) => `${Number(v || 0).toFixed(3)} TND`;
@@ -47,7 +48,7 @@ export default function CartCheckoutPage({ me }) {
     adresse: "",
     ville: "",
     codePostal: "",
-    modePaiement: "D17",
+    modePaiement: "SIMULE", // default to fake for easier testing
     cardName: "",
     cardNumber: "",
     expiry: "",
@@ -172,36 +173,43 @@ export default function CartCheckoutPage({ me }) {
   function clearSignature() {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
     const ctx = canvas.getContext("2d");
     const rect = canvas.getBoundingClientRect();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, rect.width || 320, 180);
+
     setForm((prev) => ({ ...prev, signatureDataUrl: "" }));
   }
 
   function validate() {
     if (!items.length) return "Your cart is empty";
     if (!me) return "Please login first";
+
     if (!form.nom || !form.prenom || !form.telephone || !form.adresse || !form.ville) {
       return "Please fill all delivery fields";
     }
+
     if (!form.signatureDataUrl) return "Online signature is required";
     if (!form.acceptTerms) return "You must accept the invoice and order conditions";
 
-    if (
-      form.modePaiement === "CARTE" &&
-      (!form.cardName || !form.cardNumber || !form.expiry || !form.cvv)
-    ) {
-      return "Please fill all card fields";
-    }
+    // Fake payment does not require any payment details
+    if (form.modePaiement !== "SIMULE") {
+      if (
+        form.modePaiement === "CARTE" &&
+        (!form.cardName || !form.cardNumber || !form.expiry || !form.cvv)
+      ) {
+        return "Please fill all card fields";
+      }
 
-    if (form.modePaiement === "D17" && !form.d17Phone) {
-      return "D17 phone is required";
-    }
+      if (form.modePaiement === "D17" && !form.d17Phone) {
+        return "D17 phone is required";
+      }
 
-    if (form.modePaiement === "VIREMENT" && !form.bankReference) {
-      return "Bank reference is required";
+      if (form.modePaiement === "VIREMENT" && !form.bankReference) {
+        return "Bank reference is required";
+      }
     }
 
     return "";
@@ -242,6 +250,7 @@ export default function CartCheckoutPage({ me }) {
         ville: form.ville,
         codePostal: form.codePostal,
         modePaiement: form.modePaiement,
+        // Only send payment details if not SIMULE
         cardLast4:
           form.modePaiement === "CARTE"
             ? form.cardNumber.replace(/\s/g, "").slice(-4)
@@ -430,66 +439,82 @@ export default function CartCheckoutPage({ me }) {
                 </select>
               </label>
 
-              {form.modePaiement === "CARTE" && (
+              {/* Only show payment details if NOT SIMULE */}
+              {form.modePaiement !== "SIMULE" && (
                 <>
-                  <label>
-                    <span>Name on card</span>
-                    <input name="cardName" value={form.cardName} onChange={onChange} />
-                  </label>
+                  {form.modePaiement === "CARTE" && (
+                    <>
+                      <label>
+                        <span>Name on card</span>
+                        <input name="cardName" value={form.cardName} onChange={onChange} />
+                      </label>
 
-                  <label>
-                    <span>Card Number</span>
-                    <input name="cardNumber" value={form.cardNumber} onChange={onChange} />
-                  </label>
+                      <label>
+                        <span>Card Number</span>
+                        <input name="cardNumber" value={form.cardNumber} onChange={onChange} />
+                      </label>
 
-                  <div className="paymentGrid">
+                      <div className="paymentGrid">
+                        <label>
+                          <span>Expiration date</span>
+                          <input
+                            name="expiry"
+                            value={form.expiry}
+                            onChange={onChange}
+                            placeholder="mm/yy"
+                          />
+                        </label>
+
+                        <label>
+                          <span>CVV</span>
+                          <input name="cvv" value={form.cvv} onChange={onChange} placeholder="123" />
+                        </label>
+                      </div>
+                    </>
+                  )}
+
+                  {form.modePaiement === "D17" && (
+                    <>
+                      <label>
+                        <span>Numéro D17</span>
+                        <input
+                          name="d17Phone"
+                          value={form.d17Phone}
+                          onChange={onChange}
+                          placeholder="+216 ..."
+                        />
+                      </label>
+
+                      <label>
+                        <span>Référence D17</span>
+                        <input
+                          name="d17Reference"
+                          value={form.d17Reference}
+                          onChange={onChange}
+                          placeholder="Référence optionnelle"
+                        />
+                      </label>
+                    </>
+                  )}
+
+                  {form.modePaiement === "VIREMENT" && (
                     <label>
-                      <span>Expiration date</span>
-                      <input name="expiry" value={form.expiry} onChange={onChange} placeholder="mm/yy" />
+                      <span>Référence virement</span>
+                      <input
+                        name="bankReference"
+                        value={form.bankReference}
+                        onChange={onChange}
+                        placeholder="Référence bancaire"
+                      />
                     </label>
-
-                    <label>
-                      <span>CVV</span>
-                      <input name="cvv" value={form.cvv} onChange={onChange} placeholder="123" />
-                    </label>
-                  </div>
+                  )}
                 </>
               )}
 
-              {form.modePaiement === "D17" && (
-                <>
-                  <label>
-                    <span>Numéro D17</span>
-                    <input
-                      name="d17Phone"
-                      value={form.d17Phone}
-                      onChange={onChange}
-                      placeholder="+216 ..."
-                    />
-                  </label>
-
-                  <label>
-                    <span>Référence D17</span>
-                    <input
-                      name="d17Reference"
-                      value={form.d17Reference}
-                      onChange={onChange}
-                      placeholder="Référence optionnelle"
-                    />
-                  </label>
-                </>
-              )}
-
-              {form.modePaiement === "VIREMENT" && (
-                <label>
-                  <span>Référence virement</span>
-                  <input
-                    name="bankReference"
-                    value={form.bankReference}
-                    onChange={onChange}
-                    placeholder="Référence bancaire"
-                  />
-                </label>
+              {form.modePaiement === "SIMULE" && (
+                <div className="infoBox" style={{ background: "#e8f5e9", padding: "12px", borderRadius: "8px", marginBottom: "16px" }}>
+                  ✅ <strong>Paiement simulé activé</strong> – Aucune information bancaire requise. La commande sera automatiquement confirmée.
+                </div>
               )}
 
               <label>

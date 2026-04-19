@@ -232,3 +232,67 @@
 .catalogPageWrap .productCard {
   width: 255px;
 }
+/* Make filter sidebar scrollable */
+.filterSidebar {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 80px); /* Adjust based on your header height */
+  position: sticky;
+  top: 80px; /* Adjust based on your header height */
+  overflow: hidden;
+}
+
+.filterContent {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 8px;
+}
+
+/* Custom scrollbar styling (optional) */
+.filterContent::-webkit-scrollbar {
+  width: 6px;
+}
+
+.filterContent::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.filterContent::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 3px;
+}
+
+.filterContent::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Ensure filter blocks have proper spacing */
+.filterBlock {
+  margin-bottom: 24px;
+}
+
+/* Make sure the filter head stays fixed */
+.filterHead {
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 10;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 16px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .filterSidebar {
+    height: auto;
+    position: static;
+    max-height: 400px;
+  }
+  
+  .filterContent {
+    max-height: 350px;
+  }
+}

@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
+import { useFavorites } from "../hooks/useFavorites";
 import "../styles/home.css";
 import "../styles/catalog.css";
 
@@ -18,25 +19,13 @@ const fmtPrice = (v) => {
   return `${Number(v).toFixed(3)} TND`;
 };
 
-function readFavorites() {
-  try {
-    const value = JSON.parse(localStorage.getItem("favorites") || "[]");
-    return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
-  }
-}
-
 function isSaleActive(p) {
   if (!p?.salePrice || Number(p.salePrice) >= Number(p.prix || 0)) return false;
-
   const now = Date.now();
   const start = p.saleStartAt ? new Date(p.saleStartAt).getTime() : null;
   const end = p.saleEndAt ? new Date(p.saleEndAt).getTime() : null;
-
   if (start && now < start) return false;
   if (end && now > end) return false;
-
   return true;
 }
 
@@ -61,13 +50,7 @@ function getImageVersion(p) {
     p?.imageUrl3 ?? "",
     p?.imageUrl4 ?? "",
     ...(Array.isArray(p?.variations)
-      ? p.variations.flatMap((v) => [
-          v?.id ?? "",
-          v?.imageUrl ?? "",
-          v?.imageUrl2 ?? "",
-          v?.imageUrl3 ?? "",
-          v?.imageUrl4 ?? "",
-        ])
+      ? p.variations.flatMap((v) => [v?.id ?? "", v?.imageUrl ?? "", v?.imageUrl2 ?? "", v?.imageUrl3 ?? "", v?.imageUrl4 ?? ""])
       : []),
     ...(Array.isArray(p?.colors)
       ? p.colors.flatMap((c) => [c?.couleurId ?? c?.id ?? "", c?.previewImage ?? ""])
@@ -81,32 +64,24 @@ function getImageVersion(p) {
 
 function getProductImages(p) {
   const version = getImageVersion(p);
-
   const articleImages = [p?.imageUrl, p?.imageUrl2, p?.imageUrl3, p?.imageUrl4];
-
   const variationImages = Array.isArray(p?.variations)
     ? p.variations.flatMap((v) => [v?.imageUrl, v?.imageUrl2, v?.imageUrl3, v?.imageUrl4])
     : [];
-
   const colorPreviewImages = Array.isArray(p?.colors)
     ? p.colors.map((c) => c?.previewImage)
     : [];
-
-  return uniqueImages([...articleImages, ...variationImages, ...colorPreviewImages]).map((img) =>
-    toAbs(img, version)
-  );
+  return uniqueImages([...articleImages, ...variationImages, ...colorPreviewImages]).map((img) => toAbs(img, version));
 }
 
 function formatCountdown(endAt, nowTick, t) {
   if (!endAt) return t("home.limitedOffer", "Limited offer");
   const diff = new Date(endAt).getTime() - nowTick;
   if (diff <= 0) return t("home.saleEnded", "Sale ended");
-
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
   const minutes = Math.floor((diff / (1000 * 60)) % 60);
   const seconds = Math.floor((diff / 1000) % 60);
-
   if (days > 0) return `${days}d ${hours}h ${minutes}m ${seconds}s`;
   if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
   return `${minutes}m ${seconds}s`;
@@ -123,7 +98,6 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
   const { t } = useTranslation();
   const images = useMemo(() => getProductImages(p), [p]);
   const [currentImage, setCurrentImage] = useState(0);
-
   const onSale = isSaleActive(p);
   const discount = getDiscountPercent(p);
   const fav = favorites.includes(p.id);
@@ -134,91 +108,56 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
 
   useEffect(() => {
     if (images.length <= 1) return;
-
     const interval = setInterval(() => {
       setCurrentImage((prev) => (prev + 1) % images.length);
     }, 3000);
-
     return () => clearInterval(interval);
   }, [images.length]);
 
   return (
-    <div
-      className="productCard fadeUp"
-      onClick={() => onOpen(p.id)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => handleKeyboardOpen(e, onOpen, p.id)}
-    >
+    <div className="productCard fadeUp" onClick={() => onOpen(p.id)} role="button" tabIndex={0} onKeyDown={(e) => handleKeyboardOpen(e, onOpen, p.id)}>
       <div className="productImageWrap">
-        {onSale && discount !== null ? <div className="saleRibbon pulse">SALE -{discount}%</div> : null}
-
+        {onSale && discount !== null && <div className="saleRibbon pulse">SALE -{discount}%</div>}
         <button
           type="button"
           className={`favoriteBtn ${fav ? "active" : ""}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleFavorite(p.id);
-          }}
+          onClick={(e) => { e.stopPropagation(); toggleFavorite(p.id); }}
           aria-label={t("catalog.toggleFavorite", "Toggle favorite")}
         >
           {fav ? "♥" : "♡"}
         </button>
-
         {images.length > 0 ? (
-          <img
-            src={images[currentImage]}
-            alt={p.nom}
-            className="productImage imageFade"
-          />
+          <img src={images[currentImage]} alt={p.nom} className="productImage imageFade" />
         ) : (
-          <div className="productImage emptyImage">
-            {t("common.noImage", "No image")}
-          </div>
+          <div className="productImage emptyImage">{t("common.noImage", "No image")}</div>
         )}
-
         {images.length > 1 && (
           <div className="sliderDots">
             {images.map((_, index) => (
               <span
                 key={index}
                 className={`sliderDot ${index === currentImage ? "active" : ""}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentImage(index);
-                }}
+                onClick={(e) => { e.stopPropagation(); setCurrentImage(index); }}
               />
             ))}
           </div>
         )}
       </div>
-
       <div className="productName">{p.nom}</div>
-
       <div className="productMeta">
         {p.marque || "EMIRIO"} {p.recommended ? `• ${t("nav.bestChoice", "Best choice")}` : ""}
       </div>
-
-      {onSale ? (
+      {onSale && (
         <div className="saleCountdownMini">
           {t("home.endsIn", "Ends in")} {formatCountdown(p.saleEndAt, nowTick, t)}
         </div>
-      ) : null}
-
+      )}
       <div className="productPriceRow">
         <span className="priceNow">{fmtPrice(getDisplayPrice(p))}</span>
-        {onSale ? <span className="priceOld">{fmtPrice(p.prix)}</span> : null}
-        {onSale && discount !== null ? <span className="discountTag">-{discount}%</span> : null}
+        {onSale && <span className="priceOld">{fmtPrice(p.prix)}</span>}
+        {onSale && discount !== null && <span className="discountTag">-{discount}%</span>}
       </div>
-
-      <button
-        type="button"
-        className="catalogOpenBtn"
-        onClick={(e) => {
-          e.stopPropagation();
-          onOpen(p.id);
-        }}
-      >
+      <button type="button" className="catalogOpenBtn" onClick={(e) => { e.stopPropagation(); onOpen(p.id); }}>
         {t("catalog.viewProduct", "View product")}
       </button>
     </div>
@@ -230,11 +169,12 @@ export default function FavoritesPage() {
   const navigate = useNavigate();
 
   const [articles, setArticles] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingArticles, setLoadingArticles] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [nowTick, setNowTick] = useState(Date.now());
-  const [favorites, setFavorites] = useState(readFavorites);
+
+  const { favorites, toggleFavorite, loading: favLoading } = useFavorites();
 
   useEffect(() => {
     const tick = setInterval(() => setNowTick(Date.now()), 1000);
@@ -244,38 +184,25 @@ export default function FavoritesPage() {
   useEffect(() => {
     async function load() {
       try {
-        setLoading(true);
+        setLoadingArticles(true);
         setError("");
         const res = await api.get("/api/articles");
         setArticles((res.data || []).filter((a) => a.actif !== false));
       } catch (e) {
         setError(e?.response?.data?.message || "Cannot load favorites");
       } finally {
-        setLoading(false);
+        setLoadingArticles(false);
       }
     }
-
     load();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem("favorites", JSON.stringify(favorites));
-  }, [favorites]);
-
-  function toggleFavorite(id) {
-    setFavorites((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  }
-
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-
     return articles
       .filter((a) => favorites.includes(a.id))
       .filter((a) => {
         if (!s) return true;
-
         return `${a.nom || ""} ${a.description || ""} ${a.marque || ""} ${a.matiere || ""} ${a.sku || ""} ${a.categorieNom || ""}`
           .toLowerCase()
           .includes(s);
@@ -283,6 +210,7 @@ export default function FavoritesPage() {
   }, [articles, favorites, search]);
 
   const openProduct = (id) => navigate(`/product/${id}`);
+  const isLoading = loadingArticles || favLoading;
 
   return (
     <div className="homePage catalogPageWrap">
@@ -291,22 +219,13 @@ export default function FavoritesPage() {
           <div className="catalogTop">
             <div>
               <h2>{t("nav.favorites", "Favorites")} ({filtered.length})</h2>
-              <p>
-                {filtered.length} {t("catalog.found", "found")}
-              </p>
+              <p>{filtered.length} {t("catalog.found", "found")}</p>
             </div>
-
             <div className="searchBar" style={{ maxWidth: 320 }}>
-              <input
-                type="text"
-                placeholder={t("common.searchProducts", "Search products")}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+              <input type="text" placeholder={t("common.searchProducts", "Search products")} value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
           </div>
-
-          {loading ? (
+          {isLoading ? (
             <div className="homeInfo">{t("common.loading", "Loading...")}</div>
           ) : error ? (
             <div className="homeInfo error">{error}</div>
@@ -315,14 +234,7 @@ export default function FavoritesPage() {
           ) : (
             <div className="productsGrid catalogProductsGrid" id="catalog-grid">
               {filtered.map((p) => (
-                <ProductCard
-                  key={p.id}
-                  p={p}
-                  onOpen={openProduct}
-                  favorites={favorites}
-                  toggleFavorite={toggleFavorite}
-                  nowTick={nowTick}
-                />
+                <ProductCard key={p.id} p={p} onOpen={openProduct} favorites={favorites} toggleFavorite={toggleFavorite} nowTick={nowTick} />
               ))}
             </div>
           )}
