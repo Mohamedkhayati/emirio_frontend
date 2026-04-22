@@ -57,13 +57,12 @@ export default function AdminLayout() {
   const isCatalogManager = useMemo(() => isCatalogManagerRole(role), [role]);
   const isEcommerceManager = useMemo(() => isEcommerceManagerRole(role), [role]);
 
-  const allowedSections = useMemo(() => {
-    if (isAdminGeneral) return ["customers", "workers", "catalog", "dashboard", "orders"];
-    // ✅ Give Catalog Manager access to catalog, dashboard, and orders
-    if (isCatalogManager) return ["catalog", "dashboard", "orders"]; 
-    if (isEcommerceManager) return ["orders"];
-    return [];
-  }, [isAdminGeneral, isCatalogManager, isEcommerceManager]);
+ const allowedSections = useMemo(() => {
+  if (isAdminGeneral) return ["customers", "workers", "catalog", "dashboard", "orders", "reclamations"];
+  if (isCatalogManager) return ["catalog", "dashboard", "orders"];
+  if (isEcommerceManager) return ["orders", "reclamations"];  // <-- add reclamations
+  return [];
+}, [isAdminGeneral, isCatalogManager, isEcommerceManager]);
 
   // Add this function to debug token and role
   const debugAuth = () => {
@@ -223,6 +222,9 @@ export default function AdminLayout() {
           {isAdminGeneral && (
             <SidebarLink to="/admin/customers" label="Clients" />
           )}
+          {(isAdminGeneral || isEcommerceManager) && (
+  <SidebarLink to="/admin/reclamations" label="Reclamations" />
+)}
           
           {/* Workers - ONLY Administrateur */}
           {isAdminGeneral && (

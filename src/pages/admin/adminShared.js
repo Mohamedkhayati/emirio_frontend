@@ -263,6 +263,10 @@ export function getStoredRole() {
     return "";
   }
 }
+export function canAccessReclamations(role) {
+  const r = normalizeRole(role);
+  return r === "Administrateur" || r === "Responsable e-commerce";
+}
 
 export function persistAuth(token, role) {
   const normalizedRole = normalizeRole(role);
