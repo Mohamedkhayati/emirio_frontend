@@ -30,14 +30,9 @@ function canAccessAdminPanel(role) {
   console.log("🔍 canAccessAdminPanel - Normalized role:", r);
   
   const hasAccess = (
-    r === "ADMIN" ||
-    r === "ADMIN_GENERAL" ||
-    r === "GENERAL_ADMIN" ||
-    r === "GENERALE_ADMIN" ||
-    r === "VENDEUR" ||
-    r === "VENDERU" ||
-    r === "SELLER" ||
-    r === "CONTROLEUR"
+    r === "ADMINISTRATEUR" ||  // Changed from "Administrateur"
+    r === "GESTIONNAIRE_DE_CATALOGUE" ||  // Changed from "Gestionnaire de catalogue"
+    r === "RESPONSABLE_E_COMMERCE"  // Changed from "Responsable e-commerce"
   );
   
   console.log("🔍 canAccessAdminPanel - Has access:", hasAccess);

@@ -236,7 +236,7 @@ function TablePager({ total, page, setPage, rows, setRows, rowsOptions = [3, 5, 
 
 export default function CatalogPage() {
      const { t } = useTranslation();
-    const { isAdminGeneral, isVendeur, isControleur } = useOutletContext(); 
+    const { isAdminGeneral, isCatalogManager, isEcommerceManager } = useOutletContext(); 
 
     const tx = (key, fallback) => {
         const value = t(key);
@@ -1122,16 +1122,15 @@ export default function CatalogPage() {
         try { await api.delete(`/api/admin/sizes/${id}`); await refreshCatalog(false); } catch (e) { setCatalogError(e?.response?.data?.message || UI_TEXT.errDeleteSize); } finally { setBusyCatalog(false); }
     }
 
-    if (!isAdminGeneral && !isVendeur) {
+    if (!isAdminGeneral && !isCatalogManager && !isEcommerceManager) {
         return (
             <div className="fadeInUp">
                 <div className="admPage">
-                    <div className="admAlert">{UI_TEXT.accessDenied}</div>
+                    <div className="admAlert">Access denied. You don't have permission to view this page.</div>
                 </div>
             </div>
         );
     }
-
     return (
         <>
             <div className="fadeInUp">

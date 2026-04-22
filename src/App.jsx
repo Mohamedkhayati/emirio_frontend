@@ -2,9 +2,13 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { api } from "./lib/api";
 import { useTranslation } from "react-i18next";
+import WorkersPage from "./pages/admin/WorkersPage";
 
 import CartCheckoutPage from "./pages/CartCheckoutPage";
 import OrderHistoryPage from "./pages/OrderHistoryPage";
+import VendeurCatalogPage from "./pages/admin/VendeurCatalogPage";
+import VendeurOrdersPage from "./pages/admin/VendeurOrdersPage";
+import VendeurDashboardPage from "./pages/admin/VendeurDashboardPage";
 import Favorites from "./pages/Favorites";
 import Home from "./pages/Home.jsx";
 import Auth from "./pages/Auth.jsx";
@@ -22,7 +26,7 @@ import MainLayout from "./layouts/MainLayout.jsx";
 import AuthLayout from "./layouts/AuthLayout.jsx";
 
 import AdminLayout from "./pages/admin/AdminLayout.jsx";
-import AdminCustomersPage from "./pages/admin/CustomersPage.jsx";
+import AdminCustomersPage from "./pages/admin/ClientsPage.jsx";
 import AdminCatalogPage from "./pages/admin/CatalogPage.jsx";
 import AdminDashboardPage from "./pages/admin/DashboardPage.jsx";
 import AdminOrdersPage from "./pages/admin/OrdersPage.jsx";
@@ -36,8 +40,11 @@ export default function App() {
     async function loadMe() {
       try {
         const res = await api.get("/api/profile");
+        console.log("📊 App - User data from backend:", res.data);
+        console.log("📊 App - User role:", res.data.role);
         setMe(res.data);
-      } catch {
+      } catch (error) {
+        console.error("Failed to load user:", error);
         setMe(null);
       } finally {
         setLoading(false);
@@ -57,16 +64,27 @@ export default function App() {
 
   const role = me?.role;
   
-  // FIX: Add CONTROLEUR to the admin roles
-  const isAdmin =
-    role === "ADMIN_GENERAL" ||
-    role === "VENDEUR" ||
-    role === "ADMIN" ||
-    role === "SELLER" ||
-    role === "CONTROLEUR";  // ← ADD THIS LINE
+  // Check specific roles
+  const isSuperAdmin = role === "Administrateur";
+  const isCatalogManager = role === "Gestionnaire de catalogue";
+  const isEcommerceManager = role === "Responsable e-commerce";
+
+  // Has any admin access?
+  const isAdmin = isSuperAdmin || isCatalogManager || isEcommerceManager;
 
   console.log("🔍 App.jsx - User role:", role);
   console.log("🔍 App.jsx - isAdmin:", isAdmin);
+  console.log("🔍 App.jsx - isSuperAdmin:", isSuperAdmin);
+  console.log("🔍 App.jsx - isCatalogManager:", isCatalogManager);
+  console.log("🔍 App.jsx - isEcommerceManager:", isEcommerceManager);
+
+  // Dynamic redirect for the base `/admin` route based on user role
+  const getAdminRedirect = () => {
+    if (isSuperAdmin) return "dashboard";
+    if (isCatalogManager) return "catalog";
+    if (isEcommerceManager) return "orders";
+    return "/";
+  };
 
   return (
     <CartProvider me={me}>
@@ -97,16 +115,49 @@ export default function App() {
             <Route index element={<Profile me={me} setMe={setMe} />} />
           </Route>
 
+          {/* Admin Routes */}
           <Route
-            path="/admin"
+            path="/admin/*"
             element={<ProtectedRoute isAllowed={isAdmin} redirectTo="/" />}
           >
-            <Route element={<AdminLayout me={me} />}>
-              <Route index element={<Navigate to="orders" replace />} />
-              <Route path="catalog" element={<AdminCatalogPage />} />
-              <Route path="customers" element={<AdminCustomersPage />} />
-              <Route path="dashboard" element={<AdminDashboardPage />} />
-              <Route path="orders" element={<AdminOrdersPage />} />
+            <Route element={<AdminLayout />}>
+              {/* Dynamic Redirect based on role */}
+              <Route index element={<Navigate to={getAdminRedirect()} replace />} />
+              
+              {/* Customers & Workers - only for Administrateur */}
+              {isSuperAdmin && (
+                <>
+                  <Route path="customers" element={<AdminCustomersPage />} />
+                  <Route path="workers" element={<WorkersPage />} />
+                </>
+              )}
+              
+              {/* Catalog - Admins see all catalog, Catalog Managers see their catalog */}
+              {(isSuperAdmin || isCatalogManager) && (
+                <Route 
+                  path="catalog" 
+                  element={isCatalogManager ? <VendeurCatalogPage /> : <AdminCatalogPage />} 
+                />
+              )}
+              
+              {/* Dashboard - Admins see main dashboard, Catalog Managers see their vendor dashboard */}
+              {(isSuperAdmin || isCatalogManager) && (
+                <Route 
+                  path="dashboard" 
+                  element={isCatalogManager ? <VendeurDashboardPage /> : <AdminDashboardPage />} 
+                />
+              )}
+              
+              {/* Orders - Admins and Ecommerce Managers see all orders, Catalog managers see their orders */}
+              {(isSuperAdmin || isEcommerceManager || isCatalogManager) && (
+                <Route 
+                  path="orders" 
+                  element={isCatalogManager ? <VendeurOrdersPage /> : <AdminOrdersPage />} 
+                />
+              )}
+              
+              {/* Fallback for unauthorized admin routes */}
+              <Route path="*" element={<Navigate to={`/admin/${getAdminRedirect()}`} replace />} />
             </Route>
           </Route>
 

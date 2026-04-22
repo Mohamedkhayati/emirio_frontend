@@ -286,6 +286,10 @@ export default function Home() {
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [nowTick, setNowTick] = useState(Date.now());
 
+  // State for category-based recommendations
+  const [categoryRecommendations, setCategoryRecommendations] = useState([]);
+  const [loadingRecs, setLoadingRecs] = useState(false);
+
   const { favorites, toggleFavorite } = useFavorites();
 
   useEffect(() => {
@@ -338,6 +342,28 @@ export default function Home() {
     loadData();
   }, []);
 
+  // Get recommendations based on user's most interacted category
+  useEffect(() => {
+    if (!articles.length || !flatCategories.length) return;
+    
+    setLoadingRecs(true);
+    
+    // Get user's favorite categories from localStorage or default to a popular category
+    // For demo, show products from a random sub category
+    const subCategories = flatCategories.filter(c => c.level === 'SUB');
+    if (subCategories.length) {
+      // Pick a random sub category or the first one
+      const randomSubCat = subCategories[Math.floor(Math.random() * subCategories.length)];
+      const recommended = articles.filter(a => 
+        a.categorieId === randomSubCat.id && a.actif !== false
+      ).slice(0, 8);
+      setCategoryRecommendations(recommended);
+    } else {
+      setCategoryRecommendations(articles.slice(0, 8));
+    }
+    setLoadingRecs(false);
+  }, [articles, flatCategories]);
+
   const filteredArticles = useMemo(() => {
     let list = [...articles];
     if (selectedCategoryId) {
@@ -362,10 +388,12 @@ export default function Home() {
     [filteredArticles]
   );
 
-  const recommendedArticles = useMemo(() =>
-    filteredArticles.filter((a) => !!a.recommended).slice(0, 8),
-    [filteredArticles]
-  );
+  const recommendedArticles = useMemo(() => {
+    if (categoryRecommendations.length > 0) {
+      return categoryRecommendations;
+    }
+    return filteredArticles.filter((a) => !!a.recommended).slice(0, 8);
+  }, [categoryRecommendations, filteredArticles]);
 
   const newArrivals = useMemo(() =>
     [...filteredArticles].sort((a, b) => Number(b.id) - Number(a.id)).slice(0, 8),
@@ -379,6 +407,7 @@ export default function Home() {
   return (
     <div className="homePage">
       <SaleHeroSlider articles={filteredArticles} onOpen={openProduct} nowTick={nowTick} />
+
       <section className="productSection">
         <div className="searchBar" style={{ maxWidth: "420px", marginLeft: "auto" }}>
           <input
@@ -389,6 +418,7 @@ export default function Home() {
           />
         </div>
       </section>
+
       <section className="productSection" id="sale-products">
         <div className="sectionTopRow">
           <h2>{t("home.saleNow", "Sale now")}</h2>
@@ -408,12 +438,13 @@ export default function Home() {
           </div>
         )}
       </section>
+
       <section className="productSection withBorder" id="recommended">
         <div className="sectionTopRow">
           <h2>{t("home.bestChoice", "Best choice")}</h2>
           <button className="viewAllBtn" onClick={openCatalog}>{t("common.viewAll", "View all")}</button>
         </div>
-        {loadingArticles ? (
+        {loadingArticles || loadingRecs ? (
           <div className="homeInfo">{t("home.loadingRecommendations", "Loading recommendations...")}</div>
         ) : error ? (
           <div className="homeInfo error">{error}</div>
@@ -427,6 +458,7 @@ export default function Home() {
           </div>
         )}
       </section>
+
       <section className="categoryBrowseSection" id="categories">
         <div className="sectionTopRow">
           <h2>{t("home.categories", "Categories")}</h2>
@@ -443,6 +475,7 @@ export default function Home() {
           ))}
         </div>
       </section>
+
       <section className="productSection withBorder" id="new-arrivals">
         <div className="sectionTopRow">
           <h2>{t("home.newArrivals", "New arrivals")}</h2>

@@ -11,7 +11,7 @@ const PAYMENT_METHODS = [
   { value: "LIVRAISON", label: "Paiement à la livraison" },
   { value: "D17", label: "Tunisia Poste D17" },
   { value: "VIREMENT", label: "Virement bancaire" },
-  { value: "SIMULE", label: "💳 Paiement simulé (instantané, sans frais – pour démo)" }, // 👈 FAKE
+  { value: "SIMULE", label: "💳 Paiement simulé (instantané, sans frais – pour démo)" },
 ];
 
 const fmtPrice = (v) => `${Number(v || 0).toFixed(3)} TND`;
@@ -40,6 +40,9 @@ export default function CartCheckoutPage({ me }) {
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState("");
   const [successOrder, setSuccessOrder] = useState(null);
+  
+  // Animated alert state
+  const [alert, setAlert] = useState({ show: false, message: "", type: "error" });
 
   const [form, setForm] = useState({
     nom: me?.nom || "",
@@ -48,7 +51,7 @@ export default function CartCheckoutPage({ me }) {
     adresse: "",
     ville: "",
     codePostal: "",
-    modePaiement: "SIMULE", // default to fake for easier testing
+    modePaiement: "SIMULE",
     cardName: "",
     cardNumber: "",
     expiry: "",
@@ -183,32 +186,41 @@ export default function CartCheckoutPage({ me }) {
     setForm((prev) => ({ ...prev, signatureDataUrl: "" }));
   }
 
+  // Helper to show animated alert
+  function showAlert(message, type = "error") {
+    setAlert({ show: true, message, type });
+    setTimeout(() => {
+      setAlert({ show: false, message: "", type: "error" });
+    }, 4000);
+  }
+
   function validate() {
     if (!items.length) return "Your cart is empty";
     if (!me) return "Please login first";
 
-    if (!form.nom || !form.prenom || !form.telephone || !form.adresse || !form.ville) {
-      return "Please fill all delivery fields";
-    }
+    if (!form.nom?.trim()) return "Please enter your last name";
+    if (!form.prenom?.trim()) return "Please enter your first name";
+    if (!form.telephone?.trim()) return "Please enter your phone number";
+    if (!form.adresse?.trim()) return "Please enter your delivery address";
+    if (!form.ville?.trim()) return "Please enter your city";
 
     if (!form.signatureDataUrl) return "Online signature is required";
     if (!form.acceptTerms) return "You must accept the invoice and order conditions";
 
-    // Fake payment does not require any payment details
     if (form.modePaiement !== "SIMULE") {
-      if (
-        form.modePaiement === "CARTE" &&
-        (!form.cardName || !form.cardNumber || !form.expiry || !form.cvv)
-      ) {
-        return "Please fill all card fields";
+      if (form.modePaiement === "CARTE") {
+        if (!form.cardName?.trim()) return "Please enter the name on the card";
+        if (!form.cardNumber?.trim()) return "Please enter your card number";
+        if (!form.expiry?.trim()) return "Please enter the expiration date (MM/YY)";
+        if (!form.cvv?.trim()) return "Please enter the CVV code";
       }
 
-      if (form.modePaiement === "D17" && !form.d17Phone) {
-        return "D17 phone is required";
+      if (form.modePaiement === "D17" && !form.d17Phone?.trim()) {
+        return "D17 phone number is required";
       }
 
-      if (form.modePaiement === "VIREMENT" && !form.bankReference) {
-        return "Bank reference is required";
+      if (form.modePaiement === "VIREMENT" && !form.bankReference?.trim()) {
+        return "Bank transfer reference is required";
       }
     }
 
@@ -222,7 +234,7 @@ export default function CartCheckoutPage({ me }) {
 
     const error = validate();
     if (error) {
-      setServerError(error);
+      showAlert(error, "error");
       return;
     }
 
@@ -250,7 +262,6 @@ export default function CartCheckoutPage({ me }) {
         ville: form.ville,
         codePostal: form.codePostal,
         modePaiement: form.modePaiement,
-        // Only send payment details if not SIMULE
         cardLast4:
           form.modePaiement === "CARTE"
             ? form.cardNumber.replace(/\s/g, "").slice(-4)
@@ -267,9 +278,14 @@ export default function CartCheckoutPage({ me }) {
 
       clearCart();
       setSuccessOrder(data);
-      navigate("/orders", { state: { createdOrder: data } });
+      showAlert("Order created successfully! Redirecting...", "success");
+      setTimeout(() => {
+        navigate("/orders", { state: { createdOrder: data } });
+      }, 1500);
     } catch (e2) {
-      setServerError(e2?.response?.data?.message || "Checkout failed");
+      const errorMsg = e2?.response?.data?.message || "Checkout failed";
+      setServerError(errorMsg);
+      showAlert(errorMsg, "error");
     } finally {
       setSubmitting(false);
     }
@@ -277,6 +293,24 @@ export default function CartCheckoutPage({ me }) {
 
   return (
     <div className="checkoutPage">
+      {/* Animated Alert */}
+      {alert.show && (
+        <div className={`animatedAlert ${alert.type}`}>
+          <div className="alertContent">
+            <span className="alertIcon">
+              {alert.type === "error" ? "⚠️" : "✅"}
+            </span>
+            <span className="alertMessage">{alert.message}</span>
+            <button
+              className="alertClose"
+              onClick={() => setAlert({ show: false, message: "", type: "error" })}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="checkoutWrap">
         <section className="cartPanel">
           <div className="checkoutTopRow">
@@ -300,7 +334,7 @@ export default function CartCheckoutPage({ me }) {
             </p>
           </div>
 
-          {serverError ? <div className="homeInfo error">{serverError}</div> : null}
+          {serverError && !alert.show ? <div className="homeInfo error">{serverError}</div> : null}
 
           {!items.length ? (
             <div className="emptyCartBox">
@@ -398,33 +432,33 @@ export default function CartCheckoutPage({ me }) {
             <form onSubmit={handleCheckout} className="paymentForm">
               <div className="paymentGrid">
                 <label>
-                  <span>Nom</span>
-                  <input name="nom" value={form.nom} onChange={onChange} />
+                  <span>Nom *</span>
+                  <input name="nom" value={form.nom} onChange={onChange} placeholder="Dupont" />
                 </label>
                 <label>
-                  <span>Prénom</span>
-                  <input name="prenom" value={form.prenom} onChange={onChange} />
+                  <span>Prénom *</span>
+                  <input name="prenom" value={form.prenom} onChange={onChange} placeholder="Jean" />
                 </label>
               </div>
 
               <label>
-                <span>Téléphone</span>
-                <input name="telephone" value={form.telephone} onChange={onChange} />
+                <span>Téléphone *</span>
+                <input name="telephone" value={form.telephone} onChange={onChange} placeholder="+216 XX XXX XXX" />
               </label>
 
               <label>
-                <span>Adresse</span>
-                <input name="adresse" value={form.adresse} onChange={onChange} />
+                <span>Adresse *</span>
+                <input name="adresse" value={form.adresse} onChange={onChange} placeholder="Rue, numéro, bâtiment..." />
               </label>
 
               <div className="paymentGrid">
                 <label>
-                  <span>Ville</span>
-                  <input name="ville" value={form.ville} onChange={onChange} />
+                  <span>Ville *</span>
+                  <input name="ville" value={form.ville} onChange={onChange} placeholder="Tunis" />
                 </label>
                 <label>
                   <span>Code postal</span>
-                  <input name="codePostal" value={form.codePostal} onChange={onChange} />
+                  <input name="codePostal" value={form.codePostal} onChange={onChange} placeholder="1000" />
                 </label>
               </div>
 
@@ -439,34 +473,33 @@ export default function CartCheckoutPage({ me }) {
                 </select>
               </label>
 
-              {/* Only show payment details if NOT SIMULE */}
               {form.modePaiement !== "SIMULE" && (
                 <>
                   {form.modePaiement === "CARTE" && (
                     <>
                       <label>
-                        <span>Name on card</span>
-                        <input name="cardName" value={form.cardName} onChange={onChange} />
+                        <span>Name on card *</span>
+                        <input name="cardName" value={form.cardName} onChange={onChange} placeholder="JEAN DUPONT" />
                       </label>
 
                       <label>
-                        <span>Card Number</span>
-                        <input name="cardNumber" value={form.cardNumber} onChange={onChange} />
+                        <span>Card Number *</span>
+                        <input name="cardNumber" value={form.cardNumber} onChange={onChange} placeholder="1234 5678 9012 3456" />
                       </label>
 
                       <div className="paymentGrid">
                         <label>
-                          <span>Expiration date</span>
+                          <span>Expiration date *</span>
                           <input
                             name="expiry"
                             value={form.expiry}
                             onChange={onChange}
-                            placeholder="mm/yy"
+                            placeholder="MM/YY"
                           />
                         </label>
 
                         <label>
-                          <span>CVV</span>
+                          <span>CVV *</span>
                           <input name="cvv" value={form.cvv} onChange={onChange} placeholder="123" />
                         </label>
                       </div>
@@ -476,12 +509,12 @@ export default function CartCheckoutPage({ me }) {
                   {form.modePaiement === "D17" && (
                     <>
                       <label>
-                        <span>Numéro D17</span>
+                        <span>Numéro D17 *</span>
                         <input
                           name="d17Phone"
                           value={form.d17Phone}
                           onChange={onChange}
-                          placeholder="+216 ..."
+                          placeholder="+216 XX XXX XXX"
                         />
                       </label>
 
@@ -499,7 +532,7 @@ export default function CartCheckoutPage({ me }) {
 
                   {form.modePaiement === "VIREMENT" && (
                     <label>
-                      <span>Référence virement</span>
+                      <span>Référence virement *</span>
                       <input
                         name="bankReference"
                         value={form.bankReference}
@@ -530,7 +563,7 @@ export default function CartCheckoutPage({ me }) {
 
               <div className="signatureBox">
                 <div className="signatureTop">
-                  <h3>Signature en ligne</h3>
+                  <h3>Signature en ligne *</h3>
                   <button type="button" className="clearBtn" onClick={clearSignature}>
                     Effacer
                   </button>
@@ -566,7 +599,7 @@ export default function CartCheckoutPage({ me }) {
                   onChange={onChange}
                 />
                 <span>
-                  J'accepte la facture proforma, le mode de paiement choisi et les conditions de commande.
+                  J'accepte la facture proforma, le mode de paiement choisi et les conditions de commande. *
                 </span>
               </label>
 

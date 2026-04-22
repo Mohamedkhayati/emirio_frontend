@@ -1,3 +1,5 @@
+// src/pages/admin/adminShared.js
+
 export const initials = (nom, prenom) =>
   `${(prenom || "").trim()[0] || ""}${(nom || "").trim()[0] || ""}`.toUpperCase() || "U";
 
@@ -197,20 +199,21 @@ export function normalizeRole(role) {
 export function isAdminRole(role) {
   const r = normalizeRole(role);
   return (
-    
-    r === "ADMIN_GENERAL" 
-    
+    r === "Administrateur" ||
+    r === "ADMIN_GENERAL" ||
+    r === "GENERAL_ADMIN" ||
+    r === "GENERALE_ADMIN"
   );
 }
 
 export function isControleurRole(role) {
   const r = normalizeRole(role);
-  return r === "CONTROLEUR";
+  return r === "Responsable e-commerce";
 }
 
 export function isVendeurRole(role) {
   const r = normalizeRole(role);
-  return r === "VENDEUR" || r === "VENDERU" || r === "SELLER";
+  return r === "Gestionnaire de catalogue" || r === "VENDERU" || r === "SELLER";
 }
 
 export function isUserRole(role) {

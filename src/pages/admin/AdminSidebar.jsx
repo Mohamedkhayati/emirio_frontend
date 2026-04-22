@@ -1,18 +1,23 @@
 export default function AdminSidebar({
-  isAdminGeneral,
-  isVendeur,      // ← ADD THIS
-  isControleur,   // ← ADD THIS
+  me,  // Pass the user object instead of individual flags
   currentLang,
   changeLang,
   t,
   section,
   setSection,
 }) {
+  const role = me?.role;
+  
+  // Determine role-based access
+  const isAdministrateur = role === "Administrateur";
+  const isGestionnaireCatalogue = role === "Gestionnaire de catalogue";
+  const isResponsableEcommerce = role === "Responsable e-commerce";
+  
   // Determine panel title
   const getPanelTitle = () => {
-    if (isAdminGeneral) return "Admin General Panel";
-    if (isControleur) return "Order Controller Panel";
-    if (isVendeur) return "Vendeur Panel";
+    if (isAdministrateur) return "Admin General Panel";
+    if (isResponsableEcommerce) return "E-commerce Manager Panel";
+    if (isGestionnaireCatalogue) return "Catalog Manager Panel";
     return "Panel";
   };
 
@@ -45,8 +50,8 @@ export default function AdminSidebar({
       </div>
 
       <div className="adminMenu onlyMenu">
-        {/* Customers - ONLY Admin General */}
-        {isAdminGeneral && (
+        {/* Customers - ONLY Administrateur */}
+        {isAdministrateur && (
           <button
             className={`adminMenuItem ${section === "customers" ? "active" : ""}`}
             onClick={() => setSection("customers")}
@@ -55,8 +60,18 @@ export default function AdminSidebar({
           </button>
         )}
 
-        {/* Catalog - Admin General OR Vendeur (NOT Controleur) */}
-        {(isAdminGeneral || isVendeur) && !isControleur && (
+        {/* Workers - ONLY Administrateur (add this if you have workers page) */}
+        {isAdministrateur && (
+          <button
+            className={`adminMenuItem ${section === "workers" ? "active" : ""}`}
+            onClick={() => setSection("workers")}
+          >
+            Workers
+          </button>
+        )}
+
+        {/* Catalog - Administrateur OR Gestionnaire de catalogue */}
+        {(isAdministrateur || isGestionnaireCatalogue) && (
           <button
             className={`adminMenuItem ${section === "catalog" ? "active" : ""}`}
             onClick={() => setSection("catalog")}
@@ -65,8 +80,8 @@ export default function AdminSidebar({
           </button>
         )}
 
-        {/* Dashboard - ONLY Admin General */}
-        {isAdminGeneral && (
+        {/* Dashboard - ONLY Administrateur */}
+        {isAdministrateur && (
           <button
             className={`adminMenuItem ${section === "dashboard" ? "active" : ""}`}
             onClick={() => setSection("dashboard")}
@@ -75,8 +90,8 @@ export default function AdminSidebar({
           </button>
         )}
 
-        {/* Orders - Admin General OR Controleur */}
-        {(isAdminGeneral || isControleur) && (
+        {/* Orders - Administrateur OR Responsable e-commerce */}
+        {(isAdministrateur || isResponsableEcommerce) && (
           <button
             className={`adminMenuItem ${section === "orders" ? "active" : ""}`}
             onClick={() => setSection("orders")}

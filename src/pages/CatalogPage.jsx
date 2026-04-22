@@ -1,11 +1,13 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "../lib/api";
+import { api, recommendationsApi } from "../lib/api";
 import { useFavorites } from "../hooks/useFavorites";
 import Footer from "../components/Footer";
 import "../styles/home.css";
 import "../styles/catalog.css";
+
+// ========== HELPER FUNCTIONS ==========
 
 const toAbs = (path, version = "") => {
   if (!path) return "";
@@ -149,6 +151,7 @@ function handleKeyboardOpen(e, onOpen, id) {
   if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(id); }
 }
 
+// ========== ProductCard Component ==========
 function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick, selectedColorId }) {
   const { t } = useTranslation();
   const images = useMemo(() => getProductImages(p, selectedColorId), [p, selectedColorId]);
@@ -214,6 +217,7 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick, selectedCo
   );
 }
 
+// ========== Category helpers ==========
 function flattenCategoriesFromStructure(categoryStructure) {
   const flat = [];
   if (!categoryStructure) return flat;
@@ -256,6 +260,7 @@ function getCategoryPath(categoryId, categories) {
   return path.join(" > ");
 }
 
+// ========== Main CatalogPage Component ==========
 export default function CatalogPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -281,13 +286,42 @@ export default function CatalogPage() {
   const [maxPrice, setMaxPrice] = useState("");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [nowTick, setNowTick] = useState(Date.now());
+  const [userPreferredCategory, setUserPreferredCategory] = useState(null);
+
+
+  // AI recommendations state
+  const [aiRecommendations, setAiRecommendations] = useState([]);
+  const [loadingAI, setLoadingAI] = useState(false);
 
   const { favorites, toggleFavorite } = useFavorites();
 
+  // Derived category lists
   const mainCategories = useMemo(() => {
     if (!Array.isArray(categories)) return [];
     return categories.filter(c => !c.parentId);
   }, [categories]);
+  // After articles state is populated (inside the component)
+const uniqueBrands = useMemo(() => {
+  if (!Array.isArray(articles)) return [];
+  const brands = new Set();
+  articles.forEach(article => {
+    if (article.marque && article.marque.trim()) {
+      brands.add(article.marque.trim());
+    }
+  });
+  return Array.from(brands).sort();
+}, [articles]);
+
+const uniqueMaterials = useMemo(() => {
+  if (!Array.isArray(articles)) return [];
+  const materials = new Set();
+  articles.forEach(article => {
+    if (article.matiere && article.matiere.trim()) {
+      materials.add(article.matiere.trim());
+    }
+  });
+  return Array.from(materials).sort();
+}, [articles]);
 
   const subCategories = useMemo(() => {
     if (!Array.isArray(categories) || !selectedMainCategoryId) return [];
@@ -299,16 +333,40 @@ export default function CatalogPage() {
     return categories.filter(c => c.parentId === selectedSubCategoryId);
   }, [categories, selectedSubCategoryId]);
 
+  // Timers and query param
   useEffect(() => {
     const tick = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(tick);
   }, []);
+  useEffect(() => {
+  if (!articles.length) return;
+  
+  // Get user's preferred category from localStorage or use first sub category
+  const savedCategory = localStorage.getItem("preferredCategory");
+  if (savedCategory) {
+    setUserPreferredCategory(parseInt(savedCategory));
+  } else {
+    // Find a sub category with most products
+    const categoryCount = {};
+    articles.forEach(a => {
+      if (a.categorieId) {
+        categoryCount[a.categorieId] = (categoryCount[a.categorieId] || 0) + 1;
+      }
+    });
+    const topCategory = Object.entries(categoryCount).sort((a,b) => b[1] - a[1])[0];
+    if (topCategory) {
+      setUserPreferredCategory(parseInt(topCategory[0]));
+    }
+  }
+}, [articles]);
+
 
   useEffect(() => {
     const qpCategory = searchParams.get("categorieId") || "";
     if (qpCategory) setSelectedSubSubCategoryId(qpCategory);
   }, [searchParams]);
 
+  // Load articles and categories
   useEffect(() => {
     async function load() {
       try {
@@ -338,6 +396,23 @@ export default function CatalogPage() {
     load();
   }, []);
 
+  // Fetch AI recommendations
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    setLoadingAI(true);
+    recommendationsApi.get(20)
+      .then(res => {
+        const recs = (res.data || []).map(r => ({ id: r.articleId, score: r.score }));
+        setAiRecommendations(recs);
+      })
+      .catch(err => console.error("Failed to load AI recommendations:", err))
+      .finally(() => setLoadingAI(false));
+  }, []);
+
+  const recommendedIds = useMemo(() => new Set(aiRecommendations.map(r => r.id)), [aiRecommendations]);
+
+  // Reset subcategories when main category changes
   useEffect(() => {
     setSelectedSubCategoryId("");
     setSelectedSubSubCategoryId("");
@@ -347,9 +422,11 @@ export default function CatalogPage() {
     setSelectedSubSubCategoryId("");
   }, [selectedSubCategoryId]);
 
+  // Filtered and sorted articles (recommended first)
   const filtered = useMemo(() => {
     if (!Array.isArray(articles)) return [];
-    return articles.filter((a) => {
+
+    let filteredList = articles.filter((a) => {
       const s = search.trim().toLowerCase();
       const matchesSearch = !s ||
         `${a.nom || ""} ${a.description || ""} ${a.marque || ""} ${a.matiere || ""} ${a.sku || ""} ${a.categorieNom || ""}`.toLowerCase().includes(s);
@@ -376,7 +453,19 @@ export default function CatalogPage() {
       const matchesFavorites = !favoritesOnly || favorites.includes(a.id);
       return matchesSearch && matchesCategory && matchesBrand && matchesMaterial && matchesSku && matchesMin && matchesMax && matchesColor && matchesSize && matchesFavorites;
     });
-  }, [articles, search, selectedMainCategoryId, selectedSubCategoryId, selectedSubSubCategoryId, brand, material, sku, minPrice, maxPrice, colorId, sizeId, favoritesOnly, favorites, categories, subSubCategories]);
+
+    // Sort: recommended first (by score), then by id
+filteredList.sort((a, b) => {
+    const aMatchesPref = userPreferredCategory && a.categorieId === userPreferredCategory;
+    const bMatchesPref = userPreferredCategory && b.categorieId === userPreferredCategory;
+    if (aMatchesPref !== bMatchesPref) return aMatchesPref ? -1 : 1;
+    return a.id - b.id;
+  });
+
+    return filteredList;
+}, [articles, search, selectedMainCategoryId, selectedSubCategoryId, selectedSubSubCategoryId,
+    brand, material, sku, minPrice, maxPrice, colorId, sizeId, favoritesOnly, favorites,
+    categories, subSubCategories, userPreferredCategory]);
 
   function resetFilters() {
     setSearch("");
@@ -435,13 +524,31 @@ export default function CatalogPage() {
               </div>
             </div>
             <div className="filterBlock">
-              <div className="filterTitle">{t("catalog.brand", "Brand")}</div>
-              <input className="searchBox" placeholder="Nike, Adidas..." value={brand} onChange={(e) => setBrand(e.target.value)} />
-            </div>
+  <div className="filterTitle">{t("catalog.brand", "Brand")}</div>
+  <select 
+    className="searchBox" 
+    value={brand} 
+    onChange={(e) => setBrand(e.target.value)}
+  >
+    <option value="">{t("common.all", "All")}</option>
+    {uniqueBrands.map(b => (
+      <option key={b} value={b}>{b}</option>
+    ))}
+  </select>
+</div>
             <div className="filterBlock">
-              <div className="filterTitle">{t("catalog.material", "Material")}</div>
-              <input className="searchBox" placeholder="Leather, Cotton..." value={material} onChange={(e) => setMaterial(e.target.value)} />
-            </div>
+  <div className="filterTitle">{t("catalog.material", "Material")}</div>
+  <select 
+    className="searchBox" 
+    value={material} 
+    onChange={(e) => setMaterial(e.target.value)}
+  >
+    <option value="">{t("common.all", "All")}</option>
+    {uniqueMaterials.map(m => (
+      <option key={m} value={m}>{m}</option>
+    ))}
+  </select>
+</div>
             <div className="filterBlock">
               <div className="filterTitle">{t("catalog.sku", "SKU")}</div>
               <input className="searchBox" placeholder="Search SKU..." value={sku} onChange={(e) => setSku(e.target.value)} />

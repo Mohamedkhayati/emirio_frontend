@@ -40,6 +40,30 @@ function extractErrorMessage(e, fallback) {
   return data?.message || data?.error || (typeof data === "string" ? data : "") || fallback;
 }
 
+function getLoginErrorMessage(error) {
+  // 401 Unauthorized → definitely incorrect credentials
+  if (error?.response?.status === 401) {
+    return "Incorrect email or password. Please try again.";
+  }
+
+  const message = error?.response?.data?.message || error?.response?.data?.error || "";
+  const lowerMsg = message.toLowerCase();
+
+  if (
+    lowerMsg.includes("invalid") ||
+    lowerMsg.includes("incorrect") ||
+    lowerMsg.includes("wrong") ||
+    lowerMsg.includes("credentials") ||
+    lowerMsg.includes("password") ||
+    lowerMsg.includes("email")
+  ) {
+    return "Incorrect email or password. Please check your credentials.";
+  }
+
+  // If we can't detect, return the original message or a fallback
+  return message || "Login failed. Please try again later.";
+}
+
 export default function Auth({ setMe }) {
   const nav = useNavigate();
   const location = useLocation();
@@ -60,6 +84,9 @@ export default function Auth({ setMe }) {
   const [ok, setOk] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Animated alert state
+  const [alert, setAlert] = useState({ show: false, message: "", type: "error" });
+
   const isLogin = mode === "login";
 
   const title = useMemo(
@@ -78,14 +105,12 @@ export default function Auth({ setMe }) {
         const res = await api.get("/api/profile");
         const me = res.data;
         setMe?.(me);
-
         if (tokenValue) {
           persistAuth(tokenValue, normalizeRole(me?.role || ""));
         }
       } catch {
         setMe?.(null);
       }
-
       nav("/profile", {
         replace: true,
         state: { fromFreshLogin: true },
@@ -106,7 +131,8 @@ export default function Auth({ setMe }) {
     const socialError = params.get("error");
 
     if (socialError) {
-      setErr(decodeURIComponent(socialError));
+      const decodedError = decodeURIComponent(socialError);
+      showAlert(decodedError, "error");
       window.history.replaceState({}, "", "/auth?mode=login");
       return;
     }
@@ -117,6 +143,13 @@ export default function Auth({ setMe }) {
       syncMeAndGo(decodedToken);
     }
   }, [location.search, syncMeAndGo]);
+
+  function showAlert(message, type = "error") {
+    setAlert({ show: true, message, type });
+    setTimeout(() => {
+      setAlert({ show: false, message: "", type: "error" });
+    }, 4000);
+  }
 
   function switchMode(next) {
     setErr("");
@@ -137,13 +170,14 @@ export default function Auth({ setMe }) {
           email: loginEmail.trim(),
           password: loginPassword,
         });
-
         const token = res?.data?.token || "";
         setToken(token);
         await syncMeAndGo(token);
       } else {
         if (!agree) {
-          setErr(t("auth.acceptTerms"));
+          const msg = t("auth.acceptTerms");
+          setErr(msg);
+          showAlert(msg, "error");
           setLoading(false);
           return;
         }
@@ -159,18 +193,19 @@ export default function Auth({ setMe }) {
           email: email.trim(),
           password,
         });
-
         const token = loginRes?.data?.token || "";
         setToken(token);
         await syncMeAndGo(token);
       }
     } catch (e2) {
-      setErr(
-        extractErrorMessage(
-          e2,
-          isLogin ? t("auth.loginFailed", "Login failed.") : t("auth.signupFailed", "Signup failed.")
-        )
-      );
+      let errorMsg;
+      if (isLogin) {
+        errorMsg = getLoginErrorMessage(e2);
+      } else {
+        errorMsg = extractErrorMessage(e2, t("auth.signupFailed", "Signup failed."));
+      }
+      setErr(errorMsg);
+      showAlert(errorMsg, "error");
     } finally {
       setLoading(false);
     }
@@ -178,6 +213,22 @@ export default function Auth({ setMe }) {
 
   return (
     <div className="authShellSwap">
+      {/* Animated Alert */}
+      {alert.show && (
+        <div className={`animatedAlert ${alert.type}`}>
+          <div className="alertContent">
+            <span className="alertIcon">{alert.type === "error" ? "⚠️" : "✅"}</span>
+            <span className="alertMessage">{alert.message}</span>
+            <button
+              className="alertClose"
+              onClick={() => setAlert({ show: false, message: "", type: "error" })}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className={`swapCard ${isLogin ? "isLogin" : "isSignup"}`}>
         <div className="panel formPanel">
           <div className="head">
@@ -185,8 +236,8 @@ export default function Auth({ setMe }) {
             <p>{subtitle}</p>
           </div>
 
-          {err && <div className="alert error">{err}</div>}
-          {ok && <div className="alert ok">{ok}</div>}
+          {err && !alert.show && <div className="alert error">{err}</div>}
+          {ok && !alert.show && <div className="alert ok">{ok}</div>}
 
           <form className="authFormReal" onSubmit={submit}>
             {isLogin ? (
@@ -234,7 +285,6 @@ export default function Auth({ setMe }) {
                     <GoogleIcon />
                     <span>{t("auth.continueGoogle")}</span>
                   </button>
-
                   <button
                     type="button"
                     className="btnSocialReal"
@@ -321,7 +371,6 @@ export default function Auth({ setMe }) {
                     <GoogleIcon />
                     <span>{t("auth.continueGoogle")}</span>
                   </button>
-
                   <button
                     type="button"
                     className="btnSocialReal"

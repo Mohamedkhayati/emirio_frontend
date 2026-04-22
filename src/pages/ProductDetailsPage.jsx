@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
@@ -8,7 +8,6 @@ import "../styles/home.css";
 import "../styles/product-details.css";
 import { useCart } from "../context/CartContext";
 import { useFavorites } from "../hooks/useFavorites";
-
 
 const toAbs = (path, version = "") => {
   if (!path) return "";
@@ -34,14 +33,11 @@ function hasValidSaleFields(p) {
 function isSaleActive(p) {
   if (!p || !hasValidSaleFields(p)) return false;
   if (Number(p.salePrice) >= Number(p.prix || 0)) return false;
-
   const now = Date.now();
   const start = p.saleStartAt ? new Date(p.saleStartAt).getTime() : null;
   const end = p.saleEndAt ? new Date(p.saleEndAt).getTime() : null;
-
   if (start && now < start) return false;
   if (end && now > end) return false;
-
   return true;
 }
 
@@ -123,9 +119,7 @@ function pickModelUrl(obj) {
 
 function normalizeImageItem(img) {
   if (!img) return "";
-
   if (typeof img === "string") return img;
-
   return (
     img?.imageUrl ||
     img?.url ||
@@ -159,10 +153,7 @@ function pickImageList(obj) {
   );
 
   const normalizedArray = dedupeImages(fromArrays);
-
-  if (normalizedArray.length > 0) {
-    return normalizedArray;
-  }
+  if (normalizedArray.length > 0) return normalizedArray;
 
   const legacyFields = [
     obj?.imageUrl,
@@ -179,18 +170,14 @@ function pickImageList(obj) {
   return dedupeImages(legacyFields);
 }
 
-// Helper function to get full category path
 function getCategoryFullPath(category, allCategories = []) {
   if (!category) return "-";
-  
   const path = [];
   let current = category;
-  
   while (current) {
     path.unshift(current.nom);
     current = current.parent;
   }
-  
   return path.join(" > ");
 }
 
@@ -221,6 +208,8 @@ export default function ProductDetailsPage() {
   const [fullscreenType, setFullscreenType] = useState("");
   const [fullscreenSrc, setFullscreenSrc] = useState("");
 
+  const viewTrackedRef = useRef(false);
+
   async function loadData() {
     setError("");
 
@@ -242,7 +231,6 @@ export default function ProductDetailsPage() {
         ? listRes.value.data
         : [];
 
-    // Flatten categories from hierarchical structure
     let flatCategories = [];
     if (categoriesRes.status === "fulfilled") {
       const categoryData = categoriesRes.value.data;
@@ -250,13 +238,12 @@ export default function ProductDetailsPage() {
     }
     setCategories(flatCategories);
 
-    // Find the full category object for the article
     const articleCategory = flatCategories.find(c => c.id === detailProduct.categorieId);
     const categoryWithParent = articleCategory ? {
       ...articleCategory,
       parent: flatCategories.find(c => c.id === articleCategory.parentId)
     } : null;
-    
+
     setArticle({ ...detailProduct, fullCategory: categoryWithParent });
 
     if (reviewsRes.status === "fulfilled") {
@@ -278,13 +265,9 @@ export default function ProductDetailsPage() {
     setRelated(rel);
   }
 
-  // Helper function to flatten categories from hierarchical structure
   function flattenCategoriesFromStructure(categoryStructure) {
     const flat = [];
-    
     if (!categoryStructure) return flat;
-    
-    // Handle CHAUSSURES structure
     if (categoryStructure.chaussures && typeof categoryStructure.chaussures === 'object') {
       Object.values(categoryStructure.chaussures).forEach(subCategory => {
         flat.push({
@@ -293,8 +276,6 @@ export default function ProductDetailsPage() {
           parentId: null,
           level: 'SUB'
         });
-        
-        // Add sub-sub categories
         if (subCategory.children && Array.isArray(subCategory.children)) {
           subCategory.children.forEach(child => {
             flat.push({
@@ -307,8 +288,6 @@ export default function ProductDetailsPage() {
         }
       });
     }
-    
-    // Handle ACCESSOIRES structure
     if (categoryStructure.accessoires && Array.isArray(categoryStructure.accessoires)) {
       categoryStructure.accessoires.forEach(accessory => {
         flat.push({
@@ -319,7 +298,6 @@ export default function ProductDetailsPage() {
         });
       });
     }
-    
     return flat;
   }
 
@@ -349,6 +327,17 @@ export default function ProductDetailsPage() {
       mounted = false;
     };
   }, [id, t]);
+
+  useEffect(() => {
+    if (loading || error || !article || viewTrackedRef.current) return;
+
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    viewTrackedRef.current = true;
+    api.post("/api/product-views", { articleId: article.id })
+        .catch(err => console.warn("View tracking failed:", err));
+  }, [article, loading, error]);
 
   const variations = useMemo(() => {
     const raw =
@@ -385,15 +374,11 @@ export default function ProductDetailsPage() {
       row.totalStock += getVariationStock(v);
 
       if (!row.couleurNom) row.couleurNom = getVariationColorName(v);
-
       if (!row.couleurCodeHex || row.couleurCodeHex === "#ddd") {
         row.couleurCodeHex = getVariationColorHex(v);
       }
-
       if (!row.previewImage) row.previewImage = variationImages[0] || "";
-
       row.previewImages = dedupeImages([...(row.previewImages || []), ...variationImages]);
-
       if (!row.previewModel3dUrl) {
         row.previewModel3dUrl = pickModelUrl(v);
       }
@@ -418,19 +403,14 @@ export default function ProductDetailsPage() {
           });
         } else {
           const row = map.get(colorId);
-
           if (!row.couleurNom) row.couleurNom = getColorName(c);
-
           if (!row.couleurCodeHex || row.couleurCodeHex === "#ddd") {
             row.couleurCodeHex = getColorHex(c);
           }
-
           if (!row.previewImage) {
             row.previewImage = colorImages[0] || c?.previewImage || "";
           }
-
           row.previewImages = dedupeImages([...(row.previewImages || []), ...colorImages]);
-
           if (!row.previewModel3dUrl) {
             row.previewModel3dUrl = pickModelUrl(c);
           }
@@ -444,7 +424,6 @@ export default function ProductDetailsPage() {
           ? sum + Number(item.qty || 0)
           : sum;
       }, 0);
-
       return {
         ...color,
         remainingStock: Math.max(0, Number(color.totalStock || 0) - reservedInCart),
@@ -457,13 +436,10 @@ export default function ProductDetailsPage() {
       setSelectedColorId("");
       return;
     }
-
     const stillExists = colors.some((c) => String(c.couleurId) === String(selectedColorId));
     if (stillExists) return;
-
     const firstAvailableColor =
       colors.find((c) => Number(c.remainingStock || 0) > 0) || colors[0];
-
     setSelectedColorId(String(firstAvailableColor.couleurId));
   }, [colors, selectedColorId]);
 
@@ -483,12 +459,10 @@ export default function ProductDetailsPage() {
       setQty(1);
       return;
     }
-
     const stillExists = sizeOptions.some(
       (v) => String(getVariationSizeId(v)) === String(selectedSizeId)
     );
     if (stillExists) return;
-
     const firstAvailable = sizeOptions.find((v) => getVariationStock(v) > 0) || sizeOptions[0];
     setSelectedSizeId(String(getVariationSizeId(firstAvailable)));
     setQty(1);
@@ -498,9 +472,7 @@ export default function ProductDetailsPage() {
     return sizeOptions.find((v) => String(getVariationSizeId(v)) === String(selectedSizeId)) || null;
   }, [sizeOptions, selectedSizeId]);
 
-  const articleModelUrl = useMemo(() => {
-    return pickModelUrl(article);
-  }, [article]);
+  const articleModelUrl = useMemo(() => pickModelUrl(article), [article]);
 
   const activeModelUrl = useMemo(() => {
     if (selectedVariation) {
@@ -509,16 +481,13 @@ export default function ProductDetailsPage() {
         return toAbs(exactVariationModel, `model-${selectedVariation.id}`);
       }
     }
-
     const colorLevel = colors.find((c) => String(c.couleurId) === String(selectedColorId));
     if (colorLevel?.previewModel3dUrl) {
       return toAbs(colorLevel.previewModel3dUrl, `color-model-${colorLevel.couleurId}`);
     }
-
     if (articleModelUrl) {
       return toAbs(articleModelUrl, `article-model-${article?.id || id}`);
     }
-
     return "";
   }, [selectedVariation, colors, selectedColorId, articleModelUrl, article?.id, id]);
 
@@ -531,25 +500,17 @@ export default function ProductDetailsPage() {
         setResolvedModelSrc("");
         return;
       }
-
       try {
         const base = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8080").replace(/\/+$/, "");
         let requestUrl = activeModelUrl;
-
         if (activeModelUrl.startsWith(base)) {
           requestUrl = activeModelUrl.slice(base.length);
         }
-
         if (!requestUrl.startsWith("http") && !requestUrl.startsWith("/")) {
           requestUrl = `/${requestUrl}`;
         }
-
-        const res = await api.get(requestUrl, {
-          responseType: "blob",
-        });
-
+        const res = await api.get(requestUrl, { responseType: "blob" });
         objectUrl = URL.createObjectURL(res.data);
-
         if (!cancelled) {
           setResolvedModelSrc(objectUrl);
         }
@@ -582,7 +543,6 @@ export default function ProductDetailsPage() {
       const exactImages = pickImageList(selectedVariation);
       if (exactImages.length > 0) return exactImages;
     }
-
     const colorLevel = colors.find((c) => String(c.couleurId) === String(selectedColorId));
     if (colorLevel?.previewImages?.length) {
       return colorLevel.previewImages;
@@ -590,10 +550,8 @@ export default function ProductDetailsPage() {
     if (colorLevel?.previewImage) {
       return [colorLevel.previewImage];
     }
-
     const articleImages = pickImageList(article);
     if (articleImages.length > 0) return articleImages;
-
     return [];
   }, [selectedVariation, article, colors, selectedColorId]);
 
@@ -602,7 +560,6 @@ export default function ProductDetailsPage() {
       setActiveImage("");
       return;
     }
-
     if (!gallery.includes(activeImage)) {
       setActiveImage(gallery[0]);
     }
@@ -628,12 +585,10 @@ export default function ProductDetailsPage() {
         setFullscreenOpen(false);
       }
     };
-
     if (fullscreenOpen) {
       document.body.style.overflow = "hidden";
       window.addEventListener("keydown", onKeyDown);
     }
-
     return () => {
       document.body.style.overflow = "";
       window.removeEventListener("keydown", onKeyDown);
@@ -667,13 +622,11 @@ export default function ProductDetailsPage() {
 
   async function submitReview(e) {
     e.preventDefault();
-
     try {
       await api.post(`/api/articles/${id}/reviews`, {
         rating,
         comment: reviewText,
       });
-
       setReviewText("");
       setRating(5);
       await loadData();
@@ -690,7 +643,6 @@ export default function ProductDetailsPage() {
     : Number(selectedVariation ? getVariationPrice(selectedVariation, article) : article?.prix);
 
   const rawStock = selectedVariation ? getVariationStock(selectedVariation) : 0;
-
   const qtyAlreadyInCart = selectedVariation
     ? cartItems.reduce((sum, item) => {
         return Number(item.variationId) === Number(selectedVariation.id)
@@ -698,21 +650,17 @@ export default function ProductDetailsPage() {
           : sum;
       }, 0)
     : 0;
-
   const remainingStock = Math.max(0, rawStock - qtyAlreadyInCart);
 
-  function handleAddToCart() {
+  async function handleAddToCart() {
     if (!article || !selectedVariation) return;
-
     if (remainingStock <= 0) {
       alert(t("product.soldOut", "Sold out"));
       return;
     }
-
     const limitedQty = Math.min(qty, remainingStock);
     const safeCartImage = toSafeCartImagePath(gallery[0] || "");
-
-    addToCart(
+    await addToCart(
       {
         articleId: Number(article.id),
         id: Number(article.id),
@@ -729,16 +677,15 @@ export default function ProductDetailsPage() {
       },
       limitedQty
     );
-
     setCartMessage(t("product.addedToCart", "Added to cart"));
     setQty(1);
-
+    // Refresh product data to get updated stock from backend
+    await loadData();
     setTimeout(() => {
       setCartMessage("");
     }, 2000);
   }
 
-  // Get full category path for display
   const categoryFullPath = article?.fullCategory ? getCategoryFullPath(article.fullCategory, categories) : "-";
 
   if (loading) return <div className="pdInfo">{t("common.loading", "Loading...")}</div>;
@@ -747,7 +694,6 @@ export default function ProductDetailsPage() {
 
   return (
     <div className="pdPage">
-      
       <div className="pdContainer">
         <div className="pdBreadcrumb">
           <Link to="/">{t("nav.home", "Home")}</Link>
@@ -787,7 +733,6 @@ export default function ProductDetailsPage() {
                   <span className="pdThumb3dBadge">3D</span>
                 </button>
               ) : null}
-
               {gallery.map((img, i) => (
                 <button
                   key={`${img}-${i}`}
@@ -802,32 +747,21 @@ export default function ProductDetailsPage() {
                 </button>
               ))}
             </div>
-
             <div className="pdMainImageWrap">
               {activeMediaType === "model" && resolvedModelSrc ? (
                 <>
-                  <button
-                    type="button"
-                    className="pdFullscreenBtn"
-                    onClick={openModelFullscreen}
-                  >
+                  <button type="button" className="pdFullscreenBtn" onClick={openModelFullscreen}>
                     Full screen
                   </button>
-
                   <div className="pdMediaClickLayer">
                     <ProductModelViewer src={resolvedModelSrc} alt={article.nom} />
                   </div>
                 </>
               ) : activeImage ? (
                 <>
-                  <button
-                    type="button"
-                    className="pdFullscreenBtn"
-                    onClick={openImageFullscreen}
-                  >
+                  <button type="button" className="pdFullscreenBtn" onClick={openImageFullscreen}>
                     Full screen
                   </button>
-
                   <img
                     src={toAbs(activeImage, `main-${imageVersion}`)}
                     alt={article.nom}
@@ -837,14 +771,9 @@ export default function ProductDetailsPage() {
                 </>
               ) : resolvedModelSrc ? (
                 <>
-                  <button
-                    type="button"
-                    className="pdFullscreenBtn"
-                    onClick={openModelFullscreen}
-                  >
+                  <button type="button" className="pdFullscreenBtn" onClick={openModelFullscreen}>
                     Full screen
                   </button>
-
                   <div className="pdMediaClickLayer">
                     <ProductModelViewer src={resolvedModelSrc} alt={article.nom} />
                   </div>
@@ -854,7 +783,6 @@ export default function ProductDetailsPage() {
               )}
             </div>
           </div>
-          
 
           <div className="pdSummary">
             <div className="brandTitle">EMIRIO</div>
@@ -869,13 +797,10 @@ export default function ProductDetailsPage() {
                 {isFavorite ? '♥' : '♡'}
               </button>
             </div>
-
             <p className="pdDesc">
               {article.description || t("product.noDescription", "No description available for this product.")}
             </p>
-
             <div className="pdDivider" />
-
             <div className="pdMetaGrid">
               <div>
                 <span>{t("catalog.category", "Category")}</span>
@@ -894,15 +819,12 @@ export default function ProductDetailsPage() {
                 <strong>{article.sku || "-"}</strong>
               </div>
             </div>
-
             <div className="pdDivider" />
-
             <div className="pdLabel">{t("product.color", "Color")}</div>
             <div className="pdColorRow">
               {colors.map((c) => {
                 const active = String(c.couleurId) === String(selectedColorId);
                 const soldOut = Number(c.remainingStock || 0) <= 0;
-
                 return (
                   <button
                     key={c.couleurId}
@@ -919,11 +841,9 @@ export default function ProductDetailsPage() {
                 );
               })}
             </div>
-
             <div className="pdLabel" style={{ marginTop: 18 }}>
               {t("product.size", "Size")}
             </div>
-
             <div className="pdSizeRow">
               {sizeOptions.map((v) => {
                 const sizeId = getVariationSizeId(v);
@@ -936,7 +856,6 @@ export default function ProductDetailsPage() {
                 }, 0);
                 const remainingForThisSize = Math.max(0, stockForThisSize - reservedForThisSize);
                 const soldOut = remainingForThisSize <= 0;
-
                 return (
                   <button
                     key={v.id}
@@ -950,8 +869,6 @@ export default function ProductDetailsPage() {
                 );
               })}
             </div>
-            
-
             <div className={`pdStockNotice ${remainingStock > 0 ? "ok" : "bad"}`}>
               {selectedVariation
                 ? remainingStock > 0
@@ -959,26 +876,18 @@ export default function ProductDetailsPage() {
                   : `Selected: ${getVariationColorName(selectedVariation)} / ${getVariationSizeLabel(selectedVariation)} · Sold out`
                 : "Select color and size"}
             </div>
-
             <div className="pdDivider" />
-
             <div className="pdLabel">{t("product.quantity", "Quantity")}</div>
-
             <div className="pdCartRow">
               <div className="qtyBox">
-                <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))}>
-                  -
-                </button>
+                <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))}>-</button>
                 <strong>{qty}</strong>
                 <button
                   type="button"
                   onClick={() => setQty((q) => Math.min(q + 1, Math.max(1, remainingStock)))}
                   disabled={remainingStock <= qty}
-                >
-                  +
-                </button>
+                >+</button>
               </div>
-
               <button
                 type="button"
                 className="addCartBtn"
@@ -992,8 +901,6 @@ export default function ProductDetailsPage() {
                   : t("product.soldOut", "Sold out")}
               </button>
             </div>
-            
-
             {cartMessage ? <div className="cartSuccessMsg">{cartMessage}</div> : null}
           </div>
         </section>
@@ -1010,14 +917,12 @@ export default function ProductDetailsPage() {
               {t("product.info", "Info")}
             </button>
           </div>
-
           {tab === "details" && (
             <div className="pdLongInfo">
               <h3>{t("product.productDetailsLower", "Product details")}</h3>
               <p>{article.details || t("product.noMoreDetails", "No more details.")}</p>
             </div>
           )}
-
           {tab === "shipping" && (
             <div className="pdLongInfo">
               <h3>{t("product.deliveryInfo", "Delivery information")}</h3>
@@ -1029,15 +934,11 @@ export default function ProductDetailsPage() {
               </p>
             </div>
           )}
-
           {tab === "reviews" && (
             <div className="pdLongInfo" id="pd-reviews">
               <div className="pdReviewsHead">
-                <h3>
-                  {t("product.allReviews", "All Reviews")} ({reviews.length})
-                </h3>
+                <h3>{t("product.allReviews", "All Reviews")} ({reviews.length})</h3>
               </div>
-
               <form className="reviewForm" onSubmit={submitReview}>
                 <div className="starsInput">
                   {[1, 2, 3, 4, 5].map((n) => (
@@ -1051,7 +952,6 @@ export default function ProductDetailsPage() {
                     </button>
                   ))}
                 </div>
-
                 <textarea
                   value={reviewText}
                   onChange={(e) => setReviewText(e.target.value)}
@@ -1059,12 +959,10 @@ export default function ProductDetailsPage() {
                   rows="4"
                   required
                 />
-
                 <button type="submit" className="submitReviewBtn">
                   {t("product.writeReview", "Write a Review")}
                 </button>
               </form>
-
               <div className="pdReviewsGrid">
                 {reviews.map((r) => (
                   <div key={r.id} className="pdReviewCard">
@@ -1074,10 +972,7 @@ export default function ProductDetailsPage() {
                     <p>{r.comment}</p>
                   </div>
                 ))}
-
-                {!reviews.length ? (
-                  <div className="pdInfo">{t("product.noReviews", "No reviews yet.")}</div>
-                ) : null}
+                {!reviews.length && <div className="pdInfo">{t("product.noReviews", "No reviews yet.")}</div>}
               </div>
             </div>
           )}
@@ -1085,25 +980,18 @@ export default function ProductDetailsPage() {
 
         <section className="pdRelated" id="pd-related">
           <h2>{t("product.youMightAlsoLike", "YOU MIGHT ALSO LIKE")}</h2>
-
           <div className="pdRelatedGrid">
             {related.map((p) => {
               const relatedImage = pickImageList(p)[0] || "";
-
               return (
                 <Link key={p.id} to={`/product/${p.id}`} className="pdProductCard">
                   <div className="pdProductImageWrap">
                     {relatedImage ? (
-                      <img
-                        src={toAbs(relatedImage, `related-${p.id}`)}
-                        alt={p.nom}
-                        className="pdProductImage"
-                      />
+                      <img src={toAbs(relatedImage, `related-${p.id}`)} alt={p.nom} className="pdProductImage" />
                     ) : (
                       <div className="pdEmptySmall">{t("common.noImage", "No image")}</div>
                     )}
                   </div>
-
                   <div className="pdProductName">{p.nom}</div>
                   <div className="pdProductPriceRow">
                     <strong>{fmtPrice(p.salePrice && isSaleActive(p) ? p.salePrice : p.prix)}</strong>
@@ -1117,26 +1005,12 @@ export default function ProductDetailsPage() {
 
       {fullscreenOpen ? (
         <div className="pdFullscreenOverlay" onClick={closeFullscreen}>
-          <button
-            type="button"
-            className="pdFullscreenClose"
-            onClick={closeFullscreen}
-          >
-            ✕
-          </button>
-
-          <div
-            className="pdFullscreenContent"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <button type="button" className="pdFullscreenClose" onClick={closeFullscreen}>✕</button>
+          <div className="pdFullscreenContent" onClick={(e) => e.stopPropagation()}>
             {fullscreenType === "model" ? (
               <ProductModelViewer src={fullscreenSrc} alt={`${article.nom} full screen 3D`} />
             ) : (
-              <img
-                src={fullscreenSrc}
-                alt={article.nom}
-                className="pdFullscreenImage"
-              />
+              <img src={fullscreenSrc} alt={article.nom} className="pdFullscreenImage" />
             )}
           </div>
         </div>

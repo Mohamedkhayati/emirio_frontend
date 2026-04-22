@@ -63,15 +63,38 @@ function getImageVersion(p) {
 }
 
 function getProductImages(p) {
+  if (!p) return [];
   const version = getImageVersion(p);
-  const articleImages = [p?.imageUrl, p?.imageUrl2, p?.imageUrl3, p?.imageUrl4];
-  const variationImages = Array.isArray(p?.variations)
-    ? p.variations.flatMap((v) => [v?.imageUrl, v?.imageUrl2, v?.imageUrl3, v?.imageUrl4])
-    : [];
-  const colorPreviewImages = Array.isArray(p?.colors)
-    ? p.colors.map((c) => c?.previewImage)
-    : [];
-  return uniqueImages([...articleImages, ...variationImages, ...colorPreviewImages]).map((img) => toAbs(img, version));
+  
+  let allImages = [];
+  
+  if (p?.imageUrl) allImages.push(p.imageUrl);
+  if (p?.imageUrl2) allImages.push(p.imageUrl2);
+  if (p?.imageUrl3) allImages.push(p.imageUrl3);
+  if (p?.imageUrl4) allImages.push(p.imageUrl4);
+  
+  if (Array.isArray(p?.variations)) {
+    p.variations.forEach(v => {
+      if (v?.imageUrl) allImages.push(v.imageUrl);
+      if (v?.imageUrl2) allImages.push(v.imageUrl2);
+      if (v?.imageUrl3) allImages.push(v.imageUrl3);
+      if (v?.imageUrl4) allImages.push(v.imageUrl4);
+    });
+  }
+  
+  if (Array.isArray(p?.colors)) {
+    p.colors.forEach(c => {
+      if (c?.previewImage) allImages.push(c.previewImage);
+    });
+  }
+  
+  const unique = [...new Set(allImages.filter(Boolean))];
+  return unique.map(img => toAbs(img, version));
+}
+
+function getMainProductImage(p) {
+  const images = getProductImages(p);
+  return images.length > 0 ? images[0] : null;
 }
 
 function formatCountdown(endAt, nowTick, t) {
@@ -97,6 +120,7 @@ function handleKeyboardOpen(e, onOpen, id) {
 function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
   const { t } = useTranslation();
   const images = useMemo(() => getProductImages(p), [p]);
+  const mainImage = useMemo(() => getMainProductImage(p), [p]);
   const [currentImage, setCurrentImage] = useState(0);
   const onSale = isSaleActive(p);
   const discount = getDiscountPercent(p);
@@ -117,7 +141,11 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
   return (
     <div className="productCard fadeUp" onClick={() => onOpen(p.id)} role="button" tabIndex={0} onKeyDown={(e) => handleKeyboardOpen(e, onOpen, p.id)}>
       <div className="productImageWrap">
-        {onSale && discount !== null && <div className="saleRibbon pulse">SALE -{discount}%</div>}
+        {onSale && discount !== null && (
+          <div className="saleRibbon pulse">
+            SALE -{discount}%
+          </div>
+        )}
         <button
           type="button"
           className={`favoriteBtn ${fav ? "active" : ""}`}
@@ -126,14 +154,28 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
         >
           {fav ? "♥" : "♡"}
         </button>
-        {images.length > 0 ? (
-          <img src={images[currentImage]} alt={p.nom} className="productImage imageFade" />
-        ) : (
-          <div className="productImage emptyImage">{t("common.noImage", "No image")}</div>
+        {mainImage ? (
+          <img 
+            src={mainImage} 
+            alt={p.nom} 
+            className="productImage imageFade" 
+            onError={(e) => {
+              e.target.style.display = "none";
+              if (e.target.parentElement) {
+                const fallback = e.target.parentElement.querySelector(".emptyImageFallback");
+                if (fallback) fallback.style.display = "flex";
+              }
+            }}
+          />
+        ) : null}
+        {!mainImage && (
+          <div className="productImage emptyImage emptyImageFallback" style={{ display: "flex" }}>
+            {t("common.noImage", "No image")}
+          </div>
         )}
         {images.length > 1 && (
           <div className="sliderDots">
-            {images.map((_, index) => (
+            {images.slice(0, 5).map((_, index) => (
               <span
                 key={index}
                 className={`sliderDot ${index === currentImage ? "active" : ""}`}
@@ -145,7 +187,8 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
       </div>
       <div className="productName">{p.nom}</div>
       <div className="productMeta">
-        {p.marque || "EMIRIO"} {p.recommended ? `• ${t("nav.bestChoice", "Best choice")}` : ""}
+        {p.marque || "EMIRIO"} 
+        {p.recommended && ` • ${t("nav.bestChoice", "Best choice")}`}
       </div>
       {onSale && (
         <div className="saleCountdownMini">
@@ -154,12 +197,15 @@ function ProductCard({ p, onOpen, favorites, toggleFavorite, nowTick }) {
       )}
       <div className="productPriceRow">
         <span className="priceNow">{fmtPrice(getDisplayPrice(p))}</span>
-        {onSale && <span className="priceOld">{fmtPrice(p.prix)}</span>}
-        {onSale && discount !== null && <span className="discountTag">-{discount}%</span>}
+        {onSale && (
+          <>
+            <span className="priceOld">{fmtPrice(p.prix)}</span>
+            {discount !== null && (
+              <span className="discountTag">-{discount}%</span>
+            )}
+          </>
+        )}
       </div>
-      <button type="button" className="catalogOpenBtn" onClick={(e) => { e.stopPropagation(); onOpen(p.id); }}>
-        {t("catalog.viewProduct", "View product")}
-      </button>
     </div>
   );
 }
@@ -187,8 +233,10 @@ export default function FavoritesPage() {
         setLoadingArticles(true);
         setError("");
         const res = await api.get("/api/articles");
-        setArticles((res.data || []).filter((a) => a.actif !== false));
+        const activeArticles = (res.data || []).filter((a) => a.actif !== false);
+        setArticles(activeArticles);
       } catch (e) {
+        console.error("Error loading articles:", e);
         setError(e?.response?.data?.message || "Cannot load favorites");
       } finally {
         setLoadingArticles(false);
@@ -199,7 +247,7 @@ export default function FavoritesPage() {
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-    return articles
+    let favoriteArticles = articles
       .filter((a) => favorites.includes(a.id))
       .filter((a) => {
         if (!s) return true;
@@ -207,6 +255,9 @@ export default function FavoritesPage() {
           .toLowerCase()
           .includes(s);
       });
+    
+    favoriteArticles.sort((a, b) => b.id - a.id);
+    return favoriteArticles;
   }, [articles, favorites, search]);
 
   const openProduct = (id) => navigate(`/product/${id}`);
@@ -214,27 +265,92 @@ export default function FavoritesPage() {
 
   return (
     <div className="homePage catalogPageWrap">
-      <div className="catalogLayout">
-        <section className="catalogContent fadeInUp" style={{ width: "100%" }}>
+      <div className="catalogLayout" style={{ display: "block" }}>
+        <section className="catalogContent fadeInUp" style={{ width: "100%", maxWidth: "1400px", margin: "0 auto" }}>
           <div className="catalogTop">
             <div>
-              <h2>{t("nav.favorites", "Favorites")} ({filtered.length})</h2>
-              <p>{filtered.length} {t("catalog.found", "found")}</p>
+              <h2 style={{ animation: "fadeUp 0.5s ease" }}>
+                {t("nav.favorites", "My Favorites")} 
+                <span style={{ fontSize: "24px", marginLeft: "12px", color: "#e91e63" }}>❤️</span>
+                <span style={{ fontSize: "20px", marginLeft: "8px", color: "#666" }}>({filtered.length})</span>
+              </h2>
+              <p style={{ animation: "fadeUp 0.6s ease" }}>
+                {filtered.length} {t("catalog.found", "products saved")}
+              </p>
             </div>
-            <div className="searchBar" style={{ maxWidth: 320 }}>
-              <input type="text" placeholder={t("common.searchProducts", "Search products")} value={search} onChange={(e) => setSearch(e.target.value)} />
+            <div className="searchBar" style={{ maxWidth: 320, animation: "fadeUp 0.4s ease" }}>
+              <input 
+                type="text" 
+                placeholder={t("common.searchProducts", "Search in favorites...")} 
+                value={search} 
+                onChange={(e) => setSearch(e.target.value)} 
+              />
             </div>
           </div>
+          
           {isLoading ? (
-            <div className="homeInfo">{t("common.loading", "Loading...")}</div>
+            <div className="homeInfo" style={{ animation: "fadeUp 0.5s ease" }}>
+              {t("common.loading", "Loading your favorites...")}
+            </div>
           ) : error ? (
-            <div className="homeInfo error">{error}</div>
+            <div className="homeInfo error" style={{ animation: "fadeUp 0.5s ease" }}>
+              {error}
+            </div>
           ) : !filtered.length ? (
-            <div className="homeInfo">{t("catalog.noMatch", "No matching products found.")}</div>
+            <div className="favoritesEmptyState" style={{ 
+              textAlign: "center", 
+              padding: "80px 20px",
+              animation: "fadeScale 0.6s ease"
+            }}>
+              <div style={{ fontSize: "80px", marginBottom: "20px", animation: "pulse 2s infinite" }}>💔</div>
+              <h3 style={{ fontSize: "28px", marginBottom: "12px" }}>{t("favorites.noFavorites", "No favorites yet")}</h3>
+              <p style={{ color: "#666", marginBottom: "24px" }}>
+                {t("favorites.startAdding", "Start adding products you love by clicking the heart icon.")}
+              </p>
+              <button 
+                className="applyBtn" 
+                onClick={() => navigate("/catalog")}
+                style={{ 
+                  marginTop: "20px", 
+                  padding: "14px 32px",
+                  fontSize: "16px",
+                  transition: "transform 0.3s ease, box-shadow 0.3s ease"
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.transform = "translateY(-3px)";
+                  e.target.style.boxShadow = "0 14px 28px rgba(0,0,0,0.2)";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.transform = "translateY(0)";
+                  e.target.style.boxShadow = "none";
+                }}
+              >
+                {t("favorites.browseCatalog", "Browse Catalog")} →
+              </button>
+            </div>
           ) : (
-            <div className="productsGrid catalogProductsGrid" id="catalog-grid">
-              {filtered.map((p) => (
-                <ProductCard key={p.id} p={p} onOpen={openProduct} favorites={favorites} toggleFavorite={toggleFavorite} nowTick={nowTick} />
+            <div className="productsGrid catalogProductsGrid" style={{ 
+              animation: "fadeUp 0.5s ease",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+              gap: "24px",
+              marginTop: "20px"
+            }}>
+              {filtered.map((p, index) => (
+                <div 
+                  key={p.id} 
+                  style={{ 
+                    animation: `fadeUp 0.4s ease ${index * 0.05}s both`,
+                  }}
+                >
+                  <ProductCard 
+                    p={p} 
+                    onOpen={openProduct} 
+                    favorites={favorites} 
+                    toggleFavorite={toggleFavorite} 
+                    nowTick={nowTick} 
+                  />
+                </div>
               ))}
             </div>
           )}

@@ -34,3 +34,7 @@ export const favoritesApi = {
   remove: (articleId) => api.delete(`/api/favorites/${articleId}`),
   check: (articleId) => api.get(`/api/favorites/${articleId}/check`),
 };
+
+export const recommendationsApi = {
+  get: (limit = 10) => api.get(`/api/recommendations?limit=${limit}`),
+};

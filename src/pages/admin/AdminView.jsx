@@ -1,5 +1,6 @@
 import AdminSidebar from "./AdminSidebar";
-import CustomersPage from "./CustomersPage";
+import CustomersPage from "./ClientsPage";
+import WorkersPage from "./WorkersPage";
 import CatalogPage from "./CatalogPage";
 import DashboardPage from "./DashboardPage";
 import OrdersPage from "./OrdersPage";
@@ -8,19 +9,19 @@ import ClientProfileDialog from "./ClientProfileDialog";
 export default function AdminView({
   isAdminGeneral,
   isVendeur,
-  isControleur,  // ← MAKE SURE THIS IS HERE
+  isControleur,
   currentLang,
   changeLang,
   t,
   section,
   setSection,
   customersProps,
+  workersProps,
   catalogProps,
   dashboardProps,
   ordersProps,
   clientDialogProps,
 }) {
-  // ALLOW CONTROLEUR to access admin panel
   if (!isAdminGeneral && !isVendeur && !isControleur) {
     return (
       <div className="fadeInUp">
@@ -45,22 +46,27 @@ export default function AdminView({
       />
 
       <main className="adminContent">
-        {/* Orders - accessible by Admin General AND Controleur */}
-        {(isAdminGeneral || isControleur) && section === "orders" && (
+        {/* Orders – all three roles */}
+        {(isAdminGeneral || isVendeur || isControleur) && section === "orders" && (
           <OrdersPage {...ordersProps} />
         )}
 
-        {/* Customers - only Admin General */}
+        {/* Customers – only Admin General */}
         {section === "customers" && isAdminGeneral && (
           <CustomersPage {...customersProps} />
         )}
 
-        {/* Catalog - Admin General and Vendeur (NOT Controleur) */}
-        {section === "catalog" && (isAdminGeneral || isVendeur) && (
+        {/* Workers – only Admin General */}
+        {section === "workers" && isAdminGeneral && (
+          <WorkersPage {...workersProps} />
+        )}
+
+        {/* Catalog – all three roles */}
+        {section === "catalog" && (isAdminGeneral || isVendeur || isControleur) && (
           <CatalogPage {...catalogProps} />
         )}
 
-        {/* Dashboard - only Admin General */}
+        {/* Dashboard – only Admin General */}
         {section === "dashboard" && isAdminGeneral && (
           <DashboardPage {...dashboardProps} />
         )}
