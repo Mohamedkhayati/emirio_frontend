@@ -14,7 +14,8 @@ import {
 } from "./adminShared";
 
 export default function OrdersPage() {
-  const { isAdminGeneral, isControleur } = useOutletContext();
+  // 👇 Changed from isControleurRole to isEcommerceManager
+  const { isAdminGeneral, isEcommerceManager } = useOutletContext();
 
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
@@ -40,7 +41,8 @@ export default function OrdersPage() {
   const [selectedOrderForPayments, setSelectedOrderForPayments] = useState(null);
 
   async function loadOrders() {
-    if (!isAdminGeneral && !isControleur) return;
+    // 👇 Allow both admin and e‑commerce manager
+    if (!isAdminGeneral && !isEcommerceManager) return;
     setOrdersError("");
     setOrdersLoading(true);
     try {
@@ -165,7 +167,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     loadOrders();
-  }, [isAdminGeneral, isControleur]);
+  }, [isAdminGeneral, isEcommerceManager]);
 
   useEffect(() => {
     setOrderPage(1);
@@ -202,17 +204,19 @@ export default function OrdersPage() {
     if (orderPage > totalOrderPages) setOrderPage(totalOrderPages);
   }, [orderPage, totalOrderPages]);
 
-  if (!isAdminGeneral && !isControleur) {
+  // 👇 Allow both admin and e‑commerce manager
+  if (!isAdminGeneral && !isEcommerceManager) {
     return (
       <div className="fadeInUp">
         <div className="admPage">
-          <div className="admAlert">Access denied. Only administrators and order controllers can access this page.</div>
+          <div className="admAlert">Access denied. Only administrators and e‑commerce managers can access this page.</div>
         </div>
       </div>
     );
   }
 
-  const isReadOnly = isControleur && !isAdminGeneral;
+  // 👇 Read‑only mode for e‑commerce manager (they can view but not modify)
+  const isReadOnly = isEcommerceManager && !isAdminGeneral;
 
   return (
     <div className="fadeInUp">

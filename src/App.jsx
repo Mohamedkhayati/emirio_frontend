@@ -28,7 +28,8 @@ import AdminCustomersPage from "./pages/admin/ClientsPage.jsx";
 import AdminCatalogPage from "./pages/admin/CatalogPage.jsx";
 import AdminDashboardPage from "./pages/admin/DashboardPage.jsx";
 import AdminOrdersPage from "./pages/admin/OrdersPage.jsx";
-import FloatingChat from "./components/FloatingChat";
+import FloatingChat from "./components/FloatingChat";   // ✅ keep existing
+import Chatbot from "./components/Chatbot";            // ✅ new chatbot
 
 export default function App() {
   const [me, setMe] = useState(null);
@@ -161,8 +162,13 @@ export default function App() {
           </Routes>
         </main>
 
-        {/* Floating chat – hide on auth pages and admin pages */}
-        {!isAuthRoute && !isAdminRoute && <FloatingChat me={me} />}
+        {/* Show both widgets on all pages except auth & admin */}
+        {!isAuthRoute && !isAdminRoute && (
+          <>
+            <FloatingChat me={me} />
+            <Chatbot me={me} />
+          </>
+        )}
       </div>
     </CartProvider>
   );
