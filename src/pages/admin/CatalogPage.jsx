@@ -200,7 +200,7 @@ const UI_TEXT = {
     rootCategory: "Root category",
     mainCategoryLabel: "Main Category",
     subCategoryLabel: "Sub Category",
-    subSubCategoryLabel: "Product Type",
+    productTypeLabel: "Product Type",
     selectMainCategory: "Select main category",
     selectSubCategory: "Select sub category",
     selectProductType: "Select product type",
@@ -235,12 +235,23 @@ function TablePager({ total, page, setPage, rows, setRows, rowsOptions = [3, 5, 
 }
 
 export default function CatalogPage() {
-     const { t } = useTranslation();
-    const { isAdminGeneral, isCatalogManager, isEcommerceManager } = useOutletContext(); 
+    const { t } = useTranslation();
+    const { isAdminGeneral, isCatalogManager, isEcommerceManager } = useOutletContext();
 
     const tx = (key, fallback) => {
         const value = t(key);
         return !value || value === key ? fallback : value;
+    };
+
+    const getCategoryOptions = (categories, parentId = null, level = 0) => {
+        const children = categories.filter(c => c.parentId === parentId);
+        if (!children.length) return [];
+        return children.flatMap(c => [
+            <option key={c.id} value={c.id} style={{ paddingLeft: `${level * 20}px` }}>
+                {c.nom}
+            </option>,
+            ...getCategoryOptions(categories, c.id, level + 1)
+        ]);
     };
 
     const [articles, setArticles] = useState([]);
@@ -250,16 +261,22 @@ export default function CatalogPage() {
     const [catalogError, setCatalogError] = useState("");
     const [busyCatalog, setBusyCatalog] = useState(false);
 
-    // Category hierarchy states
     const [mainCategories, setMainCategories] = useState([]);
-    const [subCategories, setSubCategories] = useState([]);
-    const [subSubCategories, setSubSubCategories] = useState([]);
     const [allCategories, setAllCategories] = useState([]);
-    
-    // Selection states for article form
+
+    // Article form category hierarchy (three levels for shoes, two for accessories)
     const [selectedMainCat, setSelectedMainCat] = useState("");
     const [selectedSubCat, setSelectedSubCat] = useState("");
-    const [selectedSubSubCat, setSelectedSubSubCat] = useState("");
+    const [selectedProductType, setSelectedProductType] = useState("");
+    const [subCategories, setSubCategories] = useState([]);
+    const [productTypes, setProductTypes] = useState([]);
+    const [isArticleMainShoes, setIsArticleMainShoes] = useState(false);
+
+    // Category dialog state (two levels)
+    const [categorySelectedMain, setCategorySelectedMain] = useState("");
+    const [categorySelectedLevel2, setCategorySelectedLevel2] = useState("");
+    const [categoryLevel2Options, setCategoryLevel2Options] = useState([]);
+    const [isCategoryMainShoes, setIsCategoryMainShoes] = useState(false);
 
     const [colors, setColors] = useState([]);
     const [sizes, setSizes] = useState([]);
@@ -342,12 +359,11 @@ export default function CatalogPage() {
     function getCategoryFullPath(categoryId) {
         const category = allCategories.find(c => c.id === categoryId);
         if (!category) return "-";
-        
         if (category.parentId) {
             const parent = allCategories.find(c => c.id === category.parentId);
             if (parent && parent.parentId) {
                 const grandParent = allCategories.find(c => c.id === parent.parentId);
-                return `${grandParent?.nom || ""} > ${parent.nom} > ${category.nom}`;
+                return `${grandParent.nom} > ${parent.nom} > ${category.nom}`;
             } else if (parent) {
                 return `${parent.nom} > ${category.nom}`;
             }
@@ -451,12 +467,28 @@ export default function CatalogPage() {
 
     const filteredArticles = useMemo(() => {
         const s = catalogQ.trim().toLowerCase();
+        const getDescendantIds = (catId) => {
+            if (!catId) return [];
+            const ids = new Set();
+            const stack = [catId];
+            while (stack.length) {
+                const current = stack.pop();
+                ids.add(String(current));
+                const children = allCategories.filter(c => c.parentId === current);
+                children.forEach(child => stack.push(child.id));
+            }
+            return Array.from(ids);
+        };
+        const allowedCategoryIds = selectedCategoryFilter
+            ? getDescendantIds(Number(selectedCategoryFilter))
+            : null;
         return articles.filter((a) => {
-            const matchesText = !s ? true : `${a.nom || ""} ${a.description || ""} ${a.categorieNom || ""} ${a.marque || ""} ${a.sku || ""}`.toLowerCase().includes(s);
-            const matchesCategory = !selectedCategoryFilter ? true : String(a.categorieId) === String(selectedCategoryFilter);
+            const matchesText = !s ? true :
+                `${a.nom || ""} ${a.description || ""} ${a.categorieNom || ""} ${a.marque || ""} ${a.sku || ""}`.toLowerCase().includes(s);
+            const matchesCategory = !selectedCategoryFilter || allowedCategoryIds.includes(String(a.categorieId));
             return matchesText && matchesCategory;
         });
-    }, [catalogQ, selectedCategoryFilter, articles]);
+    }, [catalogQ, selectedCategoryFilter, articles, allCategories]);
 
     const pagedArticles = useMemo(() => filteredArticles.slice((articlePage - 1) * articleRows, (articlePage - 1) * articleRows + articleRows), [filteredArticles, articlePage, articleRows]);
     const pagedVariations = useMemo(() => groupedVariationRows.slice((variationPage - 1) * variationRows, (variationPage - 1) * variationRows + variationRows), [groupedVariationRows, variationPage, variationRows]);
@@ -487,6 +519,7 @@ export default function CatalogPage() {
         return name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
     }
 
+    // API calls
     async function loadArticleHistory(articleId) {
         if (!articleId) return setHistoryRows([]);
         setHistoryLoading(true);
@@ -512,6 +545,19 @@ export default function CatalogPage() {
             setCatalogError(e?.response?.data?.message || e.message || UI_TEXT.errLoadVariationHistory);
         } finally {
             setHistoryLoading(false);
+        }
+    }
+
+    async function loadChildren(parentId, setter) {
+        if (!parentId) {
+            setter([]);
+            return;
+        }
+        try {
+            const res = await api.get(`/api/categories/parent/${parentId}/children`);
+            setter(res.data || []);
+        } catch (error) {
+            setter([]);
         }
     }
 
@@ -603,35 +649,8 @@ export default function CatalogPage() {
         }
     }
 
-    async function loadSubCategories(mainCategoryId) {
-        if (!mainCategoryId) {
-            setSubCategories([]);
-            return;
-        }
-        try {
-            const res = await api.get(`/api/categories/parent/${mainCategoryId}/children`);
-            setSubCategories(res.data || []);
-        } catch (error) {
-            setSubCategories([]);
-        }
-    }
-
-    async function loadSubSubCategories(subCategoryId) {
-        if (!subCategoryId) {
-            setSubSubCategories([]);
-            return;
-        }
-        try {
-            const res = await api.get(`/api/categories/parent/${subCategoryId}/children`);
-            setSubSubCategories(res.data || []);
-        } catch (error) {
-            setSubSubCategories([]);
-        }
-    }
-
     useEffect(() => { refreshCatalog(true).catch((e) => setCatalogError(e?.response?.data?.message || e.message || UI_TEXT.errLoadCatalog)); }, []);
     useEffect(() => { setFailedVariationImages({}); setFailedHistoryActors({}); }, [selectedArticle?.id]);
-
     useEffect(() => {
         if (!selectedArticle?.id) return;
         if (historyMode === "article") {
@@ -646,6 +665,7 @@ export default function CatalogPage() {
         }
     }, [historyMode, selectedArticle?.id, selectedVariationHistoryId, variations]);
 
+    // Variation helpers
     function buildSizeStocks(defaultStock = 0, colorId = "") {
         const currentColorId = Number(colorId || 0);
         return sizes.map((s) => {
@@ -690,12 +710,14 @@ export default function CatalogPage() {
         }));
     }
 
+    // Article form helpers
     function resetCategorySelections() {
         setSelectedMainCat("");
         setSelectedSubCat("");
-        setSelectedSubSubCat("");
+        setSelectedProductType("");
         setSubCategories([]);
-        setSubSubCategories([]);
+        setProductTypes([]);
+        setIsArticleMainShoes(false);
         setArticleForm(prev => ({ ...prev, categorieId: "" }));
     }
 
@@ -709,8 +731,7 @@ export default function CatalogPage() {
     function openEditArticle(article = selectedArticle) {
         if (!article) return;
         setEditingArticleId(article.id);
-        
-        // Find the category and its parents
+
         const category = allCategories.find(c => c.id === article.categorieId);
         if (category) {
             if (category.parentId) {
@@ -720,28 +741,33 @@ export default function CatalogPage() {
                     const grandParent = allCategories.find(c => c.id === parent.parentId);
                     setSelectedMainCat(grandParent?.id || "");
                     setSelectedSubCat(parent.id);
-                    setSelectedSubSubCat(category.id);
-                    loadSubCategories(grandParent?.id);
-                    loadSubSubCategories(parent.id);
+                    setSelectedProductType(category.id);
+                    setIsArticleMainShoes(grandParent?.nom?.toUpperCase() === "CHAUSSURES");
+                    loadChildren(grandParent?.id, setSubCategories).then(() => loadChildren(parent.id, setProductTypes));
                 } else if (parent) {
-                    // Two levels deep
+                    // Two levels: main -> sub (for shoes) or main -> product type (for accessories)
                     setSelectedMainCat(parent.id);
                     setSelectedSubCat(category.id);
-                    setSelectedSubSubCat("");
-                    loadSubCategories(parent.id);
+                    setSelectedProductType("");
+                    setIsArticleMainShoes(parent.nom?.toUpperCase() === "CHAUSSURES");
+                    loadChildren(parent.id, setSubCategories);
+                    setProductTypes([]);
                 }
             } else {
-                // One level only
                 setSelectedMainCat(category.id);
                 setSelectedSubCat("");
-                setSelectedSubSubCat("");
+                setSelectedProductType("");
+                setIsArticleMainShoes(category.nom?.toUpperCase() === "CHAUSSURES");
+                setSubCategories([]);
+                setProductTypes([]);
             }
         }
-        
+
         setArticleForm({
             nom: article.nom || "", description: article.description || "", details: article.details || "", prix: article.prix ?? "", actif: !!article.actif,
-            categorieId: article.categorieId || "", marque: article.marque || "", matiere: article.matiere || "", sku: article.sku || "", salePrice: article.salePrice ?? "",
-            saleStartAt: toInputDateTime(article.saleStartAt), saleEndAt: toInputDateTime(article.saleEndAt), recommended: !!article.recommended,
+            categorieId: article.categorieId || "", marque: article.marque || "", matiere: article.matiere || "", sku: article.sku || "",
+            salePrice: article.salePrice ?? "", saleStartAt: toInputDateTime(article.saleStartAt), saleEndAt: toInputDateTime(article.saleEndAt),
+            recommended: !!article.recommended,
         });
         articleDialogRef.current?.showModal();
     }
@@ -752,16 +778,14 @@ export default function CatalogPage() {
         setCatalogError("");
         const prix = Number(articleForm.prix);
         const salePrice = articleForm.salePrice !== "" ? Number(articleForm.salePrice) : null;
- if (!articleForm.categorieId) {
-        setCatalogError("Please select a complete category path (Main > Sub > Product Type)");
-        setBusyCatalog(false);
-        return;
-    }
+        if (!articleForm.categorieId) {
+            setCatalogError("Please select a complete category path");
+            setBusyCatalog(false);
+            return;
+        }
         if (!articleForm.nom.trim()) { setCatalogError(UI_TEXT.validationArticleName); setBusyCatalog(false); return; }
-        if (!articleForm.categorieId) { setCatalogError(UI_TEXT.validationCategoryRequired); setBusyCatalog(false); return; }
         if (!Number.isFinite(prix) || prix <= 0) { setCatalogError(UI_TEXT.validationPriceGreaterThanZero); setBusyCatalog(false); return; }
         if (salePrice !== null && (!Number.isFinite(salePrice) || salePrice < 0 || salePrice >= prix)) { setCatalogError(UI_TEXT.validationSaleLower); setBusyCatalog(false); return; }
-
         if (articleForm.saleStartAt && articleForm.saleEndAt) {
             if (new Date(articleForm.saleEndAt).getTime() < new Date(articleForm.saleStartAt).getTime()) { setCatalogError(UI_TEXT.validationSaleDates); setBusyCatalog(false); return; }
         }
@@ -844,13 +868,11 @@ export default function CatalogPage() {
         if (!selectedArticle) return;
         setCatalogError(""); setVariationError("");
         const couleurId = Number(variationForm.couleurId);
-
         if (!couleurId) return setVariationError(UI_TEXT.validationSelectColor);
 
         if (isAccessoryCategory) {
             const stock = Number(variationForm.quantiteStock);
             const prix = Number(variationForm.prix ?? selectedArticle?.prix);
-
             if (!Number.isFinite(stock) || stock < 0 || !Number.isInteger(stock)) return setVariationError(UI_TEXT.validationAccessoryStock);
             if (!Number.isFinite(prix) || prix <= 0) return setVariationError(UI_TEXT.validationPriceGreaterThanZero);
 
@@ -872,7 +894,6 @@ export default function CatalogPage() {
 
         const activeRows = (variationForm.sizeStocks || []).filter((row) => row.checked);
         if (!activeRows.length) return setVariationError(UI_TEXT.validationSelectOneSize);
-
         for (const row of activeRows) {
             const stock = Number(row.quantiteStock);
             if (!Number.isFinite(stock) || stock < 0 || !Number.isInteger(stock)) return setVariationError(UI_TEXT.validationStockWholeNumber.replace("{{size}}", row.label));
@@ -933,7 +954,6 @@ export default function CatalogPage() {
         const removedRows = allRows.filter((row) => !row.checked && row.variationId);
 
         if (!activeRows.length) return setVariationError(UI_TEXT.validationSelectOneSize);
-
         for (const row of activeRows) {
             const stock = Number(row.quantiteStock);
             const prix = Number(row.prix);
@@ -1007,6 +1027,7 @@ export default function CatalogPage() {
         } catch (e2) { setCatalogError(e2?.response?.data?.message || UI_TEXT.errStockUpdate); } finally { setBusyCatalog(false); }
     }
 
+    // ===================== Category Dialog (two levels) =====================
     function openCreateCategory() {
         setEditingCategoryId(null);
         setCategoryForm({
@@ -1019,6 +1040,10 @@ export default function CatalogPage() {
             iconUrl: "",
             actif: true
         });
+        setCategorySelectedMain("");
+        setCategorySelectedLevel2("");
+        setCategoryLevel2Options([]);
+        setIsCategoryMainShoes(false);
         categoryDialogRef.current?.showModal();
     }
 
@@ -1034,6 +1059,24 @@ export default function CatalogPage() {
             iconUrl: c.iconUrl || "",
             actif: c.actif !== undefined ? c.actif : true
         });
+
+        const category = allCategories.find(cat => cat.id === c.id);
+        if (category && category.parentId) {
+            const parent = allCategories.find(p => p.id === category.parentId);
+            if (parent) {
+                setCategorySelectedMain(parent.id);
+                setCategorySelectedLevel2(category.id);
+                const isShoes = parent.nom?.toUpperCase() === "CHAUSSURES";
+                setIsCategoryMainShoes(isShoes);
+                loadChildren(parent.id, setCategoryLevel2Options);
+            }
+        } else if (category) {
+            setCategorySelectedMain(category.id);
+            setCategorySelectedLevel2("");
+            const isShoes = category.nom?.toUpperCase() === "CHAUSSURES";
+            setIsCategoryMainShoes(isShoes);
+            setCategoryLevel2Options([]);
+        }
         categoryDialogRef.current?.showModal();
     }
 
@@ -1046,13 +1089,40 @@ export default function CatalogPage() {
             setBusyCatalog(false);
             return;
         }
+
+        let finalParentId = null;
+        let finalLevel = "";
+        let finalMainCategory = "";
+
+        if (categorySelectedLevel2) {
+            finalParentId = Number(categorySelectedLevel2);
+            const level2Cat = allCategories.find(c => c.id === finalParentId);
+            if (level2Cat) {
+                const parent = allCategories.find(p => p.id === level2Cat.parentId);
+                finalMainCategory = parent?.nom?.toUpperCase() || "";
+                finalLevel = "SUB";
+            }
+        } else if (categorySelectedMain) {
+            finalParentId = null;
+            finalLevel = "MAIN";
+            const main = allCategories.find(c => c.id === Number(categorySelectedMain));
+            finalMainCategory = main?.nom?.toUpperCase() || "";
+        } else {
+            finalParentId = null;
+            finalLevel = "";
+            finalMainCategory = "";
+        }
+
+        const level = finalLevel || categoryForm.level;
+        const mainCategory = finalMainCategory || categoryForm.mainCategory;
+
         try {
             const payload = {
                 nom: categoryForm.nom.trim(),
                 description: categoryForm.description?.trim() || "",
-                parentId: categoryForm.parentId || null,
-                level: categoryForm.level,
-                mainCategory: categoryForm.mainCategory,
+                parentId: finalParentId,
+                level: level,
+                mainCategory: mainCategory,
                 displayOrder: categoryForm.displayOrder || 0,
                 iconUrl: categoryForm.iconUrl || "",
                 actif: categoryForm.actif
@@ -1082,6 +1152,7 @@ export default function CatalogPage() {
         }
     }
 
+    // Colors and sizes (unchanged)
     function openCreateColor() { setEditingColorId(null); setColorForm({ nom: "", codeHex: "#000000" }); colorDialogRef.current?.showModal(); }
     function openEditColor(c) { setEditingColorId(c.id); setColorForm({ nom: c.nom || "", codeHex: c.codeHex || "#000000" }); colorDialogRef.current?.showModal(); }
 
@@ -1131,10 +1202,13 @@ export default function CatalogPage() {
             </div>
         );
     }
+
+    // ===================== RENDER =====================
     return (
         <>
             <div className="fadeInUp">
                 <div className="admPage">
+                    {/* Header and filters - same as original */}
                     <div className="admHeader">
                         <div>
                             <div className="admH1">{tx("admin.catalog.title", UI_TEXT.headerTitle)}</div>
@@ -1147,7 +1221,7 @@ export default function CatalogPage() {
                                 </div>
                                 <select className="admSearch filterSelect" value={selectedCategoryFilter} onChange={(e) => { setSelectedCategoryFilter(e.target.value); setArticlePage(1); }}>
                                     <option value="">{UI_TEXT.allCategories}</option>
-                                    {allCategories.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                                    {getCategoryOptions(allCategories)}
                                 </select>
                             </div>
                             <div className="catalogActionBar">
@@ -1163,6 +1237,7 @@ export default function CatalogPage() {
 
                     {catalogError && <div className="admAlert">{catalogError}</div>}
 
+                    {/* Articles table */}
                     <div className="admCard">
                         <div className="admCardTop">
                             <div className="admCardTitle">{filteredArticles.length} {tx("admin.common.articlesCount", UI_TEXT.articlesCount)}</div>
@@ -1223,6 +1298,7 @@ export default function CatalogPage() {
                         <TablePager total={filteredArticles.length} page={articlePage} setPage={setArticlePage} rows={articleRows} setRows={setArticleRows} rowsOptions={[5, 10, 25, 50]} />
                     </div>
 
+                    {/* Variations panel */}
                     <div className="admGrid singleCol">
                         <div className="admCard">
                             <div className="admCardTop catalogPanelTop">
@@ -1324,6 +1400,7 @@ export default function CatalogPage() {
                             )}
                         </div>
 
+                        {/* History panel */}
                         <div ref={historySectionRef} className="admCard">
                             <div className="admCardTop historyToolbar">
                                 <div>
@@ -1363,18 +1440,13 @@ export default function CatalogPage() {
                         </div>
                     </div>
 
+                    {/* Categories, Colors, Sizes tables */}
                     <div className="admGrid refsGrid">
                         <div className="admCard">
                             <div className="admCardTop"><div className="admCardTitle">{tx("admin.catalog.categories", UI_TEXT.categories)}</div><button type="button" className="admBtn mini" onClick={openCreateCategory}>{tx("admin.catalog.addCategory", UI_TEXT.addCategory)}</button></div>
                             <div className="adminDataTableWrap">
                                 <table className="adminDataTable compactTable">
-                                    <thead>
-                                        <tr>
-                                            <th>{UI_TEXT.categories}</th>
-                                            <th>{UI_TEXT.categoryPath}</th>
-                                            <th>{UI_TEXT.tableActions}</th>
-                                        </tr>
-                                    </thead>
+                                    <thead><tr><th>{UI_TEXT.categories}</th><th>{UI_TEXT.categoryPath}</th><th>{UI_TEXT.tableActions}</th></tr></thead>
                                     <tbody>
                                         {pagedCategories.map((c) => {
                                             const categoryPath = getCategoryFullPath(c.id);
@@ -1434,7 +1506,7 @@ export default function CatalogPage() {
                 </div>
             </div>
 
-            {/* Article Dialog with 3-LEVEL Category Selection */}
+            {/* ==================== ARTICLE DIALOG (3 levels for shoes, 2 for accessories) ==================== */}
             <dialog ref={articleDialogRef} className="admDialog productDialog">
                 <div className="admDialogHead">
                     <div className="admDialogTitle">{editingArticleId ? UI_TEXT.articleDialogEdit : UI_TEXT.articleDialogAdd}</div>
@@ -1443,7 +1515,7 @@ export default function CatalogPage() {
                 <form className="productForm admDialogBody" onSubmit={saveArticle}>
                     <label><span>{UI_TEXT.productName}</span><input value={articleForm.nom} onChange={(e) => setArticleForm({ ...articleForm, nom: e.target.value })} required /></label>
 
-                    {/* Level 1: Main Category (CHAUSSURES, ACCESSOIRES) */}
+                    {/* Level 1: Main Category */}
                     <label>
                         <span>{UI_TEXT.mainCategoryLabel}</span>
                         <select
@@ -1452,13 +1524,25 @@ export default function CatalogPage() {
                                 const mainId = e.target.value;
                                 setSelectedMainCat(mainId);
                                 setSelectedSubCat("");
-                                setSelectedSubSubCat("");
+                                setSelectedProductType("");
                                 setArticleForm({ ...articleForm, categorieId: "" });
                                 if (mainId) {
-                                    await loadSubCategories(mainId);
+                                    const mainObj = mainCategories.find(m => String(m.id) === String(mainId));
+                                    const isShoes = mainObj?.nom?.toUpperCase() === "CHAUSSURES";
+                                    setIsArticleMainShoes(isShoes);
+                                    if (isShoes) {
+                                        // For shoes: load sub categories (level 2)
+                                        await loadChildren(mainId, setSubCategories);
+                                        setProductTypes([]);
+                                    } else {
+                                        // For accessories: load product types directly (level 2)
+                                        await loadChildren(mainId, setProductTypes);
+                                        setSubCategories([]);
+                                    }
                                 } else {
                                     setSubCategories([]);
-                                    setSubSubCategories([]);
+                                    setProductTypes([]);
+                                    setIsArticleMainShoes(false);
                                 }
                             }}
                             required
@@ -1470,67 +1554,55 @@ export default function CatalogPage() {
                         </select>
                     </label>
 
-                   {/* Level 2: Sub Category */}
-{subCategories.length > 0 && (
-    <label>
-        <span>{UI_TEXT.subCategoryLabel}</span>
-        <select
-            value={selectedSubCat}
-           onChange={async (e) => {
-    const subId = e.target.value;
-    setSelectedSubCat(subId);
-    setSelectedSubSubCat("");
-    
-    // FIX: Set category based on whether sub-sub categories exist
-    if (subSubCategories.length === 0) {
-        // No deeper level - use sub-category
-        setArticleForm({ ...articleForm, categorieId: subId });
-    } else {
-        // Has deeper level - clear until user selects sub-sub
-        setArticleForm({ ...articleForm, categorieId: "" });
-    }
-    
-    if (subId) {
-        await loadSubSubCategories(subId);
-    } else {
-        setSubSubCategories([]);
-    }
-}}
-            required
-        >
-            <option value="">{UI_TEXT.selectSubCategory}</option>
-            {subCategories.map((c) => (
-                <option key={c.id} value={c.id}>{c.nom}</option>
-            ))}
-        </select>
-    </label>
-)}
-                    {/* Level 3: Sub-Sub Category (SPORT, CASUAL, etc.) */}
-                    {subSubCategories.length > 0 && (
+                    {/* Level 2: Sub Category (only for shoes) */}
+                    {isArticleMainShoes && subCategories.length > 0 && (
                         <label>
-                            <span>{UI_TEXT.subSubCategoryLabel}</span>
+                            <span>{UI_TEXT.subCategoryLabel}</span>
                             <select
-                                value={selectedSubSubCat}
-                                onChange={(e) => {
-                                    const subSubId = e.target.value;
-                                    setSelectedSubSubCat(subSubId);
-                                    setArticleForm({ ...articleForm, categorieId: subSubId });
+                                value={selectedSubCat}
+                                onChange={async (e) => {
+                                    const subId = e.target.value;
+                                    setSelectedSubCat(subId);
+                                    setSelectedProductType("");
+                                    setArticleForm({ ...articleForm, categorieId: "" });
+                                    if (subId) {
+                                        await loadChildren(subId, setProductTypes);
+                                    } else {
+                                        setProductTypes([]);
+                                    }
                                 }}
                                 required
                             >
-                                <option value="">{UI_TEXT.selectProductType}</option>
-                                {subSubCategories.map((c) => (
+                                <option value="">{UI_TEXT.selectSubCategory}</option>
+                                {subCategories.map((c) => (
                                     <option key={c.id} value={c.id}>{c.nom}</option>
                                 ))}
                             </select>
                         </label>
                     )}
 
-                    {/* If no sub-sub categories, use the sub category directly */}
-                    {subCategories.length > 0 && subSubCategories.length === 0 && (
-                        <input type="hidden" value={articleForm.categorieId} />
+                    {/* Level 3: Product Type – for shoes (after sub) or directly for accessories */}
+                    {((isArticleMainShoes && productTypes.length > 0) || (!isArticleMainShoes && productTypes.length > 0)) && (
+                        <label>
+                            <span>{UI_TEXT.productTypeLabel}</span>
+                            <select
+                                value={selectedProductType}
+                                onChange={(e) => {
+                                    const typeId = e.target.value;
+                                    setSelectedProductType(typeId);
+                                    setArticleForm({ ...articleForm, categorieId: typeId });
+                                }}
+                                required
+                            >
+                                <option value="">{UI_TEXT.selectProductType}</option>
+                                {productTypes.map((c) => (
+                                    <option key={c.id} value={c.id}>{c.nom}</option>
+                                ))}
+                            </select>
+                        </label>
                     )}
 
+                    {/* Rest of article form fields */}
                     <label><span>{UI_TEXT.price}</span><input type="number" step="0.001" min="0.001" value={articleForm.prix} onChange={(e) => setArticleForm({ ...articleForm, prix: e.target.value })} required /></label>
                     <label><span>{UI_TEXT.salePrice}</span><input type="number" step="0.001" min="0" value={articleForm.salePrice} onChange={(e) => setArticleForm({ ...articleForm, salePrice: e.target.value })} /></label>
                     <label><span>{UI_TEXT.saleStart}</span><input type="datetime-local" value={articleForm.saleStartAt} onChange={(e) => setArticleForm({ ...articleForm, saleStartAt: e.target.value })} /></label>
@@ -1546,163 +1618,164 @@ export default function CatalogPage() {
                 </form>
             </dialog>
 
-          <dialog ref={variationDialogRef} className="admDialog admDialogWide">
-    <div className="admDialogHead">
-        <div className="admDialogTitle">
-            {editingVariationGroup ? UI_TEXT.bulkEditVariation : editingVariationId ? UI_TEXT.variationDialogEdit : UI_TEXT.variationDialogAdd}
-        </div>
-        <button type="button" className="admBtn mini" onClick={closeVariationDialog}>{UI_TEXT.close}</button>
-    </div>
+            {/* Variation Dialog (unchanged) */}
+            <dialog ref={variationDialogRef} className="admDialog admDialogWide">
+                <div className="admDialogHead">
+                    <div className="admDialogTitle">
+                        {editingVariationGroup ? UI_TEXT.bulkEditVariation : editingVariationId ? UI_TEXT.variationDialogEdit : UI_TEXT.variationDialogAdd}
+                    </div>
+                    <button type="button" className="admBtn mini" onClick={closeVariationDialog}>{UI_TEXT.close}</button>
+                </div>
 
-    <form className="productForm admDialogBody" onSubmit={editingVariationGroup ? saveVariationGroup : saveVariation}>
-        <div className="variationHelp fullCol">
-            {editingVariationGroup ? `${UI_TEXT.colorGroup}: ${variationGroupForm.couleurNom}` : isAccessoryCategory ? UI_TEXT.accessoryVariationCreateHelp : UI_TEXT.variationCreateHelp}
-        </div>
+                <form className="productForm admDialogBody" onSubmit={editingVariationGroup ? saveVariationGroup : saveVariation}>
+                    <div className="variationHelp fullCol">
+                        {editingVariationGroup ? `${UI_TEXT.colorGroup}: ${variationGroupForm.couleurNom}` : isAccessoryCategory ? UI_TEXT.accessoryVariationCreateHelp : UI_TEXT.variationCreateHelp}
+                    </div>
 
-        {variationError ? <div className="admAlert fullCol">{variationError}</div> : null}
+                    {variationError && <div className="admAlert fullCol">{variationError}</div>}
 
-        {!editingVariationGroup ? (
-            <>
-                <label>
-                    <span>{UI_TEXT.colorLabel}</span>
-                    <select value={variationForm.couleurId} onChange={(e) => handleVariationColorChange(e.target.value)} required disabled={!colors.length}>
-                        <option value="">{UI_TEXT.selectColor}</option>
-                        {colors.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
-                    </select>
-                </label>
-                <label><span>{UI_TEXT.price}</span><input type="number" min="0.001" step="0.001" value={variationForm.prix} onChange={(e) => setVariationForm({ ...variationForm, prix: e.target.value })} required /></label>
-            </>
-        ) : (
-            <>
-                <label><span>{UI_TEXT.colorLabel}</span><input value={variationGroupForm.couleurNom} disabled /></label>
-                <label><span>{UI_TEXT.price}</span><input value={variationGroupForm.prix} disabled /></label>
-            </>
-        )}
+                    {!editingVariationGroup ? (
+                        <>
+                            <label>
+                                <span>{UI_TEXT.colorLabel}</span>
+                                <select value={variationForm.couleurId} onChange={(e) => handleVariationColorChange(e.target.value)} required disabled={!colors.length}>
+                                    <option value="">{UI_TEXT.selectColor}</option>
+                                    {colors.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                                </select>
+                            </label>
+                            <label><span>{UI_TEXT.price}</span><input type="number" min="0.001" step="0.001" value={variationForm.prix} onChange={(e) => setVariationForm({ ...variationForm, prix: e.target.value })} required /></label>
+                        </>
+                    ) : (
+                        <>
+                            <label><span>{UI_TEXT.colorLabel}</span><input value={variationGroupForm.couleurNom} disabled /></label>
+                            <label><span>{UI_TEXT.price}</span><input value={variationGroupForm.prix} disabled /></label>
+                        </>
+                    )}
 
-        {isAccessoryCategory ? (
-            <div className="fullCol variationAccessoryBox">
-                <div className="variationHelp">{editingVariationGroup ? UI_TEXT.accessoryVariationEditHelp : UI_TEXT.accessoryVariationCreateHelp}</div>
-                <label className="fullCol">
-                    <span>{UI_TEXT.stockLabel}</span>
-                    <input type="number" min="0" step="1" value={editingVariationGroup ? variationGroupForm.rows?.[0]?.quantiteStock ?? 0 : variationForm.quantiteStock ?? 0} onChange={(e) => {
-                        const value = e.target.value;
-                        if (editingVariationGroup) {
-                            setVariationGroupForm((prev) => ({ ...prev, rows: (prev.rows || []).length ? prev.rows.map((row, index) => index === 0 ? { ...row, quantiteStock: value } : row) : [{ tailleId: null, label: UI_TEXT.stockOnly, variationId: null, checked: true, quantiteStock: value, prix: prev.prix ?? selectedArticle?.prix ?? "" }] }));
-                        } else {
-                            setVariationForm((prev) => ({ ...prev, quantiteStock: value }));
-                        }
-                    }} required />
-                </label>
-            </div>
-        ) : (
-            <div className="fullCol variationCurrentImages">
-                <div className="variationHelp">{editingVariationGroup ? `${UI_TEXT.colorGroup}: ${variationGroupForm.couleurNom}` : `${UI_TEXT.selectedSizes}: ${variationSelectedCount}`}</div>
-                <div className="sizeStockGrid">
-                    {(editingVariationGroup ? variationGroupForm.rows : variationForm.sizeStocks || []).map((item) => (
-                        <label key={item.tailleId} className={`sizeStockCard ${item.checked ? "active" : ""} ${item.disabled ? "disabled" : ""}`}>
-                            <div className="sizeStockTop">
-                                <div className="sizeStockCheck">
-                                    <input type="checkbox" checked={!!item.checked} disabled={!editingVariationGroup && item.disabled} onChange={(e) => {
-                                        if (editingVariationGroup) {
-                                            setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, checked: e.target.checked } : row) }));
-                                        } else {
-                                            toggleVariationSize(item.tailleId, e.target.checked);
-                                        }
-                                    }} />
-                                    <span>{UI_TEXT.sizeLabel} {item.label} {!editingVariationGroup && item.disabled ? ` • ${UI_TEXT.alreadyExists}` : ""}</span>
-                                </div>
-                            </div>
-                            <div className="sizeStockBody">
+                    {isAccessoryCategory ? (
+                        <div className="fullCol variationAccessoryBox">
+                            <div className="variationHelp">{editingVariationGroup ? UI_TEXT.accessoryVariationEditHelp : UI_TEXT.accessoryVariationCreateHelp}</div>
+                            <label className="fullCol">
                                 <span>{UI_TEXT.stockLabel}</span>
-                                <input type="number" min="0" step="1" value={item.quantiteStock} disabled={!item.checked} onChange={(e) => {
+                                <input type="number" min="0" step="1" value={editingVariationGroup ? variationGroupForm.rows?.[0]?.quantiteStock ?? 0 : variationForm.quantiteStock ?? 0} onChange={(e) => {
+                                    const value = e.target.value;
                                     if (editingVariationGroup) {
-                                        setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, quantiteStock: e.target.value } : row) }));
+                                        setVariationGroupForm((prev) => ({ ...prev, rows: (prev.rows || []).length ? prev.rows.map((row, index) => index === 0 ? { ...row, quantiteStock: value } : row) : [{ tailleId: null, label: UI_TEXT.stockOnly, variationId: null, checked: true, quantiteStock: value, prix: prev.prix ?? selectedArticle?.prix ?? "" }] }));
                                     } else {
-                                        changeVariationSizeStock(item.tailleId, e.target.value);
+                                        setVariationForm((prev) => ({ ...prev, quantiteStock: value }));
                                     }
-                                }} />
-                            </div>
-                            {editingVariationGroup ? (
-                                <div className="sizeStockBody">
-                                    <span>{UI_TEXT.price}</span>
-                                    <input type="number" min="0.001" step="0.001" value={item.prix} disabled={!item.checked} onChange={(e) => {
-                                        setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, prix: e.target.value } : row) }));
-                                    }} />
-                                </div>
-                            ) : null}
-                        </label>
-                    ))}
-                </div>
-            </div>
-        )}
-
-        <label className="fullCol">
-            <span>{UI_TEXT.variationImages}</span>
-            <input type="file" accept="image/*" multiple onChange={(e) => {
-                const files = Array.from(e.target.files || []);
-                if (editingVariationGroup) setVariationGroupForm((prev) => ({ ...prev, imageFiles: files }));
-                else setVariationForm((prev) => ({ ...prev, imageFiles: files }));
-            }} />
-        </label>
-
-        {!!(editingVariationGroup ? variationGroupForm.existingImageUrls : variationForm.existingImageUrls)?.length && (
-            <div className="fullCol variationCurrentImages">
-                <div className="variationHelp">{UI_TEXT.savedVariationImages}</div>
-                <div className="variationPreviewGrid">
-                    {(editingVariationGroup ? variationGroupForm.existingImageUrls : variationForm.existingImageUrls).map((url, index) => {
-                        const imgSrc = fullImageUrl(url, `${editingVariationGroup?.key || editingVariationId || "variation"}-${index}`);
-                        return (
-                            <div key={`${url}-${index}`} className="variationPreviewItem">
-                                <button type="button" className="variationPreviewRemove" onClick={() => removeExistingVariationImage(index)} title="Remove image">×</button>
-                                {imgSrc ? (
-                                    <img src={imgSrc} alt={`Variation ${index + 1}`} className="variationPreviewThumb" onError={(e) => { e.currentTarget.style.display = "none"; const fallback = e.currentTarget.nextElementSibling; if (fallback) fallback.style.display = "flex"; }} />
-                                ) : null}
-                                <div className="variationPreviewThumb fallback" style={{ display: imgSrc ? "none" : "flex" }}>{UI_TEXT.noImage}</div>
-                                <div className="variationPreviewName">{UI_TEXT.savedImage} {index + 1}</div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        )}
-
-        <label className="fullCol">
-            <span>{UI_TEXT.model3d}</span>
-            <input type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" onChange={(e) => {
-                const file = e.target.files?.[0] || null;
-                if (editingVariationGroup) setVariationGroupForm((prev) => ({ ...prev, model3dFile: file }));
-                else setVariationForm((prev) => ({ ...prev, model3dFile: file }));
-            }} />
-        </label>
-
-        {(editingVariationGroup ? variationGroupForm.existingModel3dUrl || variationGroupForm.model3dFile : variationForm.existingModel3dUrl || variationForm.model3dFile) && (
-            <div className="fullCol variationCurrentImages">
-                <div className="variationHelp">{UI_TEXT.currentModel}</div>
-                <div className="variationModelBox">
-                    {(editingVariationGroup ? variationGroupForm.model3dFile : variationForm.model3dFile) ? (
-                        <div className="variationModelMeta"><strong>{UI_TEXT.newFile}:</strong> {(editingVariationGroup ? variationGroupForm.model3dFile : variationForm.model3dFile)?.name}</div>
-                    ) : null}
-                    {(editingVariationGroup ? variationGroupForm.existingModel3dUrl : variationForm.existingModel3dUrl) ? (
-                        <div className="variationModelMeta">
-                            <strong>{UI_TEXT.savedFile}:</strong>{" "}
-                            <a href={fullImageUrl(editingVariationGroup ? variationGroupForm.existingModel3dUrl : variationForm.existingModel3dUrl, editingVariationGroup?.key || editingVariationId || "model")} target="_blank" rel="noreferrer">
-                                {(editingVariationGroup ? variationGroupForm.existingModel3dName : variationForm.existingModel3dName) || UI_TEXT.openCurrentModel}
-                            </a>
+                                }} required />
+                            </label>
                         </div>
-                    ) : null}
-                </div>
-            </div>
-        )}
+                    ) : (
+                        <div className="fullCol variationCurrentImages">
+                            <div className="variationHelp">{editingVariationGroup ? `${UI_TEXT.colorGroup}: ${variationGroupForm.couleurNom}` : `${UI_TEXT.selectedSizes}: ${variationSelectedCount}`}</div>
+                            <div className="sizeStockGrid">
+                                {(editingVariationGroup ? variationGroupForm.rows : variationForm.sizeStocks || []).map((item) => (
+                                    <label key={item.tailleId} className={`sizeStockCard ${item.checked ? "active" : ""} ${item.disabled ? "disabled" : ""}`}>
+                                        <div className="sizeStockTop">
+                                            <div className="sizeStockCheck">
+                                                <input type="checkbox" checked={!!item.checked} disabled={!editingVariationGroup && item.disabled} onChange={(e) => {
+                                                    if (editingVariationGroup) {
+                                                        setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, checked: e.target.checked } : row) }));
+                                                    } else {
+                                                        toggleVariationSize(item.tailleId, e.target.checked);
+                                                    }
+                                                }} />
+                                                <span>{UI_TEXT.sizeLabel} {item.label} {!editingVariationGroup && item.disabled ? ` • ${UI_TEXT.alreadyExists}` : ""}</span>
+                                            </div>
+                                        </div>
+                                        <div className="sizeStockBody">
+                                            <span>{UI_TEXT.stockLabel}</span>
+                                            <input type="number" min="0" step="1" value={item.quantiteStock} disabled={!item.checked} onChange={(e) => {
+                                                if (editingVariationGroup) {
+                                                    setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, quantiteStock: e.target.value } : row) }));
+                                                } else {
+                                                    changeVariationSizeStock(item.tailleId, e.target.value);
+                                                }
+                                            }} />
+                                        </div>
+                                        {editingVariationGroup && (
+                                            <div className="sizeStockBody">
+                                                <span>{UI_TEXT.price}</span>
+                                                <input type="number" min="0.001" step="0.001" value={item.prix} disabled={!item.checked} onChange={(e) => {
+                                                    setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, prix: e.target.value } : row) }));
+                                                }} />
+                                            </div>
+                                        )}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
-        <div className="fullCol variationHelp">{UI_TEXT.variationImageHint}</div>
+                    <label className="fullCol">
+                        <span>{UI_TEXT.variationImages}</span>
+                        <input type="file" accept="image/*" multiple onChange={(e) => {
+                            const files = Array.from(e.target.files || []);
+                            if (editingVariationGroup) setVariationGroupForm((prev) => ({ ...prev, imageFiles: files }));
+                            else setVariationForm((prev) => ({ ...prev, imageFiles: files }));
+                        }} />
+                    </label>
 
-        <div className="admDialogActions fullCol">
-            <button type="submit" className="admBtn primary" disabled={busyCatalog || !colors.length || (!isAccessoryCategory && !sizes.length)}>
-                {editingVariationGroup ? UI_TEXT.saveAllSizes : editingVariationId ? UI_TEXT.updateVariation : UI_TEXT.saveVariation}
-            </button>
-        </div>
-    </form>
-</dialog>
+                    {!!(editingVariationGroup ? variationGroupForm.existingImageUrls : variationForm.existingImageUrls)?.length && (
+                        <div className="fullCol variationCurrentImages">
+                            <div className="variationHelp">{UI_TEXT.savedVariationImages}</div>
+                            <div className="variationPreviewGrid">
+                                {(editingVariationGroup ? variationGroupForm.existingImageUrls : variationForm.existingImageUrls).map((url, index) => {
+                                    const imgSrc = fullImageUrl(url, `${editingVariationGroup?.key || editingVariationId || "variation"}-${index}`);
+                                    return (
+                                        <div key={`${url}-${index}`} className="variationPreviewItem">
+                                            <button type="button" className="variationPreviewRemove" onClick={() => removeExistingVariationImage(index)} title="Remove image">×</button>
+                                            {imgSrc ? (
+                                                <img src={imgSrc} alt={`Variation ${index + 1}`} className="variationPreviewThumb" onError={(e) => { e.currentTarget.style.display = "none"; const fallback = e.currentTarget.nextElementSibling; if (fallback) fallback.style.display = "flex"; }} />
+                                            ) : null}
+                                            <div className="variationPreviewThumb fallback" style={{ display: imgSrc ? "none" : "flex" }}>{UI_TEXT.noImage}</div>
+                                            <div className="variationPreviewName">{UI_TEXT.savedImage} {index + 1}</div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    <label className="fullCol">
+                        <span>{UI_TEXT.model3d}</span>
+                        <input type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            if (editingVariationGroup) setVariationGroupForm((prev) => ({ ...prev, model3dFile: file }));
+                            else setVariationForm((prev) => ({ ...prev, model3dFile: file }));
+                        }} />
+                    </label>
+
+                    {(editingVariationGroup ? variationGroupForm.existingModel3dUrl || variationGroupForm.model3dFile : variationForm.existingModel3dUrl || variationForm.model3dFile) && (
+                        <div className="fullCol variationCurrentImages">
+                            <div className="variationHelp">{UI_TEXT.currentModel}</div>
+                            <div className="variationModelBox">
+                                {(editingVariationGroup ? variationGroupForm.model3dFile : variationForm.model3dFile) ? (
+                                    <div className="variationModelMeta"><strong>{UI_TEXT.newFile}:</strong> {(editingVariationGroup ? variationGroupForm.model3dFile : variationForm.model3dFile)?.name}</div>
+                                ) : null}
+                                {(editingVariationGroup ? variationGroupForm.existingModel3dUrl : variationForm.existingModel3dUrl) ? (
+                                    <div className="variationModelMeta">
+                                        <strong>{UI_TEXT.savedFile}:</strong>{" "}
+                                        <a href={fullImageUrl(editingVariationGroup ? variationGroupForm.existingModel3dUrl : variationForm.existingModel3dUrl, editingVariationGroup?.key || editingVariationId || "model")} target="_blank" rel="noreferrer">
+                                            {(editingVariationGroup ? variationGroupForm.existingModel3dName : variationForm.existingModel3dName) || UI_TEXT.openCurrentModel}
+                                        </a>
+                                    </div>
+                                ) : null}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="fullCol variationHelp">{UI_TEXT.variationImageHint}</div>
+
+                    <div className="admDialogActions fullCol">
+                        <button type="submit" className="admBtn primary" disabled={busyCatalog || !colors.length || (!isAccessoryCategory && !sizes.length)}>
+                            {editingVariationGroup ? UI_TEXT.saveAllSizes : editingVariationId ? UI_TEXT.updateVariation : UI_TEXT.saveVariation}
+                        </button>
+                    </div>
+                </form>
+            </dialog>
 
             {/* Stock Dialog */}
             <dialog ref={stockDialogRef} className="admDialog productDialog">
@@ -1717,19 +1790,83 @@ export default function CatalogPage() {
                 </form>
             </dialog>
 
-            {/* Category Dialog */}
+            {/* Category Dialog (two levels) */}
             <dialog ref={categoryDialogRef} className="admDialog productDialog">
-                <div className="admDialogHead"><div className="admDialogTitle">{editingCategoryId ? UI_TEXT.categoryDialogEdit : UI_TEXT.categoryDialogAdd}</div><button type="button" className="admBtn mini" onClick={() => categoryDialogRef.current?.close()}>{UI_TEXT.close}</button></div>
+                <div className="admDialogHead">
+                    <div className="admDialogTitle">{editingCategoryId ? UI_TEXT.categoryDialogEdit : UI_TEXT.categoryDialogAdd}</div>
+                    <button type="button" className="admBtn mini" onClick={() => categoryDialogRef.current?.close()}>{UI_TEXT.close}</button>
+                </div>
                 <form className="productForm admDialogBody" onSubmit={saveCategory}>
-                    <label><span>{UI_TEXT.categoryName}</span><input value={categoryForm.nom} onChange={(e) => setCategoryForm({ ...categoryForm, nom: e.target.value })} required /></label>
-                    <label><span>{UI_TEXT.parentCategory}</span><select value={categoryForm.parentId || ""} onChange={(e) => setCategoryForm({ ...categoryForm, parentId: e.target.value ? Number(e.target.value) : null })}><option value="">{UI_TEXT.rootCategory}</option>{allCategories.map((c) => (<option key={c.id} value={c.id} disabled={editingCategoryId === c.id}>{c.nom}</option>))}</select></label>
-                    <label><span>{UI_TEXT.categoryLevel}</span><select value={categoryForm.level} onChange={(e) => setCategoryForm({ ...categoryForm, level: e.target.value })}><option value="">-- Select level --</option><option value="MAIN">MAIN (CHAUSSURES, ACCESSOIRES)</option><option value="SUB">SUB (HOMME, FEMME, KIDS, UNISEX)</option><option value="SUB_SUB">SUB_SUB (SPORT, CASUAL, etc.)</option></select></label>
-                    <label><span>{UI_TEXT.mainCategory}</span><select value={categoryForm.mainCategory} onChange={(e) => setCategoryForm({ ...categoryForm, mainCategory: e.target.value })}><option value="">-- Select main category --</option><option value="CHAUSSURES">CHAUSSURES</option><option value="ACCESSOIRES">ACCESSOIRES</option></select></label>
-                    <label><span>{UI_TEXT.displayOrder}</span><input type="number" min="0" step="1" value={categoryForm.displayOrder} onChange={(e) => setCategoryForm({ ...categoryForm, displayOrder: Number(e.target.value) })} /></label>
-                    <label><span>{UI_TEXT.iconUrl}</span><input value={categoryForm.iconUrl} onChange={(e) => setCategoryForm({ ...categoryForm, iconUrl: e.target.value })} placeholder="/images/category-icon.png" /></label>
-                    <label className="checkRow"><input type="checkbox" checked={categoryForm.actif} onChange={(e) => setCategoryForm({ ...categoryForm, actif: e.target.checked })} /><span>Active</span></label>
-                    <label className="fullCol"><span>{UI_TEXT.description}</span><textarea rows="3" value={categoryForm.description} onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} /></label>
-                    <div className="admDialogActions fullCol"><button type="submit" className="admBtn primary" disabled={busyCatalog}>{editingCategoryId ? UI_TEXT.updateCategory : UI_TEXT.saveCategory}</button></div>
+                    <label className="fullCol">
+                        <span>{UI_TEXT.categoryName}</span>
+                        <input value={categoryForm.nom} onChange={(e) => setCategoryForm({ ...categoryForm, nom: e.target.value })} required />
+                    </label>
+
+                    <label className="fullCol">
+                        <span>{UI_TEXT.mainCategoryLabel}</span>
+                        <select
+                            value={categorySelectedMain}
+                            onChange={async (e) => {
+                                const mainId = e.target.value;
+                                setCategorySelectedMain(mainId);
+                                setCategorySelectedLevel2("");
+                                if (mainId) {
+                                    await loadChildren(mainId, setCategoryLevel2Options);
+                                    const mainObj = mainCategories.find(m => String(m.id) === String(mainId));
+                                    setIsCategoryMainShoes(mainObj?.nom?.toUpperCase() === "CHAUSSURES");
+                                } else {
+                                    setCategoryLevel2Options([]);
+                                    setIsCategoryMainShoes(false);
+                                }
+                            }}
+                        >
+                            <option value="">{UI_TEXT.selectMainCategory}</option>
+                            {mainCategories.map((c) => (
+                                <option key={c.id} value={c.id}>{c.nom}</option>
+                            ))}
+                        </select>
+                    </label>
+
+                    {categoryLevel2Options.length > 0 && (
+                        <label className="fullCol">
+                            <span>{isCategoryMainShoes ? UI_TEXT.subCategoryLabel : UI_TEXT.productTypeLabel}</span>
+                            <select
+                                value={categorySelectedLevel2}
+                                onChange={(e) => setCategorySelectedLevel2(e.target.value)}
+                            >
+                                <option value="">{isCategoryMainShoes ? UI_TEXT.selectSubCategory : UI_TEXT.selectProductType}</option>
+                                {categoryLevel2Options.map((c) => (
+                                    <option key={c.id} value={c.id}>{c.nom}</option>
+                                ))}
+                            </select>
+                        </label>
+                    )}
+
+                    <label className="fullCol">
+                        <span>{UI_TEXT.displayOrder}</span>
+                        <input type="number" min="0" step="1" value={categoryForm.displayOrder} onChange={(e) => setCategoryForm({ ...categoryForm, displayOrder: Number(e.target.value) })} />
+                    </label>
+
+                    <label className="fullCol">
+                        <span>{UI_TEXT.iconUrl}</span>
+                        <input value={categoryForm.iconUrl} onChange={(e) => setCategoryForm({ ...categoryForm, iconUrl: e.target.value })} placeholder="/images/category-icon.png" />
+                    </label>
+
+                    <label className="checkRow fullCol">
+                        <input type="checkbox" checked={categoryForm.actif} onChange={(e) => setCategoryForm({ ...categoryForm, actif: e.target.checked })} />
+                        <span>Active</span>
+                    </label>
+
+                    <label className="fullCol">
+                        <span>{UI_TEXT.description}</span>
+                        <textarea rows="3" value={categoryForm.description} onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} />
+                    </label>
+
+                    <div className="admDialogActions fullCol">
+                        <button type="submit" className="admBtn primary" disabled={busyCatalog}>
+                            {editingCategoryId ? UI_TEXT.updateCategory : UI_TEXT.saveCategory}
+                        </button>
+                    </div>
                 </form>
             </dialog>
 

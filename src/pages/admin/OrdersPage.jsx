@@ -7,14 +7,28 @@ import {
   fullImageUrl,
   getOrderBadgeClass,
   getOrderBadgeLabel,
-  getOrderBucket,
-  normalizeOrderStatus,
-  ORDER_PAGE_SIZE,
-  ORDER_TABS,
 } from "./adminShared";
 
+const ORDER_PAGE_SIZE = 5;
+
+const ORDER_TABS = [
+  { key: "PENDING", label: "Pending" },
+  { key: "SEND", label: "Send" },
+  { key: "CANCELLED", label: "Cancelled" },
+  { key: "DELIVERED", label: "Delivered" },
+];
+
+// Maps backend order status to tab keys
+function getOrderTabKey(statutCommande) {
+  const status = (statutCommande || "").toUpperCase();
+  if (status === "CONFIRMEE") return "SEND";
+  if (status === "ANNULEE") return "CANCELLED";
+  if (status === "LIVREE") return "DELIVERED";
+  // EN_ATTENTE, PENDING, etc. go to PENDING
+  return "PENDING";
+}
+
 export default function OrdersPage() {
-  // 👇 Changed from isControleurRole to isEcommerceManager
   const { isAdminGeneral, isEcommerceManager } = useOutletContext();
 
   const [orders, setOrders] = useState([]);
@@ -26,7 +40,7 @@ export default function OrdersPage() {
   const [orderSort, setOrderSort] = useState("newest");
   const [orderPage, setOrderPage] = useState(1);
 
-  // History modal (actions)
+  // History modal
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -41,7 +55,6 @@ export default function OrdersPage() {
   const [selectedOrderForPayments, setSelectedOrderForPayments] = useState(null);
 
   async function loadOrders() {
-    // 👇 Allow both admin and e‑commerce manager
     if (!isAdminGeneral && !isEcommerceManager) return;
     setOrdersError("");
     setOrdersLoading(true);
@@ -56,6 +69,67 @@ export default function OrdersPage() {
     }
   }
 
+  // Confirm order → status becomes CONFIRMEE (matches backend enum)
+  async function confirmOrder(id) {
+    if (!isAdminGeneral && !isEcommerceManager) return;
+    setBusyOrderId(id);
+    setOrdersError("");
+    try {
+      await api.patch(`/api/admin/orders/${id}/status`, { statutCommande: "CONFIRMEE" });
+      await loadOrders(); // order moves to SEND tab
+    } catch (e) {
+      setOrdersError(e?.response?.data?.message || "Cannot confirm order");
+    } finally {
+      setBusyOrderId(null);
+    }
+  }
+
+  async function cancelOrder(id) {
+    if (!isAdminGeneral && !isEcommerceManager) return;
+    setBusyOrderId(id);
+    setOrdersError("");
+    try {
+      await api.patch(`/api/admin/orders/${id}/status`, { statutCommande: "ANNULEE" });
+      await loadOrders();
+    } catch (e) {
+      setOrdersError(e?.response?.data?.message || "Cannot cancel order");
+    } finally {
+      setBusyOrderId(null);
+    }
+  }
+
+  // Accept/reject payment – changes payment status only, order status stays EN_ATTENTE
+  async function reviewPayment(id, accepted) {
+    if (!isAdminGeneral && !isEcommerceManager) return;
+    setBusyOrderId(id);
+    setOrdersError("");
+    try {
+      await api.patch(`/api/admin/orders/${id}/payment-review`, {
+        accepted,
+        note: accepted ? "Payment accepted by admin" : "Payment rejected by admin",
+      });
+      await loadOrders();
+    } catch (e) {
+      setOrdersError(e?.response?.data?.message || "Cannot review payment");
+    } finally {
+      setBusyOrderId(null);
+    }
+  }
+
+  async function markDelivered(id) {
+    if (!isAdminGeneral && !isEcommerceManager) return;
+    setBusyOrderId(id);
+    setOrdersError("");
+    try {
+      await api.patch(`/api/admin/orders/${id}/delivered`);
+      await loadOrders();
+    } catch (e) {
+      setOrdersError(e?.response?.data?.message || "Cannot mark order as delivered");
+    } finally {
+      setBusyOrderId(null);
+    }
+  }
+
   async function openHistory(order) {
     setSelectedOrder(order);
     setHistoryOpen(true);
@@ -66,9 +140,7 @@ export default function OrdersPage() {
       const res = await api.get(`/api/admin/orders/${order.id}/actions`);
       setHistoryItems(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
-      setHistoryError(
-        e?.response?.data?.message || "Cannot load order history."
-      );
+      setHistoryError(e?.response?.data?.message || "Cannot load order history.");
       setHistoryItems([]);
     } finally {
       setHistoryLoading(false);
@@ -106,65 +178,6 @@ export default function OrdersPage() {
     setPaymentsError("");
   }
 
-  async function confirmOrder(id) {
-    if (!isAdminGeneral) return;
-    setBusyOrderId(id);
-    setOrdersError("");
-    try {
-      await api.patch(`/api/admin/orders/${id}/status`, { statutCommande: "CONFIRMEE" });
-      await loadOrders();
-    } catch (e) {
-      setOrdersError(e?.response?.data?.message || "Cannot confirm order");
-    } finally {
-      setBusyOrderId(null);
-    }
-  }
-
-  async function cancelOrder(id) {
-    if (!isAdminGeneral) return;
-    setBusyOrderId(id);
-    setOrdersError("");
-    try {
-      await api.patch(`/api/admin/orders/${id}/status`, { statutCommande: "ANNULEE" });
-      await loadOrders();
-    } catch (e) {
-      setOrdersError(e?.response?.data?.message || "Cannot cancel order");
-    } finally {
-      setBusyOrderId(null);
-    }
-  }
-
-  async function reviewPayment(id, accepted) {
-    if (!isAdminGeneral) return;
-    setBusyOrderId(id);
-    setOrdersError("");
-    try {
-      await api.patch(`/api/admin/orders/${id}/payment-review`, {
-        accepted,
-        note: accepted ? "Payment accepted by admin" : "Payment rejected by admin",
-      });
-      await loadOrders();
-    } catch (e) {
-      setOrdersError(e?.response?.data?.message || "Cannot review payment");
-    } finally {
-      setBusyOrderId(null);
-    }
-  }
-
-  async function markDelivered(id) {
-    if (!isAdminGeneral) return;
-    setBusyOrderId(id);
-    setOrdersError("");
-    try {
-      await api.patch(`/api/admin/orders/${id}/delivered`);
-      await loadOrders();
-    } catch (e) {
-      setOrdersError(e?.response?.data?.message || "Cannot mark order as delivered");
-    } finally {
-      setBusyOrderId(null);
-    }
-  }
-
   useEffect(() => {
     loadOrders();
   }, [isAdminGeneral, isEcommerceManager]);
@@ -175,7 +188,7 @@ export default function OrdersPage() {
 
   const filteredOrders = useMemo(() => {
     const qv = orderQ.trim().toLowerCase();
-    let list = [...orders].filter((o) => getOrderBucket(o.statutCommande) === orderTab);
+    let list = [...orders].filter((o) => getOrderTabKey(o.statutCommande) === orderTab);
     if (qv) {
       list = list.filter((o) => {
         const customerName = `${o.prenomClient || ""} ${o.nomClient || ""}`.trim().toLowerCase();
@@ -204,7 +217,6 @@ export default function OrdersPage() {
     if (orderPage > totalOrderPages) setOrderPage(totalOrderPages);
   }, [orderPage, totalOrderPages]);
 
-  // 👇 Allow both admin and e‑commerce manager
   if (!isAdminGeneral && !isEcommerceManager) {
     return (
       <div className="fadeInUp">
@@ -215,33 +227,31 @@ export default function OrdersPage() {
     );
   }
 
-  // 👇 Read‑only mode for e‑commerce manager (they can view but not modify)
-  const isReadOnly = isEcommerceManager && !isAdminGeneral;
-
   return (
     <div className="fadeInUp">
       <div className="admPage ordersPage">
         <div className="ordersHero">
           <div>
             <div className="admH1">Order management</div>
-            <div className="admH2">
-              {isReadOnly
-                ? "View only mode - You can see orders but cannot modify them."
-                : "Track store orders, payment verification and order history."}
-            </div>
+            <div className="admH2">Track store orders, payment verification and order history.</div>
           </div>
           <div className="ordersHeroActions">
             <button className="admBtn" onClick={loadOrders}>Refresh</button>
           </div>
         </div>
 
-        {ordersError ? <div className="admAlert">{ordersError}</div> : null}
+        {ordersError && <div className="admAlert">{ordersError}</div>}
 
         <div className="ordersShell">
           <div className="ordersTopBar">
             <div className="ordersSearchBox">
               <span className="ordersSearchIcon">⌕</span>
-              <input className="ordersSearchInput" value={orderQ} onChange={(e) => setOrderQ(e.target.value)} placeholder="Search orders" />
+              <input
+                className="ordersSearchInput"
+                value={orderQ}
+                onChange={(e) => setOrderQ(e.target.value)}
+                placeholder="Search orders"
+              />
             </div>
             <div className="ordersSortBox">
               <select value={orderSort} onChange={(e) => setOrderSort(e.target.value)}>
@@ -255,7 +265,12 @@ export default function OrdersPage() {
 
           <div className="ordersTabs">
             {ORDER_TABS.map((tab) => (
-              <button key={tab.key} type="button" className={`ordersTab ${orderTab === tab.key ? "active" : ""}`} onClick={() => setOrderTab(tab.key)}>
+              <button
+                key={tab.key}
+                type="button"
+                className={`ordersTab ${orderTab === tab.key ? "active" : ""}`}
+                onClick={() => setOrderTab(tab.key)}
+              >
                 {tab.label}
               </button>
             ))}
@@ -287,7 +302,15 @@ export default function OrdersPage() {
                 const lines = Array.isArray(order.lignes) ? order.lignes : [];
                 const thumbs = lines.slice(0, 3);
                 const moreCount = Math.max(0, lines.length - 3);
-                const normalizedStatus = normalizeOrderStatus(order.statutCommande);
+                const isConfirmed = order.statutCommande?.toUpperCase() === "CONFIRMEE";
+                const isCancelled = order.statutCommande?.toUpperCase() === "ANNULEE";
+                const isDelivered = order.statutCommande?.toUpperCase() === "LIVREE";
+
+                const isConfirmDisabled = busyOrderId === order.id || isConfirmed || isCancelled || isDelivered;
+                const isCancelDisabled = busyOrderId === order.id || isCancelled || isDelivered;
+                const isDeliveredDisabled = busyOrderId === order.id || isDelivered;
+                const isAcceptPaymentDisabled = busyOrderId === order.id || order.statutPaiement === "ACCEPTE";
+                const isRejectPaymentDisabled = busyOrderId === order.id || order.statutPaiement === "REFUSE";
 
                 return (
                   <div key={order.id || ref} className="ordersRow" style={{ animationDelay: `${index * 70}ms` }}>
@@ -317,11 +340,11 @@ export default function OrdersPage() {
                     <div className="ordersActionsCell">
                       <button type="button" className="admBtn mini" onClick={() => openHistory(order)}>History</button>
                       <button type="button" className="admBtn mini" onClick={() => openPayments(order)}>Payments</button>
-                      <button type="button" className="admBtn mini primary" onClick={() => confirmOrder(order.id)} disabled={isReadOnly || busyOrderId === order.id || normalizedStatus === "CONFIRMEE" || normalizedStatus === "ANNULEE" || normalizedStatus === "LIVREE"}>Confirm</button>
-                      <button type="button" className="admBtn mini danger" onClick={() => cancelOrder(order.id)} disabled={isReadOnly || busyOrderId === order.id || normalizedStatus === "ANNULEE" || normalizedStatus === "LIVREE"}>Cancel</button>
-                      <button type="button" className="admBtn mini" onClick={() => reviewPayment(order.id, true)} disabled={isReadOnly || busyOrderId === order.id || order.statutPaiement === "ACCEPTE"}>Accept payment</button>
-                      <button type="button" className="admBtn mini danger" onClick={() => reviewPayment(order.id, false)} disabled={isReadOnly || busyOrderId === order.id || order.statutPaiement === "REFUSE"}>Reject payment</button>
-                      <button type="button" className="admBtn mini primary" onClick={() => markDelivered(order.id)} disabled={isReadOnly || busyOrderId === order.id || normalizeOrderStatus(order.statutCommande) === "LIVREE"}>Delivered</button>
+                      <button type="button" className="admBtn mini primary" onClick={() => confirmOrder(order.id)} disabled={isConfirmDisabled}>Confirm</button>
+                      <button type="button" className="admBtn mini danger" onClick={() => cancelOrder(order.id)} disabled={isCancelDisabled}>Cancel</button>
+                      <button type="button" className="admBtn mini" onClick={() => reviewPayment(order.id, true)} disabled={isAcceptPaymentDisabled}>Accept payment</button>
+                      <button type="button" className="admBtn mini danger" onClick={() => reviewPayment(order.id, false)} disabled={isRejectPaymentDisabled}>Reject payment</button>
+                      <button type="button" className="admBtn mini primary" onClick={() => markDelivered(order.id)} disabled={isDeliveredDisabled}>Delivered</button>
                     </div>
                     <div className="ordersPaymentCell">
                       <div><strong>{order.modePaiement || "-"}</strong></div>
@@ -351,16 +374,37 @@ export default function OrdersPage() {
           </div>
 
           <div className="ordersPagination">
-            <button type="button" className="ordersPageBtn" disabled={orderPage <= 1} onClick={() => setOrderPage(p => Math.max(1, p-1))}>Previous</button>
+            <button
+              type="button"
+              className="ordersPageBtn"
+              disabled={orderPage <= 1}
+              onClick={() => setOrderPage(p => Math.max(1, p-1))}
+            >
+              Previous
+            </button>
             {Array.from({ length: totalOrderPages }, (_, i) => i+1).map(p => (
-              <button key={p} type="button" className={`ordersPageBtn ${orderPage === p ? "active" : ""}`} onClick={() => setOrderPage(p)}>{p}</button>
+              <button
+                key={p}
+                type="button"
+                className={`ordersPageBtn ${orderPage === p ? "active" : ""}`}
+                onClick={() => setOrderPage(p)}
+              >
+                {p}
+              </button>
             ))}
-            <button type="button" className="ordersPageBtn" disabled={orderPage >= totalOrderPages} onClick={() => setOrderPage(p => Math.min(totalOrderPages, p+1))}>Next</button>
+            <button
+              type="button"
+              className="ordersPageBtn"
+              disabled={orderPage >= totalOrderPages}
+              onClick={() => setOrderPage(p => Math.min(totalOrderPages, p+1))}
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>
 
-      {/* History Modal (actions) */}
+      {/* History Modal */}
       {historyOpen && (
         <div className="ordersHistoryOverlay" onClick={closeHistory}>
           <div className="ordersHistoryModal" onClick={e => e.stopPropagation()}>

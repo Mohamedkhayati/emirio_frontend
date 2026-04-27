@@ -4,7 +4,7 @@ import { getToken, clearToken } from "./auth";
 export const api = axios.create({
   baseURL: "http://localhost:8080",
   headers: { "Content-Type": "application/json" },
-  timeout: 12000,
+  timeout: 60000, // increased from 12000 to 60 seconds for AI model loading
 });
 
 api.interceptors.request.use((config) => {

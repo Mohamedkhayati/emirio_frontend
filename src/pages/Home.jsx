@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "../lib/api";
+import { api, recommendationsApi } from "../lib/api";   // ← import recommendationsApi
 import { useFavorites } from "../hooks/useFavorites";
 import "../styles/home.css";
 
@@ -286,17 +286,20 @@ export default function Home() {
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [nowTick, setNowTick] = useState(Date.now());
 
-  // State for category-based recommendations
-  const [categoryRecommendations, setCategoryRecommendations] = useState([]);
-  const [loadingRecs, setLoadingRecs] = useState(false);
+  // --- AI recommendations from backend (based on user interactions) ---
+  const [aiRecommendations, setAiRecommendations] = useState([]);
+  const [loadingAI, setLoadingAI] = useState(false);
+  const [aiError, setAiError] = useState(null);
 
   const { favorites, toggleFavorite } = useFavorites();
 
+  // Timer for countdowns
   useEffect(() => {
     const tick = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(tick);
   }, []);
 
+  // Flatten category structure (same as catalog)
   const flattenCategories = (categoryData) => {
     const flat = [];
     if (categoryData.chaussures) {
@@ -317,6 +320,7 @@ export default function Home() {
     return flat;
   };
 
+  // Load all articles and categories
   useEffect(() => {
     async function loadData() {
       try {
@@ -342,28 +346,46 @@ export default function Home() {
     loadData();
   }, []);
 
-  // Get recommendations based on user's most interacted category
+  // Fetch AI recommendations (only if logged in)
   useEffect(() => {
-    if (!articles.length || !flatCategories.length) return;
-    
-    setLoadingRecs(true);
-    
-    // Get user's favorite categories from localStorage or default to a popular category
-    // For demo, show products from a random sub category
-    const subCategories = flatCategories.filter(c => c.level === 'SUB');
-    if (subCategories.length) {
-      // Pick a random sub category or the first one
-      const randomSubCat = subCategories[Math.floor(Math.random() * subCategories.length)];
-      const recommended = articles.filter(a => 
-        a.categorieId === randomSubCat.id && a.actif !== false
-      ).slice(0, 8);
-      setCategoryRecommendations(recommended);
-    } else {
-      setCategoryRecommendations(articles.slice(0, 8));
-    }
-    setLoadingRecs(false);
-  }, [articles, flatCategories]);
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    setLoadingAI(true);
+    setAiError(null);
+    recommendationsApi.get(8)   // fetch top 8 personalized recommendations
+      .then(res => {
+        console.log("Home recommendations:", res.data);
+        // Transform API response to match ProductCard props
+        const transformed = (res.data || []).map(rec => ({
+          id: rec.articleId,
+          nom: rec.articleName,
+          score: rec.score,
+          imageUrl1: rec.imageUrl,
+          prix: rec.price,
+          // fallback fields for ProductCard
+          imageUrl: rec.imageUrl,
+          description: "",
+          marque: "",
+          categorieId: null,
+          imageUrl2: null,
+          imageUrl3: null,
+          imageUrl4: null,
+          salePrice: null,
+          saleStartAt: null,
+          saleEndAt: null,
+          recommended: false,
+          actif: true,
+        }));
+        setAiRecommendations(transformed);
+      })
+      .catch(err => {
+        console.error("Failed to load AI recommendations:", err);
+        setAiError(err.message);
+      })
+      .finally(() => setLoadingAI(false));
+  }, []);
 
+  // Filter articles by search and category
   const filteredArticles = useMemo(() => {
     let list = [...articles];
     if (selectedCategoryId) {
@@ -376,6 +398,7 @@ export default function Home() {
     );
   }, [search, articles, selectedCategoryId]);
 
+  // Sale items (first 8)
   const saleArticles = useMemo(() =>
     filteredArticles
       .filter((a) => isSaleActive(a))
@@ -388,13 +411,16 @@ export default function Home() {
     [filteredArticles]
   );
 
+  // Recommended articles: use AI recommendations if any, otherwise fallback to admin-picked
   const recommendedArticles = useMemo(() => {
-    if (categoryRecommendations.length > 0) {
-      return categoryRecommendations;
+    if (aiRecommendations.length > 0) {
+      return aiRecommendations;
     }
+    // Fallback: articles marked as recommended by admin
     return filteredArticles.filter((a) => !!a.recommended).slice(0, 8);
-  }, [categoryRecommendations, filteredArticles]);
+  }, [aiRecommendations, filteredArticles]);
 
+  // New arrivals (latest by ID)
   const newArrivals = useMemo(() =>
     [...filteredArticles].sort((a, b) => Number(b.id) - Number(a.id)).slice(0, 8),
     [filteredArticles]
@@ -444,10 +470,10 @@ export default function Home() {
           <h2>{t("home.bestChoice", "Best choice")}</h2>
           <button className="viewAllBtn" onClick={openCatalog}>{t("common.viewAll", "View all")}</button>
         </div>
-        {loadingArticles || loadingRecs ? (
+        {loadingArticles || loadingAI ? (
           <div className="homeInfo">{t("home.loadingRecommendations", "Loading recommendations...")}</div>
-        ) : error ? (
-          <div className="homeInfo error">{error}</div>
+        ) : error || aiError ? (
+          <div className="homeInfo error">{error || aiError}</div>
         ) : !recommendedArticles.length ? (
           <div className="homeInfo">{t("home.noRecommended", "No recommended products found")}</div>
         ) : (

@@ -28,14 +28,32 @@ import AdminCustomersPage from "./pages/admin/ClientsPage.jsx";
 import AdminCatalogPage from "./pages/admin/CatalogPage.jsx";
 import AdminDashboardPage from "./pages/admin/DashboardPage.jsx";
 import AdminOrdersPage from "./pages/admin/OrdersPage.jsx";
-import FloatingChat from "./components/FloatingChat";   // ✅ keep existing
-import Chatbot from "./components/Chatbot";            // ✅ new chatbot
+import FloatingChat from "./components/FloatingChat";
+import Chatbot from "./components/Chatbot";
 
+// ---------- Visit Tracking Hook ----------
+function useVisitTracking() {
+  const location = useLocation();
+
+  useEffect(() => {
+    // Skip tracking for API calls or admin routes (optional)
+    if (location.pathname.startsWith("/admin")) return;
+    if (location.pathname.startsWith("/api")) return;
+
+    api.post("/api/visit/track", { page: location.pathname })
+      .catch(err => console.error("Visit tracking failed:", err));
+  }, [location]);
+}
+
+// ---------- Main App ----------
 export default function App() {
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
   const { i18n } = useTranslation();
   const location = useLocation();
+
+  // Track visits on every route change
+  useVisitTracking();
 
   useEffect(() => {
     async function loadMe() {
