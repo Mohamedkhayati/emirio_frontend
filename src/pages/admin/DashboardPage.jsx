@@ -88,6 +88,54 @@ function DoughnutChart({ title, labels, dataValues, colors }) {
   );
 }
 
+// ---------- Radar Chart for Categories ----------
+function CategoryRadarChart({ categories }) {
+  const [chartData, setChartData] = useState({});
+  const [chartOptions, setChartOptions] = useState({});
+
+  useEffect(() => {
+    const documentStyle = getComputedStyle(document.documentElement);
+    const textColor = documentStyle.getPropertyValue('--text-color');
+    const textColorSecondary = documentStyle.getPropertyValue('--text-color-secondary');
+
+    // categories expected: [{ name: "Homme", value: 1200 }, { name: "Femme", value: 980 }, ...]
+    const labels = categories.map(c => c.name);
+    const dataValues = categories.map(c => c.value);
+
+    const data = {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Sales / Category',
+          borderColor: documentStyle.getPropertyValue('--blue-500'),
+          pointBackgroundColor: documentStyle.getPropertyValue('--blue-500'),
+          pointBorderColor: documentStyle.getPropertyValue('--blue-500'),
+          pointHoverBackgroundColor: textColor,
+          pointHoverBorderColor: documentStyle.getPropertyValue('--blue-500'),
+          data: dataValues,
+          fill: true,
+          backgroundColor: 'rgba(54, 162, 235, 0.2)'
+        }
+      ]
+    };
+    const options = {
+      plugins: {
+        legend: { labels: { color: textColor } }
+      },
+      scales: {
+        r: {
+          grid: { color: textColorSecondary },
+          ticks: { color: textColor }
+        }
+      }
+    };
+    setChartData(data);
+    setChartOptions(options);
+  }, [categories]);
+
+  return <Chart type="radar" data={chartData} options={chartOptions} style={{ height: '300px' }} />;
+}
+
 // ---------- Main Dashboard ----------
 export default function DashboardPage() {
   const { isAdminGeneral } = useOutletContext();
@@ -99,6 +147,7 @@ export default function DashboardPage() {
   const [topCategories, setTopCategories] = useState([]);
   const [ordersByStatus, setOrdersByStatus] = useState({ labels: [], data: [] });
   const [paymentStatus, setPaymentStatus] = useState({ labels: [], data: [] });
+  const [radarCategories, setRadarCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -123,6 +172,27 @@ export default function DashboardPage() {
     const topArticlesData = await safeGet("/api/admin/stats/top-articles?limit=5", []);
     const topCategoriesData = await safeGet("/api/admin/stats/top-categories?limit=5", []);
 
+    // Radar data: if backend provides a dedicated endpoint, use it; otherwise fallback to dummy / derived data
+    let radarData = [];
+    const radarFromBackend = await safeGet("/api/admin/stats/category-radar", null);
+    if (radarFromBackend && radarFromBackend.length) {
+      radarData = radarFromBackend;
+    } else {
+      // Dummy demo data (replace later with real values)
+      radarData = [
+        { name: "Homme", value: 4500 },
+        { name: "Femme", value: 5200 },
+        { name: "Unisex", value: 2100 },
+        { name: "Accessoire", value: 870 },
+        { name: "Kids", value: 1300 }
+      ];
+      // Optional: try to map from topCategories if they match
+      if (topCategoriesData.length > 0) {
+        const catMap = new Map(topCategoriesData.map(c => [c.name.toLowerCase(), c.revenue]));
+        radarData = radarData.map(r => ({ name: r.name, value: catMap.get(r.name.toLowerCase()) || 0 }));
+      }
+    }
+
     setVisits(visitsData);
     setOrdersStats({
       totalOrders: ordersData.totalOrders,
@@ -140,6 +210,7 @@ export default function DashboardPage() {
     setDailySales({ labels: salesData.labels || [], sales: salesData.sales || [] });
     setTopArticles(topArticlesData);
     setTopCategories(topCategoriesData);
+    setRadarCategories(radarData);
     setLoading(false);
   }
 
@@ -188,6 +259,12 @@ export default function DashboardPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
           <DoughnutChart title="Orders by Status" labels={ordersByStatus.labels} dataValues={ordersByStatus.data} />
           <DoughnutChart title="Payment Status" labels={paymentStatus.labels} dataValues={paymentStatus.data} colors={['--green-500','--red-500','--orange-500']} />
+        </div>
+
+        {/* Radar Chart for Gender/Accessory Categories */}
+        <div className="admCard">
+          <div className="admCardTitle">Category Performance (Homme, Femme, Unisex, Accessoire, Kids)</div>
+          {radarCategories.length === 0 ? <div className="admAlert">No radar data</div> : <CategoryRadarChart categories={radarCategories} />}
         </div>
 
         {/* Top Articles & Categories */}
