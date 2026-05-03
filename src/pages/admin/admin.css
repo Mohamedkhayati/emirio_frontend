@@ -2836,3 +2836,205 @@ html[dir="rtl"] .variationRowMain{
 .animate-fadeIn {
   animation: fadeIn 0.3s ease-out;
 }
+.historyStats {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-color, #e2e8f0);
+    background: var(--bg-secondary, #f8fafc);
+    text-align: center;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.admHistoryDetails {
+    padding: 8px 12px;
+    background: var(--bg-tertiary, #f1f5f9);
+    border-radius: 6px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: #475569;
+}
+
+.historyToolbarActions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.historySelect {
+    min-width: 120px;
+}
+/* Enhanced History Styles */
+.historyFilters {
+    padding: 16px;
+    background: var(--bg-secondary, #f8fafc);
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.filterRow {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.filterRow:last-child {
+    margin-bottom: 0;
+}
+
+.filterGroup {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.filterGroup label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.filterGroup .admSearch {
+    margin: 0;
+}
+
+.historyStats {
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.statsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 16px;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.statLabel {
+    font-size: 11px;
+    opacity: 0.8;
+    text-transform: uppercase;
+}
+
+.statValue {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.statCreate {
+    color: #4ade80;
+}
+
+.statUpdate {
+    color: #fbbf24;
+}
+
+.statDelete {
+    color: #f87171;
+}
+
+.historyMainInfo {
+    margin-bottom: 8px;
+}
+
+.historyType {
+    font-size: 13px;
+    font-weight: 600;
+    color: #3b82f6;
+}
+
+.historySeparator {
+    margin: 0 8px;
+    color: #94a3b8;
+}
+
+.historyTarget {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1e293b;
+}
+
+.historySummary {
+    color: #475569;
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+.historyDate {
+    color: #64748b;
+    font-size: 12px;
+}
+
+.historyParentArticle {
+    color: #8b5cf6;
+    font-size: 12px;
+    margin-left: 12px;
+}
+
+.historyId {
+    color: #94a3b8;
+    font-size: 11px;
+    margin-left: 12px;
+}
+
+.deletedItemName {
+    font-weight: 500;
+    color: #dc2626;
+    text-decoration: line-through;
+}
+
+.historyFooter {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-color, #e2e8f0);
+    background: var(--bg-secondary, #f8fafc);
+    text-align: center;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.admHistoryDetails details {
+    cursor: pointer;
+}
+
+.admHistoryDetails summary {
+    color: #3b82f6;
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+
+.admHistoryDetails pre {
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 12px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 11px;
+    margin: 0;
+}
+
+.historyToolbarActions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.historySelect {
+    min-width: 140px;
+}
+
+@media (max-width: 768px) {
+    .filterRow {
+        flex-direction: column;
+    }
+    
+    .statsGrid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

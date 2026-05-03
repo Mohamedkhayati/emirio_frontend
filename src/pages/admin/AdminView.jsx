@@ -1,15 +1,7 @@
-import AdminSidebar from "./AdminSidebar";
-import CustomersPage from "./ClientsPage";
-import WorkersPage from "./WorkersPage";
-import CatalogPage from "./CatalogPage";
-import DashboardPage from "./DashboardPage";
-import OrdersPage from "./OrdersPage";
-import ClientProfileDialog from "./ClientProfileDialog";
-
 export default function AdminView({
   isAdminGeneral,
-  isVendeur,
-  isControleur,
+  isCatalogManager,  // renamed from isVendeur
+  isEcommerceManager, // renamed from isControleur
   currentLang,
   changeLang,
   t,
@@ -22,7 +14,7 @@ export default function AdminView({
   ordersProps,
   clientDialogProps,
 }) {
-  if (!isAdminGeneral && !isVendeur && !isControleur) {
+  if (!isAdminGeneral && !isCatalogManager && !isEcommerceManager) {
     return (
       <div className="fadeInUp">
         <div className="admPage">
@@ -36,8 +28,8 @@ export default function AdminView({
     <div className="adminLayout">
       <AdminSidebar
         isAdminGeneral={isAdminGeneral}
-        isVendeur={isVendeur}
-        isControleur={isControleur}
+        isCatalogManager={isCatalogManager}
+        isEcommerceManager={isEcommerceManager}
         currentLang={currentLang}
         changeLang={changeLang}
         t={t}
@@ -46,27 +38,27 @@ export default function AdminView({
       />
 
       <main className="adminContent">
-        {/* Orders – all three roles */}
-        {(isAdminGeneral || isVendeur || isControleur) && section === "orders" && (
+        {(isAdminGeneral || isCatalogManager || isEcommerceManager) && section === "orders" && (
           <OrdersPage {...ordersProps} />
         )}
 
-        {/* Customers – only Admin General */}
         {section === "customers" && isAdminGeneral && (
           <CustomersPage {...customersProps} />
         )}
 
-        {/* Workers – only Admin General */}
         {section === "workers" && isAdminGeneral && (
           <WorkersPage {...workersProps} />
         )}
 
-        {/* Catalog – all three roles */}
-        {section === "catalog" && (isAdminGeneral || isVendeur || isControleur) && (
-          <CatalogPage {...catalogProps} />
+        {section === "catalog" && (isAdminGeneral || isCatalogManager || isEcommerceManager) && (
+          <CatalogPage 
+            isAdminGeneral={isAdminGeneral}
+            isCatalogManager={isCatalogManager}
+            isEcommerceManager={isEcommerceManager}
+            {...catalogProps} 
+          />
         )}
 
-        {/* Dashboard – only Admin General */}
         {section === "dashboard" && isAdminGeneral && (
           <DashboardPage {...dashboardProps} />
         )}

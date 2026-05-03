@@ -22,10 +22,11 @@ const normalizeRole = (role) => {
   if (!role) return "";
   const normalized = String(role).trim();
   
-  // Map old roles to new ones if needed
   if (normalized === "ADMIN_GENERAL" || normalized === "ADMIN") return "Administrateur";
   if (normalized === "VENDEUR" || normalized === "SELLER") return "Gestionnaire de catalogue";
   if (normalized === "CONTROLEUR" || normalized === "CONTROLLER") return "Responsable e-commerce";
+  if (normalized.toLowerCase() === "responsable e-commerce") return "Responsable e-commerce";
+  if (normalized.toLowerCase() === "ecommerce_manager") return "Responsable e-commerce";
   
   return normalized;
 };
@@ -57,21 +58,19 @@ export default function AdminLayout() {
   const isCatalogManager = useMemo(() => isCatalogManagerRole(role), [role]);
   const isEcommerceManager = useMemo(() => isEcommerceManagerRole(role), [role]);
 
- const allowedSections = useMemo(() => {
-  if (isAdminGeneral) return ["customers", "workers", "catalog", "dashboard", "orders", "reclamations"];
-  if (isCatalogManager) return ["catalog", "dashboard", "orders"];
-  if (isEcommerceManager) return ["orders", "reclamations"];  // <-- add reclamations
-  return [];
-}, [isAdminGeneral, isCatalogManager, isEcommerceManager]);
+  const allowedSections = useMemo(() => {
+    if (isAdminGeneral) return ["customers", "workers", "catalog", "dashboard", "orders", "reclamations"];
+    if (isCatalogManager) return ["catalog", "dashboard", "orders"];
+    if (isEcommerceManager) return ["orders", "reclamations", "catalog"];
+    return [];
+  }, [isAdminGeneral, isCatalogManager, isEcommerceManager]);
 
-  // Add this function to debug token and role
   const debugAuth = () => {
     const token = localStorage.getItem("token");
-    const role = localStorage.getItem("userRole");
+    const storedRole = localStorage.getItem("userRole");
     console.log("🔍 Debug Auth - Token:", token ? `${token.substring(0, 20)}...` : "No token");
-    console.log("🔍 Debug Auth - Stored role:", role);
+    console.log("🔍 Debug Auth - Stored role:", storedRole);
     
-    // Decode JWT token to see what's inside
     if (token) {
       try {
         const base64Url = token.split('.')[1];
@@ -85,7 +84,6 @@ export default function AdminLayout() {
     }
   };
 
-  // Call this in useEffect
   useEffect(() => {
     debugAuth();
   }, []);
@@ -154,7 +152,6 @@ export default function AdminLayout() {
     );
   }
 
-  // If no valid role, deny access
   if (!isAdminGeneral && !isCatalogManager && !isEcommerceManager) {
     return (
       <div className="adminLayout">
@@ -171,17 +168,26 @@ export default function AdminLayout() {
     );
   }
 
+  // FIXED: Declare currentSection BEFORE using it
   const currentSection = location.pathname.split("/").filter(Boolean).pop();
+  
+  // Debug logging
+  console.log("🔍 AdminLayout - Current section:", currentSection);
+  console.log("🔍 AdminLayout - Allowed sections:", allowedSections);
+  console.log("🔍 AdminLayout - Is catalog allowed?", allowedSections.includes("catalog"));
+  console.log("🔍 AdminLayout - Pathname:", location.pathname);
   
   // Redirect root /admin to the first allowed section
   if (location.pathname === "/admin") {
     const first = allowedSections[0];
+    console.log("🔍 AdminLayout - Redirecting from root to:", first);
     if (first) return <Navigate to={`/admin/${first}`} replace />;
     return <Navigate to="/" replace />;
   }
   
   // If current section is not allowed, redirect to first allowed
   if (currentSection && !allowedSections.includes(currentSection)) {
+    console.log("🔍 AdminLayout - Section not allowed, redirecting to:", allowedSections[0]);
     return <Navigate to={`/admin/${allowedSections[0]}`} replace />;
   }
 
@@ -218,30 +224,26 @@ export default function AdminLayout() {
         </div>
         
         <div className="adminMenu onlyMenu">
-          {/* Customers - ONLY Administrateur */}
           {isAdminGeneral && (
             <SidebarLink to="/admin/customers" label="Clients" />
           )}
-          {(isAdminGeneral || isEcommerceManager) && (
-  <SidebarLink to="/admin/reclamations" label="Reclamations" />
-)}
           
-          {/* Workers - ONLY Administrateur */}
+          {(isAdminGeneral || isEcommerceManager) && (
+            <SidebarLink to="/admin/reclamations" label="Reclamations" />
+          )}
+          
           {isAdminGeneral && (
             <SidebarLink to="/admin/workers" label="Workers" />
           )}
           
-          {/* Catalog: Admin + Gestionnaire de catalogue */}
-          {(isAdminGeneral || isCatalogManager) && (
+          {(isAdminGeneral || isCatalogManager || isEcommerceManager) && (
             <SidebarLink to="/admin/catalog" label="Catalog" />
           )}
           
-          {/* Dashboard: Admin + Gestionnaire de catalogue */}
           {(isAdminGeneral || isCatalogManager) && (
             <SidebarLink to="/admin/dashboard" label="Dashboard" />
           )}
 
-          {/* Orders: Admin + Ecommerce Manager + Gestionnaire de catalogue */}
           {(isAdminGeneral || isEcommerceManager || isCatalogManager) && (
             <SidebarLink to="/admin/orders" label="Orders" />
           )}

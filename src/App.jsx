@@ -36,7 +36,6 @@ function useVisitTracking() {
   const location = useLocation();
 
   useEffect(() => {
-    // Skip tracking for API calls or admin routes (optional)
     if (location.pathname.startsWith("/admin")) return;
     if (location.pathname.startsWith("/api")) return;
 
@@ -52,7 +51,6 @@ export default function App() {
   const { i18n } = useTranslation();
   const location = useLocation();
 
-  // Track visits on every route change
   useVisitTracking();
 
   useEffect(() => {
@@ -144,13 +142,12 @@ export default function App() {
                   </>
                 )}
 
-                {(isSuperAdmin || isCatalogManager) && (
-                  <Route
-                    path="catalog"
-                    element={isCatalogManager ? <VendeurCatalogPage /> : <AdminCatalogPage />}
-                  />
+                {/* Catalog - ALL admin roles can access */}
+                {(isSuperAdmin || isCatalogManager || isEcommerceManager) && (
+                  <Route path="catalog" element={<AdminCatalogPage />} />
                 )}
 
+                {/* Dashboard - Only Admin and Catalog Manager */}
                 {(isSuperAdmin || isCatalogManager) && (
                   <Route
                     path="dashboard"
@@ -158,6 +155,7 @@ export default function App() {
                   />
                 )}
 
+                {/* Orders - ALL admin roles */}
                 {(isSuperAdmin || isEcommerceManager || isCatalogManager) && (
                   <Route
                     path="orders"
@@ -165,6 +163,7 @@ export default function App() {
                   />
                 )}
 
+                {/* Reclamations - Admin and E-commerce Manager only */}
                 {(isSuperAdmin || isEcommerceManager) && (
                   <Route
                     path="reclamations"
@@ -180,7 +179,6 @@ export default function App() {
           </Routes>
         </main>
 
-        {/* Show both widgets on all pages except auth & admin */}
         {!isAuthRoute && !isAdminRoute && (
           <>
             <FloatingChat me={me} />

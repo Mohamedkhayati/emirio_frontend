@@ -233,26 +233,43 @@ function TablePager({ total, page, setPage, rows, setRows, rowsOptions = [3, 5, 
         </div>
     );
 }
+export default function CatalogPage({ 
+  isAdminGeneral: propIsAdminGeneral, 
+  isCatalogManager: propIsCatalogManager, 
+  isEcommerceManager: propIsEcommerceManager 
+}) {
+  const { t } = useTranslation();
+  
+  // Try to get from context first, fallback to props
+  let context = null;
+  try {
+    context = useOutletContext();
+  } catch (e) {
+    context = null;
+  }
+  
+  const isAdminGeneral = propIsAdminGeneral ?? context?.isAdminGeneral ?? false;
+  const isCatalogManager = propIsCatalogManager ?? context?.isCatalogManager ?? false;
+  const isEcommerceManager = propIsEcommerceManager ?? context?.isEcommerceManager ?? false;
+  
+  console.log("🔍 CatalogPage - Final roles:", { isAdminGeneral, isCatalogManager, isEcommerceManager });
+  
+  const tx = (key, fallback) => {
+    const value = t(key);
+    return !value || value === key ? fallback : value;
+  };
 
-export default function CatalogPage() {
-    const { t } = useTranslation();
-    const { isAdminGeneral, isCatalogManager, isEcommerceManager } = useOutletContext();
 
-    const tx = (key, fallback) => {
-        const value = t(key);
-        return !value || value === key ? fallback : value;
-    };
-
-    const getCategoryOptions = (categories, parentId = null, level = 0) => {
-        const children = categories.filter(c => c.parentId === parentId);
-        if (!children.length) return [];
-        return children.flatMap(c => [
-            <option key={c.id} value={c.id} style={{ paddingLeft: `${level * 20}px` }}>
-                {c.nom}
-            </option>,
-            ...getCategoryOptions(categories, c.id, level + 1)
-        ]);
-    };
+  const getCategoryOptions = (categories, parentId = null, level = 0) => {
+    const children = categories.filter(c => c.parentId === parentId);
+    if (!children.length) return [];
+    return children.flatMap(c => [
+      <option key={c.id} value={c.id} style={{ paddingLeft: `${level * 20}px` }}>
+        {c.nom}
+      </option>,
+      ...getCategoryOptions(categories, c.id, level + 1)
+    ]);
+  };
 
     const [articles, setArticles] = useState([]);
     const [selectedArticle, setSelectedArticle] = useState(null);
@@ -519,6 +536,7 @@ export default function CatalogPage() {
         return name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
     }
 
+
     // API calls
     async function loadArticleHistory(articleId) {
         if (!articleId) return setHistoryRows([]);
@@ -533,6 +551,100 @@ export default function CatalogPage() {
             setHistoryLoading(false);
         }
     }
+    // Add this state near your other state declarations (around line 200)
+const [globalHistory, setGlobalHistory] = useState([]);
+const [globalHistoryLoading, setGlobalHistoryLoading] = useState(false);
+const [historyFilter, setHistoryFilter] = useState({ 
+    action: "", 
+    targetType: "", 
+    searchTerm: "",
+    dateFrom: "",
+    dateTo: ""
+});
+// Add this function to load global history
+async function loadGlobalHistory() {
+    setGlobalHistoryLoading(true);
+    try {
+        let url = "/api/admin/catalog/history/all?limit=500";
+        
+        // Add action filter
+        if (historyFilter.action) {
+            url += `&action=${historyFilter.action}`;
+        }
+        
+        // Add target type filter
+        if (historyFilter.targetType) {
+            url += `&targetType=${historyFilter.targetType}`;
+        }
+        
+        const res = await api.get(url);
+        let filteredData = res.data || [];
+        
+        // Apply search filter (article name)
+        if (historyFilter.searchTerm) {
+            const searchLower = historyFilter.searchTerm.toLowerCase();
+            filteredData = filteredData.filter(row => 
+                (row.articleName && row.articleName.toLowerCase().includes(searchLower)) ||
+                (row.variationLabel && row.variationLabel.toLowerCase().includes(searchLower)) ||
+                (row.summary && row.summary.toLowerCase().includes(searchLower)) ||
+                (row.actorName && row.actorName.toLowerCase().includes(searchLower))
+            );
+        }
+        
+        // Apply date filters
+        if (historyFilter.dateFrom) {
+            const fromDate = new Date(historyFilter.dateFrom);
+            filteredData = filteredData.filter(row => {
+                const rowDate = new Date(row.actionAt);
+                return rowDate >= fromDate;
+            });
+        }
+        
+        if (historyFilter.dateTo) {
+            const toDate = new Date(historyFilter.dateTo);
+            toDate.setHours(23, 59, 59, 999);
+            filteredData = filteredData.filter(row => {
+                const rowDate = new Date(row.actionAt);
+                return rowDate <= toDate;
+            });
+        }
+        
+        setGlobalHistory(filteredData);
+    } catch (e) {
+        console.error("Failed to load global history:", e);
+        setCatalogError(e?.response?.data?.message || "Cannot load history");
+    } finally {
+        setGlobalHistoryLoading(false);
+    }
+}
+function handleHistoryFilterChange(type, value) {
+    setHistoryFilter(prev => ({ ...prev, [type]: value }));
+}
+function resetHistoryFilters() {
+    setHistoryFilter({ 
+        action: "", 
+        targetType: "", 
+        searchTerm: "",
+        dateFrom: "",
+        dateTo: ""
+    });
+}
+
+useEffect(() => {
+    loadGlobalHistory();
+}, [historyFilter.action, historyFilter.targetType]);
+useEffect(() => {
+    const timer = setTimeout(() => {
+        loadGlobalHistory();
+    }, 500);
+    return () => clearTimeout(timer);
+}, [historyFilter.searchTerm, historyFilter.dateFrom, historyFilter.dateTo]);
+
+
+// Add filter handler
+function handleHistoryFilterChange(type, value) {
+    setHistoryFilter(prev => ({ ...prev, [type]: value }));
+}
 
     async function loadVariationHistory(variationId) {
         if (!variationId) return setHistoryRows([]);
@@ -1400,44 +1512,285 @@ export default function CatalogPage() {
                             )}
                         </div>
 
-                        {/* History panel */}
-                        <div ref={historySectionRef} className="admCard">
-                            <div className="admCardTop historyToolbar">
-                                <div>
-                                    <div className="admCardTitle">{UI_TEXT.historyTitle}</div>
-                                    <div className="variationHint">{UI_TEXT.historyHint}</div>
-                                </div>
-                                <div className="historyToolbarActions">
-                                    <select className="admSearch historySelect" value={historyMode} onChange={(e) => setHistoryMode(e.target.value)}>
-                                        <option value="article">{UI_TEXT.articleHistory}</option>
-                                        <option value="variation">{UI_TEXT.variationHistory}</option>
-                                    </select>
-                                    {historyMode === "variation" && (
-                                        <select className="admSearch historySelectWide" value={selectedVariationHistoryId} onChange={(e) => { const id = e.target.value; setSelectedVariationHistoryId(id); if (id) loadVariationHistory(id); else setHistoryRows([]); }}>
-                                            <option value="">{UI_TEXT.selectVariation}</option>
-                                            {variations.map((v) => <option key={v.id} value={v.id}>{variationDisplayName(v)}</option>)}
-                                        </select>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="admHistoryList">
-                                {historyLoading ? (<div className="admEmpty">{UI_TEXT.loadingHistory}</div>) : !historyRows.length ? (<div className="admEmpty slim">{UI_TEXT.noHistory}</div>) : (
-                                    historyRows.map((row) => (
-                                        <div key={row.id} className="admHistoryItem">
-                                            <div className="admHistoryTop">
-                                                <div className="admProfileTop">
-                                                    {row.actorPhotoUrl && !isHistoryActorBroken(row) ? (<img src={fullImageUrl(row.actorPhotoUrl, row.actorUserId || row.id)} alt={row.actorName || "User"} className="admAvatar" onError={() => handleHistoryActorError(row)} />) : (<div className="admAvatar fallback">{initials(row.actorName)}</div>)}
-                                                    <div><div className="admName">{row.actorName || "-"}</div><div className="admRole">{row.actorEmail || "-"}</div></div>
-                                                </div>
-                                                <span className={`admBadge ${row.action === "CREATE" ? "ok" : row.action === "DELETE" ? "bad" : "neutral"}`}>{row.action}</span>
-                                            </div>
-                                            <div className="admHistoryText">{row.summary || "-"}</div>
-                                            <div className="admHistoryMeta">{fmt(row.actionAt)}</div>
-                                        </div>
-                                    ))
-                                )}
+                       {/* Enhanced Global History Panel with Filters */}
+<div ref={historySectionRef} className="admCard">
+    <div className="admCardTop historyToolbar">
+        <div>
+            <div className="admCardTitle">📜 Global Catalog History</div>
+            <div className="variationHint">Track all create, update, and delete actions across the entire catalog</div>
+        </div>
+    </div>
+    
+    {/* Advanced Filters */}
+    <div className="historyFilters">
+        <div className="filterRow">
+            <div className="filterGroup">
+                <label>Action Type</label>
+                <select 
+                    className="admSearch"
+                    value={historyFilter.action}
+                    onChange={(e) => handleHistoryFilterChange("action", e.target.value)}
+                >
+                    <option value="">All Actions</option>
+                    <option value="CREATE">📝 Created</option>
+                    <option value="UPDATE">✏️ Edited</option>
+                    <option value="DELETE">🗑️ Deleted</option>
+                </select>
+            </div>
+            
+            <div className="filterGroup">
+                <label>Target Type</label>
+                <select 
+                    className="admSearch"
+                    value={historyFilter.targetType}
+                    onChange={(e) => handleHistoryFilterChange("targetType", e.target.value)}
+                >
+                    <option value="">All Types</option>
+                    <option value="ARTICLE">📄 Articles Only</option>
+                    <option value="VARIATION">🎨 Variations Only</option>
+                </select>
+            </div>
+            
+            <div className="filterGroup">
+                <label>Search</label>
+                <input 
+                    type="text"
+                    className="admSearch"
+                    placeholder="Search by article, variation, or user..."
+                    value={historyFilter.searchTerm}
+                    onChange={(e) => handleHistoryFilterChange("searchTerm", e.target.value)}
+                />
+            </div>
+        </div>
+        
+        <div className="filterRow">
+            <div className="filterGroup">
+                <label>Date From</label>
+                <input 
+                    type="date"
+                    className="admSearch"
+                    value={historyFilter.dateFrom}
+                    onChange={(e) => handleHistoryFilterChange("dateFrom", e.target.value)}
+                />
+            </div>
+            
+            <div className="filterGroup">
+                <label>Date To</label>
+                <input 
+                    type="date"
+                    className="admSearch"
+                    value={historyFilter.dateTo}
+                    onChange={(e) => handleHistoryFilterChange("dateTo", e.target.value)}
+                />
+            </div>
+            
+            <div className="filterGroup" style={{ justifyContent: "flex-end" }}>
+                <button 
+                    type="button" 
+                    className="admBtn"
+                    onClick={resetHistoryFilters}
+                >
+                    Reset All Filters
+                </button>
+                <button 
+                    type="button" 
+                    className="admBtn primary"
+                    onClick={loadGlobalHistory}
+                >
+                    Apply Filters
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    {/* Statistics Summary */}
+    {!globalHistoryLoading && globalHistory.length > 0 && (
+        <div className="historyStats">
+            <div className="statsGrid">
+                <div className="stat">
+                    <span className="statLabel">Total Records:</span>
+                    <span className="statValue">{globalHistory.length}</span>
+                </div>
+                <div className="stat">
+                    <span className="statLabel">Creations:</span>
+                    <span className="statValue statCreate">
+                        {globalHistory.filter(h => h.action === "CREATE").length}
+                    </span>
+                </div>
+                <div className="stat">
+                    <span className="statLabel">Updates:</span>
+                    <span className="statValue statUpdate">
+                        {globalHistory.filter(h => h.action === "UPDATE").length}
+                    </span>
+                </div>
+                <div className="stat">
+                    <span className="statLabel">Deletions:</span>
+                    <span className="statValue statDelete">
+                        {globalHistory.filter(h => h.action === "DELETE").length}
+                    </span>
+                </div>
+                <div className="stat">
+                    <span className="statLabel">Articles:</span>
+                    <span className="statValue">
+                        {globalHistory.filter(h => h.targetType === "ARTICLE").length}
+                    </span>
+                </div>
+                <div className="stat">
+                    <span className="statLabel">Variations:</span>
+                    <span className="statValue">
+                        {globalHistory.filter(h => h.targetType === "VARIATION").length}
+                    </span>
+                </div>
+            </div>
+        </div>
+    )}
+    
+    <div className="admHistoryList">
+        {globalHistoryLoading ? (
+            <div className="admEmpty">Loading history...</div>
+        ) : !globalHistory.length ? (
+            <div className="admEmpty slim">
+                {historyFilter.searchTerm || historyFilter.dateFrom || historyFilter.dateTo || historyFilter.action || historyFilter.targetType 
+                    ? "No matching history records found with current filters" 
+                    : "No history records found"}
+            </div>
+        ) : (
+            globalHistory.map((row) => (
+                <div key={row.id} className="admHistoryItem">
+                    <div className="admHistoryTop">
+                        <div className="admProfileTop">
+                            {row.actorPhotoUrl && !isHistoryActorBroken(row) ? (
+                                <img 
+                                    src={fullImageUrl(row.actorPhotoUrl, row.actorUserId || row.id)} 
+                                    alt={row.actorName || "User"} 
+                                    className="admAvatar" 
+                                    onError={() => handleHistoryActorError(row)} 
+                                />
+                            ) : (
+                                <div className="admAvatar fallback">{initials(row.actorName)}</div>
+                            )}
+                            <div>
+                                <div className="admName">{row.actorName || "SYSTEM"}</div>
+                                <div className="admRole">{row.actorEmail || "SYSTEM"}</div>
                             </div>
                         </div>
+                        <span className={`admBadge ${
+                            row.action === "CREATE" ? "ok" : 
+                            row.action === "DELETE" ? "bad" : 
+                            "neutral"
+                        }`}>
+                            {row.actionLabel || row.action}
+                        </span>
+                    </div>
+                    
+                    <div className="admHistoryText">
+                        <div className="historyMainInfo">
+                            <strong className="historyType">
+                                {row.targetType === "ARTICLE" ? "📄 Article" : "🎨 Variation"}
+                            </strong>
+                            <span className="historySeparator">→</span>
+                            <span className="historyTarget">
+                                {row.targetType === "ARTICLE" ? row.articleName : row.variationLabel}
+                            </span>
+                        </div>
+                        <div className="historySummary">{row.summary || "-"}</div>
+                        {row.detailsJson && (
+                            <div className="admHistoryDetails">
+                                <details>
+                                    <summary>View Details</summary>
+                                    <pre>{JSON.stringify(JSON.parse(row.detailsJson), null, 2)}</pre>
+                                </details>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="admHistoryMeta">
+                        <span className="historyDate">📅 {fmt(row.actionAt)}</span>
+                        {row.targetType === "VARIATION" && row.articleName && (
+                            <span className="historyParentArticle">
+                                📦 Article: {row.articleName}
+                            </span>
+                        )}
+                        {row.targetType === "ARTICLE" && row.articleId && (
+                            <span className="historyId">ID: #{row.articleId}</span>
+                        )}
+                        {row.targetType === "VARIATION" && row.variationId && (
+                            <span className="historyId">ID: #{row.variationId}</span>
+                        )}
+                    </div>
+                </div>
+            ))
+        )}
+    </div>
+    
+    {globalHistory.length > 0 && (
+        <div className="historyFooter">
+            <small>
+                Showing {globalHistory.length} records • 
+                Last updated: {fmt(globalHistory[0]?.actionAt)}
+            </small>
+        </div>
+    )}
+</div>
+
+{/* Deleted Items History with same filters */}
+<div className="admCard">
+    <div className="admCardTop">
+        <div className="admCardTitle">🗑️ Deleted Items History</div>
+        <div className="variationHint">Track all items that have been removed from the catalog</div>
+    </div>
+    <div className="admHistoryList">
+        {globalHistoryLoading ? (
+            <div className="admEmpty">Loading...</div>
+        ) : (
+            globalHistory
+                .filter(row => row.action === "DELETE")
+                .map((row) => (
+                    <div key={row.id} className="admHistoryItem">
+                        <div className="admHistoryTop">
+                            <div className="admProfileTop">
+                                {row.actorPhotoUrl && !isHistoryActorBroken(row) ? (
+                                    <img 
+                                        src={fullImageUrl(row.actorPhotoUrl, row.actorUserId || row.id)} 
+                                        alt={row.actorName || "User"} 
+                                        className="admAvatar" 
+                                        onError={() => handleHistoryActorError(row)} 
+                                    />
+                                ) : (
+                                    <div className="admAvatar fallback">{initials(row.actorName)}</div>
+                                )}
+                                <div>
+                                    <div className="admName">{row.actorName || "SYSTEM"}</div>
+                                    <div className="admRole">{row.actorEmail || "SYSTEM"}</div>
+                                </div>
+                            </div>
+                            <span className="admBadge bad">DELETED</span>
+                        </div>
+                        <div className="admHistoryText">
+                            <strong>{row.targetType === "ARTICLE" ? "Article" : "Variation"}</strong>
+                            : <span className="deletedItemName">
+                                {row.targetType === "ARTICLE" ? row.articleName : row.variationLabel}
+                            </span>
+                            {" was deleted by "}
+                            <strong>{row.actorName || "SYSTEM"}</strong>
+                        </div>
+                        <div className="admHistoryMeta">
+                            <span className="historyDate">📅 {fmt(row.actionAt)}</span>
+                            {row.targetType === "VARIATION" && row.articleName && (
+                                <span className="historyParentArticle">
+                                    📦 Original Article: {row.articleName}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                ))
+        )}
+        {globalHistory.filter(row => row.action === "DELETE").length === 0 && !globalHistoryLoading && (
+            <div className="admEmpty slim">No deleted items found</div>
+        )}
+    </div>
+</div>
+
                     </div>
 
                     {/* Categories, Colors, Sizes tables */}
