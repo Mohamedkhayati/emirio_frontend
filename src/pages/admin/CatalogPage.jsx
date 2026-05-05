@@ -49,7 +49,7 @@ const UI_TEXT = {
     delete: "Delete",
     details: "See details",
     noArticles: "No articles",
-    bulkEditVariation: "Edit color variations",
+    bulkEditVariation: "Edit size variations",
     sizesAndStock: "Sizes & stock",
     saveAllSizes: "Save all sizes",
     colorGroup: "Color group",
@@ -902,7 +902,6 @@ export default function CatalogPage({
         variationDialogRef.current?.showModal();
     }
 
-    // *** FIX: Added function to edit an individual variation (not group) ***
     function openEditVariation(variationItem) {
         if (!variationItem) return;
         setEditingVariationId(variationItem.id);
@@ -923,7 +922,6 @@ export default function CatalogPage({
                 existingModel3dType: variationItem.model3dType || "",
             });
         } else {
-            // For non-accessory, we load that single variation (only one size)
             const sizeStock = [{
                 tailleId: variationItem.tailleId,
                 label: variationItem.taillePointure,
@@ -950,15 +948,30 @@ export default function CatalogPage({
 
     function openEditVariationGroup(group) {
         if (!group) return;
-        setEditingVariationId(null); setEditingVariationGroup(group); setVariationError("");
+        setEditingVariationId(null);
+        setEditingVariationGroup(group);
+        setVariationError("");
 
         if (isAccessoryCategory) {
             const accessoryItem = group.items?.[0] || null;
             setVariationGroupForm({
-                couleurId: String(group.couleurId || ""), couleurNom: group.couleurNom || "",
+                couleurId: String(group.couleurId || ""),
+                couleurNom: group.couleurNom || "",
                 prix: accessoryItem?.prix ?? group.prix ?? selectedArticle?.prix ?? "",
-                rows: [{ tailleId: null, label: UI_TEXT.stockOnly, variationId: accessoryItem?.id || null, checked: true, quantiteStock: accessoryItem?.quantiteStock ?? 0, prix: accessoryItem?.prix ?? group.prix ?? selectedArticle?.prix ?? "" }],
-                imageFiles: [], existingImageUrls: group.imageUrls || [], model3dFile: null, existingModel3dUrl: group.model3dUrl || "", existingModel3dName: group.model3dName || "", existingModel3dType: group.model3dType || "",
+                rows: [{
+                    tailleId: null,
+                    label: UI_TEXT.stockOnly,
+                    variationId: accessoryItem?.id || null,
+                    checked: true,
+                    quantiteStock: accessoryItem?.quantiteStock ?? 0,
+                    prix: accessoryItem?.prix ?? group.prix ?? selectedArticle?.prix ?? ""
+                }],
+                imageFiles: [],
+                existingImageUrls: [],
+                model3dFile: null,
+                existingModel3dUrl: "",
+                existingModel3dName: "",
+                existingModel3dType: "",
             });
             variationDialogRef.current?.showModal();
             return;
@@ -966,12 +979,27 @@ export default function CatalogPage({
 
         const rows = sizes.map((s) => {
             const found = group.items.find((item) => Number(item.tailleId) === Number(s.id));
-            return { tailleId: Number(s.id), label: s.pointure, variationId: found?.id || null, checked: !!found, quantiteStock: found?.quantiteStock ?? 0, prix: found?.prix ?? group.prix ?? selectedArticle?.prix ?? "" };
+            return {
+                tailleId: Number(s.id),
+                label: s.pointure,
+                variationId: found?.id || null,
+                checked: !!found,
+                quantiteStock: found?.quantiteStock ?? 0,
+                prix: found?.prix ?? group.prix ?? selectedArticle?.prix ?? ""
+            };
         });
 
         setVariationGroupForm({
-            couleurId: String(group.couleurId || ""), couleurNom: group.couleurNom || "", prix: group.prix ?? selectedArticle?.prix ?? "", rows,
-            imageFiles: [], existingImageUrls: group.imageUrls || [], model3dFile: null, existingModel3dUrl: group.model3dUrl || "", existingModel3dName: group.model3dName || "", existingModel3dType: group.model3dType || "",
+            couleurId: String(group.couleurId || ""),
+            couleurNom: group.couleurNom || "",
+            prix: group.prix ?? selectedArticle?.prix ?? "",
+            rows,
+            imageFiles: [],
+            existingImageUrls: [],
+            model3dFile: null,
+            existingModel3dUrl: "",
+            existingModel3dName: "",
+            existingModel3dType: "",
         });
         variationDialogRef.current?.showModal();
     }
@@ -1070,9 +1098,7 @@ export default function CatalogPage({
         if (!activeRows.length) return setVariationError(UI_TEXT.validationSelectOneSize);
         for (const row of activeRows) {
             const stock = Number(row.quantiteStock);
-            const prix = Number(row.prix);
             if (!Number.isFinite(stock) || stock < 0 || !Number.isInteger(stock)) return setVariationError(UI_TEXT.validationStockWholeNumber.replace("{{size}}", row.label));
-            if (!Number.isFinite(prix) || prix <= 0) return setVariationError(UI_TEXT.validationPriceGreaterThanZero);
         }
 
         setBusyCatalog(true);
@@ -1104,13 +1130,33 @@ export default function CatalogPage({
         setCatalogError("");
         try {
             await api.delete(`/api/admin/variations/${id}`);
-            // After deletion, reload variations for the current article
             if (selectedArticle?.id) {
                 await loadArticleDetails(selectedArticle.id);
             }
             await refreshCatalog(false);
         } catch (e) {
             console.error("Delete variation error:", e);
+            setCatalogError(e?.response?.data?.message || UI_TEXT.errDeleteVariation);
+        } finally {
+            setBusyCatalog(false);
+        }
+    }
+
+    // Delete all variations in a colour group
+    async function deleteVariationGroup(group) {
+        if (!window.confirm(`Delete entire colour group "${group.couleurNom}"? This will delete ${group.items.length} variation(s).`)) return;
+        setBusyCatalog(true);
+        setCatalogError("");
+        try {
+            for (const item of group.items) {
+                await api.delete(`/api/admin/variations/${item.id}`);
+            }
+            if (selectedArticle?.id) {
+                await loadArticleDetails(selectedArticle.id);
+            }
+            await refreshCatalog(false);
+        } catch (e) {
+            console.error("Delete variation group error:", e);
             setCatalogError(e?.response?.data?.message || UI_TEXT.errDeleteVariation);
         } finally {
             setBusyCatalog(false);
@@ -1502,14 +1548,8 @@ export default function CatalogPage({
                                                             <td>
                                                                 <div className="admRowActions wrap">
                                                                     <button type="button" className="admBtn mini" onClick={() => openEditVariationGroup(group)}>{UI_TEXT.bulkEditVariation}</button>
-                                                                    {/* Individual variation actions */}
-                                                                    {group.items.map((item) => (
-                                                                        <div key={item.id} className="inlineActionsGroup">
-                                                                            <button type="button" className="admBtn mini" onClick={() => openEditVariation(item)}>{UI_TEXT.edit}</button>
-                                                                           
-                                                                            <button type="button" className="admBtn mini danger" onClick={() => deleteVariation(item.id)}>{UI_TEXT.delete}</button>
-                                                                        </div>
-                                                                    ))}
+                                                                    <button type="button" className="admBtn mini" onClick={() => openEditVariation(group.items[0])}>Edit details</button>
+                                                                    <button type="button" className="admBtn mini danger" onClick={() => deleteVariationGroup(group)}>Delete group</button>
                                                                 </div>
                                                              </td>
                                                          </tr>
@@ -1699,7 +1739,7 @@ export default function CatalogPage({
                 </form>
             </dialog>
 
-            {/* Variation Dialog (create/edit) */}
+            {/* Variation Dialog (create / edit) */}
             <dialog ref={variationDialogRef} className="admDialog admDialogWide">
                 <div className="admDialogHead">
                     <div className="admDialogTitle">{editingVariationGroup ? UI_TEXT.bulkEditVariation : editingVariationId ? UI_TEXT.variationDialogEdit : UI_TEXT.variationDialogAdd}</div>
@@ -1708,17 +1748,17 @@ export default function CatalogPage({
                 <form className="productForm admDialogBody" onSubmit={editingVariationGroup ? saveVariationGroup : saveVariation}>
                     <div className="variationHelp fullCol">{editingVariationGroup ? `${UI_TEXT.colorGroup}: ${variationGroupForm.couleurNom}` : isAccessoryCategory ? UI_TEXT.accessoryVariationCreateHelp : UI_TEXT.variationCreateHelp}</div>
                     {variationError && <div className="admAlert fullCol">{variationError}</div>}
+
                     {!editingVariationGroup ? (
                         <>
                             <label><span>{UI_TEXT.colorLabel}</span><select value={variationForm.couleurId} onChange={(e) => handleVariationColorChange(e.target.value)} required disabled={!colors.length}><option value="">{UI_TEXT.selectColor}</option>{colors.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}</select></label>
                             <label><span>{UI_TEXT.price}</span><input type="number" min="0.001" step="0.001" value={variationForm.prix} onChange={(e) => setVariationForm({ ...variationForm, prix: e.target.value })} required /></label>
                         </>
                     ) : (
-                        <>
-                            <label><span>{UI_TEXT.colorLabel}</span><input value={variationGroupForm.couleurNom} disabled /></label>
-                            <label><span>{UI_TEXT.price}</span><input value={variationGroupForm.prix} disabled /></label>
-                        </>
+                        // Group edit: show colour name (disabled) but no price field (we hide it as requested)
+                        <label><span>{UI_TEXT.colorLabel}</span><input value={variationGroupForm.couleurNom} disabled /></label>
                     )}
+
                     {isAccessoryCategory ? (
                         <div className="fullCol variationAccessoryBox">
                             <div className="variationHelp">{editingVariationGroup ? UI_TEXT.accessoryVariationEditHelp : UI_TEXT.accessoryVariationCreateHelp}</div>
@@ -1732,30 +1772,81 @@ export default function CatalogPage({
                                     <label key={item.tailleId} className={`sizeStockCard ${item.checked ? "active" : ""} ${item.disabled ? "disabled" : ""}`}>
                                         <div className="sizeStockTop"><div className="sizeStockCheck"><input type="checkbox" checked={!!item.checked} disabled={!editingVariationGroup && item.disabled} onChange={(e) => { if (editingVariationGroup) setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, checked: e.target.checked } : row) })); else toggleVariationSize(item.tailleId, e.target.checked); }} /><span>{UI_TEXT.sizeLabel} {item.label} {!editingVariationGroup && item.disabled ? ` • ${UI_TEXT.alreadyExists}` : ""}</span></div></div>
                                         <div className="sizeStockBody"><span>{UI_TEXT.stockLabel}</span><input type="number" min="0" step="1" value={item.quantiteStock} disabled={!item.checked} onChange={(e) => { if (editingVariationGroup) setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, quantiteStock: e.target.value } : row) })); else changeVariationSizeStock(item.tailleId, e.target.value); }} /></div>
-                                        {editingVariationGroup && (<div className="sizeStockBody"><span>{UI_TEXT.price}</span><input type="number" min="0.001" step="0.001" value={item.prix} disabled={!item.checked} onChange={(e) => setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, prix: e.target.value } : row) }))} /></div>)}
+                                        {/* Price input only in individual edit, not in group edit */}
+                                        {!editingVariationGroup && (
+                                            <div className="sizeStockBody"><span>{UI_TEXT.price}</span><input type="number" min="0.001" step="0.001" value={item.prix} disabled={!item.checked} onChange={(e) => setVariationForm((prev) => ({ ...prev, sizeStocks: (prev.sizeStocks || []).map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, prix: e.target.value } : row) }))} /></div>
+                                        )}
                                     </label>
                                 ))}
                             </div>
                         </div>
                     )}
-                    <label className="fullCol"><span>{UI_TEXT.variationImages}</span><input type="file" accept="image/*" multiple onChange={(e) => { const files = Array.from(e.target.files || []); if (editingVariationGroup) setVariationGroupForm((prev) => ({ ...prev, imageFiles: files })); else setVariationForm((prev) => ({ ...prev, imageFiles: files })); }} /></label>
-                    {!!(editingVariationGroup ? variationGroupForm.existingImageUrls : variationForm.existingImageUrls)?.length && (
-                        <div className="fullCol variationCurrentImages">
-                            <div className="variationHelp">{UI_TEXT.savedVariationImages}</div>
-                            <div className="variationPreviewGrid">
-                                {(editingVariationGroup ? variationGroupForm.existingImageUrls : variationForm.existingImageUrls).map((url, index) => {
-                                    const imgSrc = fullImageUrl(url, `${editingVariationGroup?.key || editingVariationId || "variation"}-${index}`);
-                                    return (<div key={`${url}-${index}`} className="variationPreviewItem"><button type="button" className="variationPreviewRemove" onClick={() => removeExistingVariationImage(index)}>×</button>{imgSrc ? <img src={imgSrc} alt={`Variation ${index + 1}`} className="variationPreviewThumb" onError={(e) => { e.currentTarget.style.display = "none"; const fb = e.currentTarget.nextElementSibling; if (fb) fb.style.display = "flex"; }} /> : null}<div className="variationPreviewThumb fallback" style={{ display: imgSrc ? "none" : "flex" }}>{UI_TEXT.noImage}</div><div className="variationPreviewName">{UI_TEXT.savedImage} {index + 1}</div></div>);
-                                })}
-                            </div>
-                        </div>
+
+                    {/* Images & 3D model – only for individual edit, never for group edit */}
+                    {!editingVariationGroup && (
+                        <>
+                            <label className="fullCol">
+                                <span>{UI_TEXT.variationImages}</span>
+                                <input type="file" accept="image/*" multiple onChange={(e) => {
+                                    const files = Array.from(e.target.files || []);
+                                    setVariationForm((prev) => ({ ...prev, imageFiles: files }));
+                                }} />
+                            </label>
+                            {!!variationForm.existingImageUrls?.length && (
+                                <div className="fullCol variationCurrentImages">
+                                    <div className="variationHelp">{UI_TEXT.savedVariationImages}</div>
+                                    <div className="variationPreviewGrid">
+                                        {variationForm.existingImageUrls.map((url, index) => {
+                                            const imgSrc = fullImageUrl(url, `${editingVariationId || "variation"}-${index}`);
+                                            return (
+                                                <div key={`${url}-${index}`} className="variationPreviewItem">
+                                                    <button type="button" className="variationPreviewRemove" onClick={() => removeExistingVariationImage(index)}>×</button>
+                                                    {imgSrc ? (
+                                                        <img src={imgSrc} alt={`Variation ${index + 1}`} className="variationPreviewThumb" onError={(e) => { e.currentTarget.style.display = "none"; const fb = e.currentTarget.nextElementSibling; if (fb) fb.style.display = "flex"; }} />
+                                                    ) : (
+                                                        <div className="variationPreviewThumb fallback" style={{ display: "flex" }}>{UI_TEXT.noImage}</div>
+                                                    )}
+                                                    <div className="variationPreviewName">{UI_TEXT.savedImage} {index + 1}</div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                            <label className="fullCol">
+                                <span>{UI_TEXT.model3d}</span>
+                                <input type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" onChange={(e) => {
+                                    const file = e.target.files?.[0] || null;
+                                    setVariationForm((prev) => ({ ...prev, model3dFile: file }));
+                                }} />
+                            </label>
+                            {(variationForm.existingModel3dUrl || variationForm.model3dFile) && (
+                                <div className="fullCol variationCurrentImages">
+                                    <div className="variationHelp">{UI_TEXT.currentModel}</div>
+                                    <div className="variationModelBox">
+                                        {variationForm.model3dFile ? (
+                                            <div className="variationModelMeta"><strong>{UI_TEXT.newFile}:</strong> {variationForm.model3dFile.name}</div>
+                                        ) : null}
+                                        {variationForm.existingModel3dUrl ? (
+                                            <div className="variationModelMeta">
+                                                <strong>{UI_TEXT.savedFile}:</strong>
+                                                <a href={fullImageUrl(variationForm.existingModel3dUrl, editingVariationId || "model")} target="_blank" rel="noreferrer">
+                                                    {variationForm.existingModel3dName || UI_TEXT.openCurrentModel}
+                                                </a>
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            )}
+                            <div className="fullCol variationHelp">{UI_TEXT.variationImageHint}</div>
+                        </>
                     )}
-                    <label className="fullCol"><span>{UI_TEXT.model3d}</span><input type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" onChange={(e) => { const file = e.target.files?.[0] || null; if (editingVariationGroup) setVariationGroupForm((prev) => ({ ...prev, model3dFile: file })); else setVariationForm((prev) => ({ ...prev, model3dFile: file })); }} /></label>
-                    {(editingVariationGroup ? variationGroupForm.existingModel3dUrl || variationGroupForm.model3dFile : variationForm.existingModel3dUrl || variationForm.model3dFile) && (
-                        <div className="fullCol variationCurrentImages"><div className="variationHelp">{UI_TEXT.currentModel}</div><div className="variationModelBox">{(editingVariationGroup ? variationGroupForm.model3dFile : variationForm.model3dFile) ? <div className="variationModelMeta"><strong>{UI_TEXT.newFile}:</strong> {(editingVariationGroup ? variationGroupForm.model3dFile : variationForm.model3dFile)?.name}</div> : null}{(editingVariationGroup ? variationGroupForm.existingModel3dUrl : variationForm.existingModel3dUrl) ? <div className="variationModelMeta"><strong>{UI_TEXT.savedFile}:</strong> <a href={fullImageUrl(editingVariationGroup ? variationGroupForm.existingModel3dUrl : variationForm.existingModel3dUrl, editingVariationGroup?.key || editingVariationId || "model")} target="_blank" rel="noreferrer">{(editingVariationGroup ? variationGroupForm.existingModel3dName : variationForm.existingModel3dName) || UI_TEXT.openCurrentModel}</a></div> : null}</div></div>
-                    )}
-                    <div className="fullCol variationHelp">{UI_TEXT.variationImageHint}</div>
-                    <div className="admDialogActions fullCol"><button type="submit" className="admBtn primary" disabled={busyCatalog || !colors.length || (!isAccessoryCategory && !sizes.length)}>{editingVariationGroup ? UI_TEXT.saveAllSizes : editingVariationId ? UI_TEXT.updateVariation : UI_TEXT.saveVariation}</button></div>
+
+                    <div className="admDialogActions fullCol">
+                        <button type="submit" className="admBtn primary" disabled={busyCatalog || !colors.length || (!isAccessoryCategory && !sizes.length)}>
+                            {editingVariationGroup ? UI_TEXT.saveAllSizes : editingVariationId ? UI_TEXT.updateVariation : UI_TEXT.saveVariation}
+                        </button>
+                    </div>
                 </form>
             </dialog>
 
@@ -1783,7 +1874,7 @@ export default function CatalogPage({
                     <label className="fullCol"><span>{UI_TEXT.iconUrl}</span><input value={categoryForm.iconUrl} onChange={(e) => setCategoryForm({ ...categoryForm, iconUrl: e.target.value })} placeholder="/images/category-icon.png" /></label>
                     <label className="checkRow fullCol"><input type="checkbox" checked={categoryForm.actif} onChange={(e) => setCategoryForm({ ...categoryForm, actif: e.target.checked })} /><span>Active</span></label>
                     <label className="fullCol"><span>{UI_TEXT.description}</span><textarea rows="3" value={categoryForm.description} onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} /></label>
-                    <div class="admDialogActions fullCol"><button type="submit" className="admBtn primary" disabled={busyCatalog}>{editingCategoryId ? UI_TEXT.updateCategory : UI_TEXT.saveCategory}</button></div>
+                    <div className="admDialogActions fullCol"><button type="submit" className="admBtn primary" disabled={busyCatalog}>{editingCategoryId ? UI_TEXT.updateCategory : UI_TEXT.saveCategory}</button></div>
                 </form>
             </dialog>
 
