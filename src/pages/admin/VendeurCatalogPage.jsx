@@ -156,7 +156,7 @@ export default function VendeurCatalogPage() {
   const [busy, setBusy] = useState(false);
   const [articlePage, setArticlePage] = useState(1);
   const [articleRows, setArticleRows] = useState(5);
-
+  const [loading, setLoading] = useState(false);
   // Variations state
   const [variations, setVariations] = useState([]);
   const [variationPage, setVariationPage] = useState(1);
@@ -206,16 +206,26 @@ export default function VendeurCatalogPage() {
   }, [selectedArticle]);
 
   // Load my articles
-  async function loadMyArticles() {
-    setError("");
-    try {
-      const res = await api.get("/api/vendeur/articles");
-      setArticles(res.data || []);
-      if (!selectedArticle && res.data?.length) await loadArticleDetails(res.data[0].id);
-    } catch (e) {
-      setError(e?.response?.data?.message || UI_TEXT.errLoadCatalog);
+ async function loadMyArticles() {
+  setError("");
+  setLoading(true);
+  try {
+    const res = await api.get("/api/vendeur/articles");
+    setArticles(res.data || []);
+    // If the previously selected article is no longer in the list, deselect it
+    if (selectedArticle && !res.data.some(a => a.id === selectedArticle.id)) {
+      setSelectedArticle(null);
+      setVariations([]);
+    } else if (!selectedArticle && res.data?.length) {
+      await loadArticleDetails(res.data[0].id);
     }
+  } catch (e) {
+    setError(e?.response?.data?.message || UI_TEXT.errLoadCatalog);
+  } finally {
+    setLoading(false);
   }
+}
+
 
   async function loadArticleDetails(id) {
     try {

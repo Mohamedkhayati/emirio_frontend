@@ -1,6 +1,6 @@
-// src/components/FloatingChat.jsx
 import { useState, useEffect, useRef } from "react";
-import { api } from "../lib/api";   // ✅ fixed import path
+import { api } from "../lib/api";
+import "./FloatingChat.css";
 
 export default function FloatingChat({ me }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -50,7 +50,9 @@ export default function FloatingChat({ me }) {
   }, [isOpen, isLoggedIn]);
 
   useEffect(() => {
-    if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   }, [selected?.messages]);
 
   const handleSelect = (rec) => {
@@ -94,113 +96,229 @@ export default function FloatingChat({ me }) {
     }
   };
 
-  const getStatusBadge = (status) => {
-    const base = "px-2 py-0.5 rounded-full text-xs font-semibold";
-    switch (status) {
-      case "OPEN": return `${base} bg-red-100 text-red-800`;
-      case "IN_PROGRESS": return `${base} bg-yellow-100 text-yellow-800`;
-      case "RESOLVED": return `${base} bg-green-100 text-green-800`;
-      case "CLOSED": return `${base} bg-gray-100 text-gray-800`;
-      default: return `${base} bg-gray-100 text-gray-800`;
-    }
+  const getStatusBadgeClass = (status) => {
+    const statusMap = {
+      "OPEN": "open",
+      "IN_PROGRESS": "in_progress",
+      "RESOLVED": "resolved",
+      "CLOSED": "closed"
+    };
+    return `status-badge ${statusMap[status] || "closed"}`;
   };
 
-  // Inline styles (no Tailwind needed)
-  const buttonStyle = {
-    position: "fixed", bottom: "24px", right: "24px", zIndex: 99999,
-    backgroundColor: "#2563eb", color: "white", border: "none",
-    borderRadius: "9999px", width: "56px", height: "56px", cursor: "pointer",
-    boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", transition: "transform 0.2s",
-    display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px",
+  const getStatusLabel = (status) => {
+    const labels = {
+      "OPEN": "Open",
+      "IN_PROGRESS": "In Progress",
+      "RESOLVED": "Resolved",
+      "CLOSED": "Closed"
+    };
+    return labels[status] || status;
   };
 
-  const widgetStyle = {
-    position: "fixed", bottom: "96px", right: "24px", width: "384px", height: "500px",
-    backgroundColor: "white", borderRadius: "12px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
-    border: "1px solid #e5e7eb", zIndex: 99999, display: isOpen ? "flex" : "none",
-    flexDirection: "column", overflow: "hidden",
-  };
-
+  // For non-logged-in users
   if (!isLoggedIn) {
     return (
-      <div style={buttonStyle}>
-        <button onClick={() => (window.location.href = "/auth")} style={{ ...buttonStyle, all: "unset", ...buttonStyle, cursor: "pointer" }}>
-          💬
-        </button>
-      </div>
+      <button 
+        className="floating-chat-button"
+        onClick={() => window.location.href = "/auth"}
+        aria-label="Customer Support"
+      >
+        💬
+      </button>
     );
   }
 
   return (
     <>
-      <button style={buttonStyle} onClick={() => setIsOpen(!isOpen)}>
+      <button 
+        className="floating-chat-button"
+        onClick={() => setIsOpen(!isOpen)}
+        aria-label={isOpen ? "Close support chat" : "Open customer support"}
+      >
         {isOpen ? "✕" : "💬"}
       </button>
-      <div style={widgetStyle}>
-        <div style={{ backgroundColor: "#2563eb", color: "white", padding: "12px 16px", display: "flex", justifyContent: "space-between", fontWeight: "bold" }}>
-          <span>Customer Support</span>
-          <button onClick={() => setIsOpen(false)} style={{ background: "none", border: "none", color: "white", cursor: "pointer", fontSize: "20px" }}>✕</button>
+      
+      <div className={`floating-chat-widget ${isOpen ? "open" : ""}`}>
+        {/* Header */}
+        <div className="chat-header">
+          <div className="chat-header-title">
+            <span className="chat-header-icon">🎧</span>
+            <span>Customer Support</span>
+          </div>
+          <button 
+            className="chat-header-close"
+            onClick={() => setIsOpen(false)}
+            aria-label="Close"
+          >
+            ✕
+          </button>
         </div>
-        <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-          {/* Left sidebar */}
-          <div style={{ width: "33.33%", borderRight: "1px solid #e5e7eb", backgroundColor: "#f9fafb", display: "flex", flexDirection: "column" }}>
+        
+        {/* Main Layout */}
+        <div className="chat-layout">
+          {/* Left Sidebar - Claims List */}
+          <div className="chat-sidebar">
             {isClient && (
-              <div style={{ padding: "8px" }}>
-                <button onClick={() => setShowNewForm(!showNewForm)} style={{ width: "100%", backgroundColor: "#3b82f6", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer" }}>
-                  + New claim
+              <div className="chat-sidebar-header">
+                <button 
+                  className="new-claim-btn"
+                  onClick={() => setShowNewForm(!showNewForm)}
+                >
+                  <span>+</span> New Support Ticket
                 </button>
               </div>
             )}
-            <div style={{ flex: 1, overflowY: "auto" }}>
-              {loading && <div style={{ padding: "8px", textAlign: "center" }}>Loading...</div>}
+            <div className="claims-list">
+              {loading && (
+                <div className="loading-state">
+                  <span className="loading-spinner"></span>
+                  Loading tickets...
+                </div>
+              )}
               {!loading && reclamations.length === 0 && (
-                <div style={{ padding: "8px", textAlign: "center", color: "#9ca3af" }}>{isClient ? "No claims yet" : "No customer claims to display"}</div>
+                <div className="empty-state">
+                  <div className="empty-icon">📭</div>
+                  <div className="empty-title">No tickets yet</div>
+                  <div className="empty-description">
+                    {isClient 
+                      ? "Create your first support ticket and we'll get back to you" 
+                      : "No customer support tickets to display"}
+                  </div>
+                  {isClient && (
+                    <button 
+                      className="empty-action-btn"
+                      onClick={() => setShowNewForm(true)}
+                    >
+                      + Create Ticket
+                    </button>
+                  )}
+                </div>
               )}
               {reclamations.map(rec => (
-                <button key={rec.id} onClick={() => handleSelect(rec)} style={{ width: "100%", textAlign: "left", padding: "8px", borderBottom: "1px solid #e5e7eb", backgroundColor: selected?.id === rec.id ? "#dbeafe" : "transparent", cursor: "pointer" }}>
-                  <div style={{ fontWeight: "500", overflow: "hidden", textOverflow: "ellipsis" }}>{rec.subject}</div>
-                  <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>{new Date(rec.createdAt).toLocaleDateString()}</div>
-                  <div style={{ marginTop: "4px" }}><span dangerouslySetInnerHTML={{ __html: getStatusBadge(rec.status) }} /></div>
+                <button
+                  key={rec.id}
+                  className={`claim-item ${selected?.id === rec.id ? "active" : ""}`}
+                  onClick={() => handleSelect(rec)}
+                >
+                  <div className="claim-subject" title={rec.subject}>
+                    {rec.subject}
+                  </div>
+                  <div className="claim-date">
+                    {new Date(rec.createdAt).toLocaleDateString(undefined, { 
+                      month: 'short', 
+                      day: 'numeric' 
+                    })}
+                  </div>
+                  <div className="claim-status-badge">
+                    <span className={getStatusBadgeClass(rec.status)}>
+                      {getStatusLabel(rec.status)}
+                    </span>
+                  </div>
                 </button>
               ))}
             </div>
           </div>
-          {/* Right side */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+          
+          {/* Right Side - Chat Content */}
+          <div className="chat-main">
             {showNewForm && isClient ? (
-              <div style={{ padding: "12px" }}>
-                <h4 style={{ fontWeight: "500", marginBottom: "8px" }}>New Claim</h4>
+              <div className="new-claim-form">
+                <div className="form-header">
+                  <span className="form-icon">🎫</span>
+                  <h4>Create Support Ticket</h4>
+                  <p>Describe your issue and we'll help you asap</p>
+                </div>
                 <form onSubmit={handleCreateReclamation}>
-                  <input type="text" placeholder="Subject" value={newSubject} onChange={e => setNewSubject(e.target.value)} style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: "6px", padding: "6px", marginBottom: "8px" }} required />
-                  <textarea placeholder="Description" value={newDescription} onChange={e => setNewDescription(e.target.value)} rows={3} style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: "6px", padding: "6px", marginBottom: "8px" }} required />
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button type="submit" disabled={sending} style={{ backgroundColor: "#2563eb", color: "white", border: "none", padding: "8px 16px", borderRadius: "8px", cursor: "pointer" }}>Submit</button>
-                    <button type="button" onClick={() => setShowNewForm(false)} style={{ backgroundColor: "#e5e7eb", border: "none", padding: "8px 16px", borderRadius: "8px", cursor: "pointer" }}>Cancel</button>
+                  <div className="form-group">
+                    <label className="form-label">Subject</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Order issue, Product question..."
+                      value={newSubject}
+                      onChange={e => setNewSubject(e.target.value)}
+                      className="new-claim-input"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Description</label>
+                    <textarea
+                      placeholder="Please provide details about your issue..."
+                      value={newDescription}
+                      onChange={e => setNewDescription(e.target.value)}
+                      rows={4}
+                      className="new-claim-textarea"
+                      required
+                    />
+                  </div>
+                  <div className="form-actions">
+                    <button type="submit" disabled={sending} className="submit-btn">
+                      {sending ? "Submitting..." : "Submit Ticket"}
+                    </button>
+                    <button type="button" onClick={() => setShowNewForm(false)} className="cancel-btn">
+                      Cancel
+                    </button>
                   </div>
                 </form>
               </div>
             ) : selected ? (
               <>
-                <div style={{ flex: 1, overflowY: "auto", padding: "12px", backgroundColor: "#f9fafb", display: "flex", flexDirection: "column", gap: "8px" }}>
+                {/* Messages Area */}
+                <div className="messages-area">
                   {selected.messages?.map(msg => (
-                    <div key={msg.id} style={{ display: "flex", justifyContent: msg.senderRole === "Client" ? "flex-start" : "flex-end" }}>
-                      <div style={{ maxWidth: "80%", padding: "8px 12px", borderRadius: "12px", backgroundColor: msg.senderRole === "Client" ? "#e5e7eb" : "#3b82f6", color: msg.senderRole === "Client" ? "#1f2937" : "white" }}>
-                        <div style={{ fontSize: "12px", fontWeight: "bold" }}>{msg.senderName} • {msg.senderRole}</div>
-                        <div>{msg.content}</div>
-                        <div style={{ fontSize: "10px", textAlign: "right", marginTop: "4px", opacity: 0.7 }}>{new Date(msg.timestamp).toLocaleTimeString()}</div>
+                    <div
+                      key={msg.id}
+                      className={`message-bubble ${msg.senderRole === "Client" ? "client" : "support"}`}
+                    >
+                      <div className="message-sender">
+                        {msg.senderName}
+                      </div>
+                      <div className="message-content">{msg.content}</div>
+                      <div className="message-time">
+                        {new Date(msg.timestamp).toLocaleTimeString([], { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
                       </div>
                     </div>
                   ))}
                   <div ref={messagesEndRef} />
                 </div>
-                <div style={{ padding: "8px", borderTop: "1px solid #e5e7eb", display: "flex", gap: "8px" }}>
-                  <textarea rows={1} value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="Type your reply..." style={{ flex: 1, border: "1px solid #d1d5db", borderRadius: "8px", padding: "8px", resize: "none" }} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendReply(); } }} />
-                  <button onClick={handleSendReply} disabled={sending || !replyText.trim()} style={{ backgroundColor: "#2563eb", color: "white", border: "none", padding: "8px 16px", borderRadius: "8px", cursor: "pointer" }}>Send</button>
+                
+                {/* Reply Input */}
+                <div className="reply-area">
+                  <textarea
+                    rows={1}
+                    value={replyText}
+                    onChange={e => setReplyText(e.target.value)}
+                    placeholder="Type your reply..."
+                    className="reply-input"
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendReply();
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={handleSendReply}
+                    disabled={sending || !replyText.trim()}
+                    className="send-btn"
+                  >
+                    Send ➤
+                  </button>
                 </div>
               </>
             ) : (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#9ca3af", textAlign: "center", padding: "16px" }}>
-                {isClient ? "Select a claim or create new" : "Only customers can create claims.\nYou can view and reply to existing claims in the admin panel."}
+              <div className="empty-state">
+                <div className="empty-icon">💬</div>
+                <div className="empty-title">Select a ticket</div>
+                <div className="empty-description">
+                  {isClient 
+                    ? "Choose a support ticket from the left to view the conversation" 
+                    : "Select a customer ticket to view and respond to their inquiry"}
+                </div>
               </div>
             )}
           </div>

@@ -49,7 +49,7 @@ const UI_TEXT = {
     delete: "Delete",
     details: "See details",
     noArticles: "No articles",
-    bulkEditVariation: "Edit color variations",
+    bulkEditVariation: "Edit size variations",
     sizesAndStock: "Sizes & stock",
     saveAllSizes: "Save all sizes",
     colorGroup: "Color group",
@@ -233,6 +233,7 @@ function TablePager({ total, page, setPage, rows, setRows, rowsOptions = [3, 5, 
         </div>
     );
 }
+
 export default function CatalogPage({ 
   isAdminGeneral: propIsAdminGeneral, 
   isCatalogManager: propIsCatalogManager, 
@@ -240,7 +241,6 @@ export default function CatalogPage({
 }) {
   const { t } = useTranslation();
   
-  // Try to get from context first, fallback to props
   let context = null;
   try {
     context = useOutletContext();
@@ -252,13 +252,10 @@ export default function CatalogPage({
   const isCatalogManager = propIsCatalogManager ?? context?.isCatalogManager ?? false;
   const isEcommerceManager = propIsEcommerceManager ?? context?.isEcommerceManager ?? false;
   
-  console.log("🔍 CatalogPage - Final roles:", { isAdminGeneral, isCatalogManager, isEcommerceManager });
-  
   const tx = (key, fallback) => {
     const value = t(key);
     return !value || value === key ? fallback : value;
   };
-
 
   const getCategoryOptions = (categories, parentId = null, level = 0) => {
     const children = categories.filter(c => c.parentId === parentId);
@@ -281,7 +278,6 @@ export default function CatalogPage({
     const [mainCategories, setMainCategories] = useState([]);
     const [allCategories, setAllCategories] = useState([]);
 
-    // Article form category hierarchy (three levels for shoes, two for accessories)
     const [selectedMainCat, setSelectedMainCat] = useState("");
     const [selectedSubCat, setSelectedSubCat] = useState("");
     const [selectedProductType, setSelectedProductType] = useState("");
@@ -289,7 +285,6 @@ export default function CatalogPage({
     const [productTypes, setProductTypes] = useState([]);
     const [isArticleMainShoes, setIsArticleMainShoes] = useState(false);
 
-    // Category dialog state (two levels)
     const [categorySelectedMain, setCategorySelectedMain] = useState("");
     const [categorySelectedLevel2, setCategorySelectedLevel2] = useState("");
     const [categoryLevel2Options, setCategoryLevel2Options] = useState([]);
@@ -536,7 +531,6 @@ export default function CatalogPage({
         return name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
     }
 
-
     // API calls
     async function loadArticleHistory(articleId) {
         if (!articleId) return setHistoryRows([]);
@@ -551,100 +545,63 @@ export default function CatalogPage({
             setHistoryLoading(false);
         }
     }
-    // Add this state near your other state declarations (around line 200)
-const [globalHistory, setGlobalHistory] = useState([]);
-const [globalHistoryLoading, setGlobalHistoryLoading] = useState(false);
-const [historyFilter, setHistoryFilter] = useState({ 
-    action: "", 
-    targetType: "", 
-    searchTerm: "",
-    dateFrom: "",
-    dateTo: ""
-});
-// Add this function to load global history
-async function loadGlobalHistory() {
-    setGlobalHistoryLoading(true);
-    try {
-        let url = "/api/admin/catalog/history/all?limit=500";
-        
-        // Add action filter
-        if (historyFilter.action) {
-            url += `&action=${historyFilter.action}`;
-        }
-        
-        // Add target type filter
-        if (historyFilter.targetType) {
-            url += `&targetType=${historyFilter.targetType}`;
-        }
-        
-        const res = await api.get(url);
-        let filteredData = res.data || [];
-        
-        // Apply search filter (article name)
-        if (historyFilter.searchTerm) {
-            const searchLower = historyFilter.searchTerm.toLowerCase();
-            filteredData = filteredData.filter(row => 
-                (row.articleName && row.articleName.toLowerCase().includes(searchLower)) ||
-                (row.variationLabel && row.variationLabel.toLowerCase().includes(searchLower)) ||
-                (row.summary && row.summary.toLowerCase().includes(searchLower)) ||
-                (row.actorName && row.actorName.toLowerCase().includes(searchLower))
-            );
-        }
-        
-        // Apply date filters
-        if (historyFilter.dateFrom) {
-            const fromDate = new Date(historyFilter.dateFrom);
-            filteredData = filteredData.filter(row => {
-                const rowDate = new Date(row.actionAt);
-                return rowDate >= fromDate;
-            });
-        }
-        
-        if (historyFilter.dateTo) {
-            const toDate = new Date(historyFilter.dateTo);
-            toDate.setHours(23, 59, 59, 999);
-            filteredData = filteredData.filter(row => {
-                const rowDate = new Date(row.actionAt);
-                return rowDate <= toDate;
-            });
-        }
-        
-        setGlobalHistory(filteredData);
-    } catch (e) {
-        console.error("Failed to load global history:", e);
-        setCatalogError(e?.response?.data?.message || "Cannot load history");
-    } finally {
-        setGlobalHistoryLoading(false);
-    }
-}
-function handleHistoryFilterChange(type, value) {
-    setHistoryFilter(prev => ({ ...prev, [type]: value }));
-}
-function resetHistoryFilters() {
-    setHistoryFilter({ 
+
+    // GLOBAL HISTORY
+    const [globalHistory, setGlobalHistory] = useState([]);
+    const [globalHistoryLoading, setGlobalHistoryLoading] = useState(false);
+    const [historyFilter, setHistoryFilter] = useState({ 
         action: "", 
         targetType: "", 
         searchTerm: "",
         dateFrom: "",
         dateTo: ""
     });
-}
 
-useEffect(() => {
-    loadGlobalHistory();
-}, [historyFilter.action, historyFilter.targetType]);
-useEffect(() => {
-    const timer = setTimeout(() => {
-        loadGlobalHistory();
-    }, 500);
-    return () => clearTimeout(timer);
-}, [historyFilter.searchTerm, historyFilter.dateFrom, historyFilter.dateTo]);
-
-
-// Add filter handler
-function handleHistoryFilterChange(type, value) {
-    setHistoryFilter(prev => ({ ...prev, [type]: value }));
-}
+    async function loadGlobalHistory() {
+        setGlobalHistoryLoading(true);
+        try {
+            let url = "/api/admin/catalog/history/all?limit=500";
+            if (historyFilter.action) url += `&action=${historyFilter.action}`;
+            if (historyFilter.targetType) url += `&targetType=${historyFilter.targetType}`;
+            const res = await api.get(url);
+            let filteredData = res.data || [];
+            if (historyFilter.searchTerm) {
+                const searchLower = historyFilter.searchTerm.toLowerCase();
+                filteredData = filteredData.filter(row => 
+                    (row.articleName && row.articleName.toLowerCase().includes(searchLower)) ||
+                    (row.variationLabel && row.variationLabel.toLowerCase().includes(searchLower)) ||
+                    (row.summary && row.summary.toLowerCase().includes(searchLower)) ||
+                    (row.actorName && row.actorName.toLowerCase().includes(searchLower))
+                );
+            }
+            if (historyFilter.dateFrom) {
+                const fromDate = new Date(historyFilter.dateFrom);
+                filteredData = filteredData.filter(row => new Date(row.actionAt) >= fromDate);
+            }
+            if (historyFilter.dateTo) {
+                const toDate = new Date(historyFilter.dateTo);
+                toDate.setHours(23, 59, 59, 999);
+                filteredData = filteredData.filter(row => new Date(row.actionAt) <= toDate);
+            }
+            setGlobalHistory(filteredData);
+        } catch (e) {
+            console.error("Failed to load global history:", e);
+            setCatalogError(e?.response?.data?.message || "Cannot load history");
+        } finally {
+            setGlobalHistoryLoading(false);
+        }
+    }
+    function handleHistoryFilterChange(type, value) {
+        setHistoryFilter(prev => ({ ...prev, [type]: value }));
+    }
+    function resetHistoryFilters() {
+        setHistoryFilter({ action: "", targetType: "", searchTerm: "", dateFrom: "", dateTo: "" });
+    }
+    useEffect(() => { loadGlobalHistory(); }, [historyFilter.action, historyFilter.targetType]);
+    useEffect(() => {
+        const timer = setTimeout(() => { loadGlobalHistory(); }, 500);
+        return () => clearTimeout(timer);
+    }, [historyFilter.searchTerm, historyFilter.dateFrom, historyFilter.dateTo]);
 
     async function loadVariationHistory(variationId) {
         if (!variationId) return setHistoryRows([]);
@@ -849,7 +806,6 @@ function handleHistoryFilterChange(type, value) {
             if (category.parentId) {
                 const parent = allCategories.find(c => c.id === category.parentId);
                 if (parent && parent.parentId) {
-                    // Three levels deep
                     const grandParent = allCategories.find(c => c.id === parent.parentId);
                     setSelectedMainCat(grandParent?.id || "");
                     setSelectedSubCat(parent.id);
@@ -857,7 +813,6 @@ function handleHistoryFilterChange(type, value) {
                     setIsArticleMainShoes(grandParent?.nom?.toUpperCase() === "CHAUSSURES");
                     loadChildren(grandParent?.id, setSubCategories).then(() => loadChildren(parent.id, setProductTypes));
                 } else if (parent) {
-                    // Two levels: main -> sub (for shoes) or main -> product type (for accessories)
                     setSelectedMainCat(parent.id);
                     setSelectedSubCat(category.id);
                     setSelectedProductType("");
@@ -947,17 +902,76 @@ function handleHistoryFilterChange(type, value) {
         variationDialogRef.current?.showModal();
     }
 
+    function openEditVariation(variationItem) {
+        if (!variationItem) return;
+        setEditingVariationId(variationItem.id);
+        setEditingVariationGroup(null);
+        setVariationError("");
+
+        if (isAccessoryCategory) {
+            setVariationForm({
+                ...emptyVariationForm,
+                prix: variationItem.prix ?? selectedArticle?.prix ?? "",
+                couleurId: String(variationItem.couleurId),
+                quantiteStock: variationItem.quantiteStock ?? 0,
+                imageFiles: [],
+                existingImageUrls: getVariationImageUrls(variationItem),
+                model3dFile: null,
+                existingModel3dUrl: variationItem.model3dUrl || "",
+                existingModel3dName: variationItem.model3dName || "",
+                existingModel3dType: variationItem.model3dType || "",
+            });
+        } else {
+            const sizeStock = [{
+                tailleId: variationItem.tailleId,
+                label: variationItem.taillePointure,
+                checked: true,
+                quantiteStock: variationItem.quantiteStock ?? 0,
+                disabled: false
+            }];
+            setVariationForm({
+                ...emptyVariationForm,
+                prix: variationItem.prix ?? selectedArticle?.prix ?? "",
+                couleurId: String(variationItem.couleurId),
+                quantiteStock: 0,
+                sizeStocks: sizeStock,
+                imageFiles: [],
+                existingImageUrls: getVariationImageUrls(variationItem),
+                model3dFile: null,
+                existingModel3dUrl: variationItem.model3dUrl || "",
+                existingModel3dName: variationItem.model3dName || "",
+                existingModel3dType: variationItem.model3dType || "",
+            });
+        }
+        variationDialogRef.current?.showModal();
+    }
+
     function openEditVariationGroup(group) {
         if (!group) return;
-        setEditingVariationId(null); setEditingVariationGroup(group); setVariationError("");
+        setEditingVariationId(null);
+        setEditingVariationGroup(group);
+        setVariationError("");
 
         if (isAccessoryCategory) {
             const accessoryItem = group.items?.[0] || null;
             setVariationGroupForm({
-                couleurId: String(group.couleurId || ""), couleurNom: group.couleurNom || "",
+                couleurId: String(group.couleurId || ""),
+                couleurNom: group.couleurNom || "",
                 prix: accessoryItem?.prix ?? group.prix ?? selectedArticle?.prix ?? "",
-                rows: [{ tailleId: null, label: UI_TEXT.stockOnly, variationId: accessoryItem?.id || null, checked: true, quantiteStock: accessoryItem?.quantiteStock ?? 0, prix: accessoryItem?.prix ?? group.prix ?? selectedArticle?.prix ?? "" }],
-                imageFiles: [], existingImageUrls: group.imageUrls || [], model3dFile: null, existingModel3dUrl: group.model3dUrl || "", existingModel3dName: group.model3dName || "", existingModel3dType: group.model3dType || "",
+                rows: [{
+                    tailleId: null,
+                    label: UI_TEXT.stockOnly,
+                    variationId: accessoryItem?.id || null,
+                    checked: true,
+                    quantiteStock: accessoryItem?.quantiteStock ?? 0,
+                    prix: accessoryItem?.prix ?? group.prix ?? selectedArticle?.prix ?? ""
+                }],
+                imageFiles: [],
+                existingImageUrls: [],
+                model3dFile: null,
+                existingModel3dUrl: "",
+                existingModel3dName: "",
+                existingModel3dType: "",
             });
             variationDialogRef.current?.showModal();
             return;
@@ -965,12 +979,27 @@ function handleHistoryFilterChange(type, value) {
 
         const rows = sizes.map((s) => {
             const found = group.items.find((item) => Number(item.tailleId) === Number(s.id));
-            return { tailleId: Number(s.id), label: s.pointure, variationId: found?.id || null, checked: !!found, quantiteStock: found?.quantiteStock ?? 0, prix: found?.prix ?? group.prix ?? selectedArticle?.prix ?? "" };
+            return {
+                tailleId: Number(s.id),
+                label: s.pointure,
+                variationId: found?.id || null,
+                checked: !!found,
+                quantiteStock: found?.quantiteStock ?? 0,
+                prix: found?.prix ?? group.prix ?? selectedArticle?.prix ?? ""
+            };
         });
 
         setVariationGroupForm({
-            couleurId: String(group.couleurId || ""), couleurNom: group.couleurNom || "", prix: group.prix ?? selectedArticle?.prix ?? "", rows,
-            imageFiles: [], existingImageUrls: group.imageUrls || [], model3dFile: null, existingModel3dUrl: group.model3dUrl || "", existingModel3dName: group.model3dName || "", existingModel3dType: group.model3dType || "",
+            couleurId: String(group.couleurId || ""),
+            couleurNom: group.couleurNom || "",
+            prix: group.prix ?? selectedArticle?.prix ?? "",
+            rows,
+            imageFiles: [],
+            existingImageUrls: [],
+            model3dFile: null,
+            existingModel3dUrl: "",
+            existingModel3dName: "",
+            existingModel3dType: "",
         });
         variationDialogRef.current?.showModal();
     }
@@ -1006,6 +1035,7 @@ function handleHistoryFilterChange(type, value) {
 
         const activeRows = (variationForm.sizeStocks || []).filter((row) => row.checked);
         if (!activeRows.length) return setVariationError(UI_TEXT.validationSelectOneSize);
+        if (activeRows.length > 1 && editingVariationId) return setVariationError(UI_TEXT.validationEditOneSize);
         for (const row of activeRows) {
             const stock = Number(row.quantiteStock);
             if (!Number.isFinite(stock) || stock < 0 || !Number.isInteger(stock)) return setVariationError(UI_TEXT.validationStockWholeNumber.replace("{{size}}", row.label));
@@ -1068,9 +1098,7 @@ function handleHistoryFilterChange(type, value) {
         if (!activeRows.length) return setVariationError(UI_TEXT.validationSelectOneSize);
         for (const row of activeRows) {
             const stock = Number(row.quantiteStock);
-            const prix = Number(row.prix);
             if (!Number.isFinite(stock) || stock < 0 || !Number.isInteger(stock)) return setVariationError(UI_TEXT.validationStockWholeNumber.replace("{{size}}", row.label));
-            if (!Number.isFinite(prix) || prix <= 0) return setVariationError(UI_TEXT.validationPriceGreaterThanZero);
         }
 
         setBusyCatalog(true);
@@ -1098,12 +1126,41 @@ function handleHistoryFilterChange(type, value) {
 
     async function deleteVariation(id) {
         if (!window.confirm(UI_TEXT.confirmDeleteVariation)) return;
-        setBusyCatalog(true); setCatalogError("");
+        setBusyCatalog(true);
+        setCatalogError("");
         try {
             await api.delete(`/api/admin/variations/${id}`);
-            if (selectedArticle?.id) await loadArticleDetails(selectedArticle.id);
+            if (selectedArticle?.id) {
+                await loadArticleDetails(selectedArticle.id);
+            }
             await refreshCatalog(false);
-        } catch (e) { setCatalogError(e?.response?.data?.message || UI_TEXT.errDeleteVariation); } finally { setBusyCatalog(false); }
+        } catch (e) {
+            console.error("Delete variation error:", e);
+            setCatalogError(e?.response?.data?.message || UI_TEXT.errDeleteVariation);
+        } finally {
+            setBusyCatalog(false);
+        }
+    }
+
+    // Delete all variations in a colour group
+    async function deleteVariationGroup(group) {
+        if (!window.confirm(`Delete entire colour group "${group.couleurNom}"? This will delete ${group.items.length} variation(s).`)) return;
+        setBusyCatalog(true);
+        setCatalogError("");
+        try {
+            for (const item of group.items) {
+                await api.delete(`/api/admin/variations/${item.id}`);
+            }
+            if (selectedArticle?.id) {
+                await loadArticleDetails(selectedArticle.id);
+            }
+            await refreshCatalog(false);
+        } catch (e) {
+            console.error("Delete variation group error:", e);
+            setCatalogError(e?.response?.data?.message || UI_TEXT.errDeleteVariation);
+        } finally {
+            setBusyCatalog(false);
+        }
     }
 
     async function updateVariationStock(variation, nextStock) {
@@ -1139,7 +1196,7 @@ function handleHistoryFilterChange(type, value) {
         } catch (e2) { setCatalogError(e2?.response?.data?.message || UI_TEXT.errStockUpdate); } finally { setBusyCatalog(false); }
     }
 
-    // ===================== Category Dialog (two levels) =====================
+    // ===================== Category Dialog =====================
     function openCreateCategory() {
         setEditingCategoryId(null);
         setCategoryForm({
@@ -1264,7 +1321,7 @@ function handleHistoryFilterChange(type, value) {
         }
     }
 
-    // Colors and sizes (unchanged)
+    // Colors and sizes
     function openCreateColor() { setEditingColorId(null); setColorForm({ nom: "", codeHex: "#000000" }); colorDialogRef.current?.showModal(); }
     function openEditColor(c) { setEditingColorId(c.id); setColorForm({ nom: c.nom || "", codeHex: c.codeHex || "#000000" }); colorDialogRef.current?.showModal(); }
 
@@ -1320,7 +1377,7 @@ function handleHistoryFilterChange(type, value) {
         <>
             <div className="fadeInUp">
                 <div className="admPage">
-                    {/* Header and filters - same as original */}
+                    {/* Header and filters */}
                     <div className="admHeader">
                         <div>
                             <div className="admH1">{tx("admin.catalog.title", UI_TEXT.headerTitle)}</div>
@@ -1491,19 +1548,14 @@ function handleHistoryFilterChange(type, value) {
                                                             <td>
                                                                 <div className="admRowActions wrap">
                                                                     <button type="button" className="admBtn mini" onClick={() => openEditVariationGroup(group)}>{UI_TEXT.bulkEditVariation}</button>
-                                                                    {group.items[0] ? (
-                                                                        <>
-                                                                            <button type="button" className="admBtn mini" onClick={() => openStockDialog(group.items[0], "increment")}>{UI_TEXT.restock}</button>
-                                                                            <button type="button" className="admBtn mini" onClick={() => openStockDialog(group.items[0], "decrement")}>{UI_TEXT.useQty}</button>
-                                                                            <button type="button" className="admBtn mini danger" onClick={() => deleteVariation(group.items[0].id)}>{UI_TEXT.delete}</button>
-                                                                        </>
-                                                                    ) : null}
+                                                                    <button type="button" className="admBtn mini" onClick={() => openEditVariation(group.items[0])}>Edit details</button>
+                                                                    <button type="button" className="admBtn mini danger" onClick={() => deleteVariationGroup(group)}>Delete group</button>
                                                                 </div>
-                                                            </td>
-                                                        </tr>
+                                                             </td>
+                                                         </tr>
                                                     );
                                                 })}
-                                                {!pagedVariations.length && (<tr><td colSpan="7"><div className="admEmpty">{UI_TEXT.noVariations}</div></td></tr>)}
+                                                {!pagedVariations.length && ( <tr><td colSpan="7"><div className="admEmpty">{UI_TEXT.noVariations}</div></td></tr> )}
                                             </tbody>
                                         </table>
                                     </div>
@@ -1512,285 +1564,105 @@ function handleHistoryFilterChange(type, value) {
                             )}
                         </div>
 
-                       {/* Enhanced Global History Panel with Filters */}
-<div ref={historySectionRef} className="admCard">
-    <div className="admCardTop historyToolbar">
-        <div>
-            <div className="admCardTitle">📜 Global Catalog History</div>
-            <div className="variationHint">Track all create, update, and delete actions across the entire catalog</div>
-        </div>
-    </div>
-    
-    {/* Advanced Filters */}
-    <div className="historyFilters">
-        <div className="filterRow">
-            <div className="filterGroup">
-                <label>Action Type</label>
-                <select 
-                    className="admSearch"
-                    value={historyFilter.action}
-                    onChange={(e) => handleHistoryFilterChange("action", e.target.value)}
-                >
-                    <option value="">All Actions</option>
-                    <option value="CREATE">📝 Created</option>
-                    <option value="UPDATE">✏️ Edited</option>
-                    <option value="DELETE">🗑️ Deleted</option>
-                </select>
-            </div>
-            
-            <div className="filterGroup">
-                <label>Target Type</label>
-                <select 
-                    className="admSearch"
-                    value={historyFilter.targetType}
-                    onChange={(e) => handleHistoryFilterChange("targetType", e.target.value)}
-                >
-                    <option value="">All Types</option>
-                    <option value="ARTICLE">📄 Articles Only</option>
-                    <option value="VARIATION">🎨 Variations Only</option>
-                </select>
-            </div>
-            
-            <div className="filterGroup">
-                <label>Search</label>
-                <input 
-                    type="text"
-                    className="admSearch"
-                    placeholder="Search by article, variation, or user..."
-                    value={historyFilter.searchTerm}
-                    onChange={(e) => handleHistoryFilterChange("searchTerm", e.target.value)}
-                />
-            </div>
-        </div>
-        
-        <div className="filterRow">
-            <div className="filterGroup">
-                <label>Date From</label>
-                <input 
-                    type="date"
-                    className="admSearch"
-                    value={historyFilter.dateFrom}
-                    onChange={(e) => handleHistoryFilterChange("dateFrom", e.target.value)}
-                />
-            </div>
-            
-            <div className="filterGroup">
-                <label>Date To</label>
-                <input 
-                    type="date"
-                    className="admSearch"
-                    value={historyFilter.dateTo}
-                    onChange={(e) => handleHistoryFilterChange("dateTo", e.target.value)}
-                />
-            </div>
-            
-            <div className="filterGroup" style={{ justifyContent: "flex-end" }}>
-                <button 
-                    type="button" 
-                    className="admBtn"
-                    onClick={resetHistoryFilters}
-                >
-                    Reset All Filters
-                </button>
-                <button 
-                    type="button" 
-                    className="admBtn primary"
-                    onClick={loadGlobalHistory}
-                >
-                    Apply Filters
-                </button>
-            </div>
-        </div>
-    </div>
-    
-    {/* Statistics Summary */}
-    {!globalHistoryLoading && globalHistory.length > 0 && (
-        <div className="historyStats">
-            <div className="statsGrid">
-                <div className="stat">
-                    <span className="statLabel">Total Records:</span>
-                    <span className="statValue">{globalHistory.length}</span>
-                </div>
-                <div className="stat">
-                    <span className="statLabel">Creations:</span>
-                    <span className="statValue statCreate">
-                        {globalHistory.filter(h => h.action === "CREATE").length}
-                    </span>
-                </div>
-                <div className="stat">
-                    <span className="statLabel">Updates:</span>
-                    <span className="statValue statUpdate">
-                        {globalHistory.filter(h => h.action === "UPDATE").length}
-                    </span>
-                </div>
-                <div className="stat">
-                    <span className="statLabel">Deletions:</span>
-                    <span className="statValue statDelete">
-                        {globalHistory.filter(h => h.action === "DELETE").length}
-                    </span>
-                </div>
-                <div className="stat">
-                    <span className="statLabel">Articles:</span>
-                    <span className="statValue">
-                        {globalHistory.filter(h => h.targetType === "ARTICLE").length}
-                    </span>
-                </div>
-                <div className="stat">
-                    <span className="statLabel">Variations:</span>
-                    <span className="statValue">
-                        {globalHistory.filter(h => h.targetType === "VARIATION").length}
-                    </span>
-                </div>
-            </div>
-        </div>
-    )}
-    
-    <div className="admHistoryList">
-        {globalHistoryLoading ? (
-            <div className="admEmpty">Loading history...</div>
-        ) : !globalHistory.length ? (
-            <div className="admEmpty slim">
-                {historyFilter.searchTerm || historyFilter.dateFrom || historyFilter.dateTo || historyFilter.action || historyFilter.targetType 
-                    ? "No matching history records found with current filters" 
-                    : "No history records found"}
-            </div>
-        ) : (
-            globalHistory.map((row) => (
-                <div key={row.id} className="admHistoryItem">
-                    <div className="admHistoryTop">
-                        <div className="admProfileTop">
-                            {row.actorPhotoUrl && !isHistoryActorBroken(row) ? (
-                                <img 
-                                    src={fullImageUrl(row.actorPhotoUrl, row.actorUserId || row.id)} 
-                                    alt={row.actorName || "User"} 
-                                    className="admAvatar" 
-                                    onError={() => handleHistoryActorError(row)} 
-                                />
-                            ) : (
-                                <div className="admAvatar fallback">{initials(row.actorName)}</div>
-                            )}
-                            <div>
-                                <div className="admName">{row.actorName || "SYSTEM"}</div>
-                                <div className="admRole">{row.actorEmail || "SYSTEM"}</div>
-                            </div>
-                        </div>
-                        <span className={`admBadge ${
-                            row.action === "CREATE" ? "ok" : 
-                            row.action === "DELETE" ? "bad" : 
-                            "neutral"
-                        }`}>
-                            {row.actionLabel || row.action}
-                        </span>
-                    </div>
-                    
-                    <div className="admHistoryText">
-                        <div className="historyMainInfo">
-                            <strong className="historyType">
-                                {row.targetType === "ARTICLE" ? "📄 Article" : "🎨 Variation"}
-                            </strong>
-                            <span className="historySeparator">→</span>
-                            <span className="historyTarget">
-                                {row.targetType === "ARTICLE" ? row.articleName : row.variationLabel}
-                            </span>
-                        </div>
-                        <div className="historySummary">{row.summary || "-"}</div>
-                        {row.detailsJson && (
-                            <div className="admHistoryDetails">
-                                <details>
-                                    <summary>View Details</summary>
-                                    <pre>{JSON.stringify(JSON.parse(row.detailsJson), null, 2)}</pre>
-                                </details>
-                            </div>
-                        )}
-                    </div>
-                    
-                    <div className="admHistoryMeta">
-                        <span className="historyDate">📅 {fmt(row.actionAt)}</span>
-                        {row.targetType === "VARIATION" && row.articleName && (
-                            <span className="historyParentArticle">
-                                📦 Article: {row.articleName}
-                            </span>
-                        )}
-                        {row.targetType === "ARTICLE" && row.articleId && (
-                            <span className="historyId">ID: #{row.articleId}</span>
-                        )}
-                        {row.targetType === "VARIATION" && row.variationId && (
-                            <span className="historyId">ID: #{row.variationId}</span>
-                        )}
-                    </div>
-                </div>
-            ))
-        )}
-    </div>
-    
-    {globalHistory.length > 0 && (
-        <div className="historyFooter">
-            <small>
-                Showing {globalHistory.length} records • 
-                Last updated: {fmt(globalHistory[0]?.actionAt)}
-            </small>
-        </div>
-    )}
-</div>
-
-{/* Deleted Items History with same filters */}
-<div className="admCard">
-    <div className="admCardTop">
-        <div className="admCardTitle">🗑️ Deleted Items History</div>
-        <div className="variationHint">Track all items that have been removed from the catalog</div>
-    </div>
-    <div className="admHistoryList">
-        {globalHistoryLoading ? (
-            <div className="admEmpty">Loading...</div>
-        ) : (
-            globalHistory
-                .filter(row => row.action === "DELETE")
-                .map((row) => (
-                    <div key={row.id} className="admHistoryItem">
-                        <div className="admHistoryTop">
-                            <div className="admProfileTop">
-                                {row.actorPhotoUrl && !isHistoryActorBroken(row) ? (
-                                    <img 
-                                        src={fullImageUrl(row.actorPhotoUrl, row.actorUserId || row.id)} 
-                                        alt={row.actorName || "User"} 
-                                        className="admAvatar" 
-                                        onError={() => handleHistoryActorError(row)} 
-                                    />
-                                ) : (
-                                    <div className="admAvatar fallback">{initials(row.actorName)}</div>
-                                )}
+                        {/* Global History Panel */}
+                        <div ref={historySectionRef} className="admCard">
+                            <div className="admCardTop historyToolbar">
                                 <div>
-                                    <div className="admName">{row.actorName || "SYSTEM"}</div>
-                                    <div className="admRole">{row.actorEmail || "SYSTEM"}</div>
+                                    <div className="admCardTitle">📜 Global Catalog History</div>
+                                    <div className="variationHint">Track all create, update, and delete actions across the entire catalog</div>
                                 </div>
                             </div>
-                            <span className="admBadge bad">DELETED</span>
-                        </div>
-                        <div className="admHistoryText">
-                            <strong>{row.targetType === "ARTICLE" ? "Article" : "Variation"}</strong>
-                            : <span className="deletedItemName">
-                                {row.targetType === "ARTICLE" ? row.articleName : row.variationLabel}
-                            </span>
-                            {" was deleted by "}
-                            <strong>{row.actorName || "SYSTEM"}</strong>
-                        </div>
-                        <div className="admHistoryMeta">
-                            <span className="historyDate">📅 {fmt(row.actionAt)}</span>
-                            {row.targetType === "VARIATION" && row.articleName && (
-                                <span className="historyParentArticle">
-                                    📦 Original Article: {row.articleName}
-                                </span>
+                            <div className="historyFilters">
+                                <div className="filterRow">
+                                    <div className="filterGroup">
+                                        <label>Action Type</label>
+                                        <select className="admSearch" value={historyFilter.action} onChange={(e) => handleHistoryFilterChange("action", e.target.value)}>
+                                            <option value="">All Actions</option>
+                                            <option value="CREATE">📝 Created</option>
+                                            <option value="UPDATE">✏️ Edited</option>
+                                            <option value="DELETE">🗑️ Deleted</option>
+                                        </select>
+                                    </div>
+                                    <div className="filterGroup">
+                                        <label>Target Type</label>
+                                        <select className="admSearch" value={historyFilter.targetType} onChange={(e) => handleHistoryFilterChange("targetType", e.target.value)}>
+                                            <option value="">All Types</option>
+                                            <option value="ARTICLE">📄 Articles Only</option>
+                                            <option value="VARIATION">🎨 Variations Only</option>
+                                        </select>
+                                    </div>
+                                    <div className="filterGroup">
+                                        <label>Search</label>
+                                        <input type="text" className="admSearch" placeholder="Search by article, variation, or user..." value={historyFilter.searchTerm} onChange={(e) => handleHistoryFilterChange("searchTerm", e.target.value)} />
+                                    </div>
+                                </div>
+                                <div className="filterRow">
+                                    <div className="filterGroup">
+                                        <label>Date From</label>
+                                        <input type="date" className="admSearch" value={historyFilter.dateFrom} onChange={(e) => handleHistoryFilterChange("dateFrom", e.target.value)} />
+                                    </div>
+                                    <div className="filterGroup">
+                                        <label>Date To</label>
+                                        <input type="date" className="admSearch" value={historyFilter.dateTo} onChange={(e) => handleHistoryFilterChange("dateTo", e.target.value)} />
+                                    </div>
+                                    <div className="filterGroup" style={{ justifyContent: "flex-end" }}>
+                                        <button type="button" className="admBtn" onClick={resetHistoryFilters}>Reset All Filters</button>
+                                        <button type="button" className="admBtn primary" onClick={loadGlobalHistory}>Apply Filters</button>
+                                    </div>
+                                </div>
+                            </div>
+                            {!globalHistoryLoading && globalHistory.length > 0 && (
+                                <div className="historyStats">
+                                    <div className="statsGrid">
+                                        <div className="stat"><span className="statLabel">Total Records:</span><span className="statValue">{globalHistory.length}</span></div>
+                                        <div className="stat"><span className="statLabel">Creations:</span><span className="statValue statCreate">{globalHistory.filter(h => h.action === "CREATE").length}</span></div>
+                                        <div className="stat"><span className="statLabel">Updates:</span><span className="statValue statUpdate">{globalHistory.filter(h => h.action === "UPDATE").length}</span></div>
+                                        <div className="stat"><span className="statLabel">Deletions:</span><span className="statValue statDelete">{globalHistory.filter(h => h.action === "DELETE").length}</span></div>
+                                        <div className="stat"><span className="statLabel">Articles:</span><span className="statValue">{globalHistory.filter(h => h.targetType === "ARTICLE").length}</span></div>
+                                        <div className="stat"><span className="statLabel">Variations:</span><span className="statValue">{globalHistory.filter(h => h.targetType === "VARIATION").length}</span></div>
+                                    </div>
+                                </div>
                             )}
+                            <div className="admHistoryList">
+                                {globalHistoryLoading ? <div className="admEmpty">Loading history...</div> :
+                                    !globalHistory.length ? <div className="admEmpty slim">{historyFilter.searchTerm || historyFilter.dateFrom || historyFilter.dateTo || historyFilter.action || historyFilter.targetType ? "No matching history records" : "No history records"}</div> :
+                                    globalHistory.map((row) => (
+                                        <div key={row.id} className="admHistoryItem">
+                                            <div className="admHistoryTop">
+                                                <div className="admProfileTop">
+                                                    {row.actorPhotoUrl && !isHistoryActorBroken(row) ? (
+                                                        <img src={fullImageUrl(row.actorPhotoUrl, row.actorUserId || row.id)} alt={row.actorName || "User"} className="admAvatar" onError={() => handleHistoryActorError(row)} />
+                                                    ) : <div className="admAvatar fallback">{initials(row.actorName)}</div>}
+                                                    <div><div className="admName">{row.actorName || "SYSTEM"}</div><div className="admRole">{row.actorEmail || "SYSTEM"}</div></div>
+                                                </div>
+                                                <span className={`admBadge ${row.action === "CREATE" ? "ok" : row.action === "DELETE" ? "bad" : "neutral"}`}>{row.actionLabel || row.action}</span>
+                                            </div>
+                                            <div className="admHistoryText">
+                                                <div className="historyMainInfo"><strong className="historyType">{row.targetType === "ARTICLE" ? "📄 Article" : "🎨 Variation"}</strong><span className="historySeparator">→</span><span className="historyTarget">{row.targetType === "ARTICLE" ? row.articleName : row.variationLabel}</span></div>
+                                                <div className="historySummary">{row.summary || "-"}</div>
+                                                {row.detailsJson && (<div className="admHistoryDetails"><details><summary>View Details</summary><pre>{JSON.stringify(JSON.parse(row.detailsJson), null, 2)}</pre></details></div>)}
+                                            </div>
+                                            <div className="admHistoryMeta"><span className="historyDate">📅 {fmt(row.actionAt)}</span>{row.targetType === "VARIATION" && row.articleName && <span className="historyParentArticle">📦 Article: {row.articleName}</span>}{row.targetType === "ARTICLE" && row.articleId && <span className="historyId">ID: #{row.articleId}</span>}{row.targetType === "VARIATION" && row.variationId && <span className="historyId">ID: #{row.variationId}</span>}</div>
+                                        </div>
+                                    ))}
+                            </div>
+                            {globalHistory.length > 0 && (<div className="historyFooter"><small>Showing {globalHistory.length} records • Last updated: {fmt(globalHistory[0]?.actionAt)}</small></div>)}
                         </div>
-                    </div>
-                ))
-        )}
-        {globalHistory.filter(row => row.action === "DELETE").length === 0 && !globalHistoryLoading && (
-            <div className="admEmpty slim">No deleted items found</div>
-        )}
-    </div>
-</div>
 
+                        {/* Deleted Items History */}
+                        <div className="admCard">
+                            <div className="admCardTop"><div className="admCardTitle">🗑️ Deleted Items History</div><div className="variationHint">Track all items that have been removed from the catalog</div></div>
+                            <div className="admHistoryList">
+                                {globalHistoryLoading ? <div className="admEmpty">Loading...</div> : globalHistory.filter(row => row.action === "DELETE").map((row) => (
+                                    <div key={row.id} className="admHistoryItem">
+                                        <div className="admHistoryTop"><div className="admProfileTop">{row.actorPhotoUrl && !isHistoryActorBroken(row) ? <img src={fullImageUrl(row.actorPhotoUrl, row.actorUserId || row.id)} alt={row.actorName || "User"} className="admAvatar" onError={() => handleHistoryActorError(row)} /> : <div className="admAvatar fallback">{initials(row.actorName)}</div>}<div><div className="admName">{row.actorName || "SYSTEM"}</div><div className="admRole">{row.actorEmail || "SYSTEM"}</div></div></div><span className="admBadge bad">DELETED</span></div>
+                                        <div className="admHistoryText"><strong>{row.targetType === "ARTICLE" ? "Article" : "Variation"}</strong>: <span className="deletedItemName">{row.targetType === "ARTICLE" ? row.articleName : row.variationLabel}</span> was deleted by <strong>{row.actorName || "SYSTEM"}</strong></div>
+                                        <div className="admHistoryMeta"><span className="historyDate">📅 {fmt(row.actionAt)}</span>{row.targetType === "VARIATION" && row.articleName && <span className="historyParentArticle">📦 Original Article: {row.articleName}</span>}</div>
+                                    </div>
+                                ))}
+                                {globalHistory.filter(row => row.action === "DELETE").length === 0 && !globalHistoryLoading && <div className="admEmpty slim">No deleted items found</div>}
+                            </div>
+                        </div>
                     </div>
 
                     {/* Categories, Colors, Sizes tables */}
@@ -1803,13 +1675,7 @@ function handleHistoryFilterChange(type, value) {
                                     <tbody>
                                         {pagedCategories.map((c) => {
                                             const categoryPath = getCategoryFullPath(c.id);
-                                            return (
-                                                <tr key={c.id}>
-                                                    <td><div className="admName">{c.nom}</div><div className="admRole">{c.description || "-"}</div></td>
-                                                    <td><div className="categoryPath" style={{ fontSize: "12px", color: "#666" }}>{categoryPath}</div></td>
-                                                    <td><div className="admRowActions"><button type="button" className="admBtn mini" onClick={() => openEditCategory(c)}>{tx("admin.common.edit", UI_TEXT.edit)}</button><button type="button" className="admBtn mini danger" onClick={() => deleteCategory(c.id)}>{tx("admin.common.delete", UI_TEXT.delete)}</button></div></td>
-                                                </tr>
-                                            );
+                                            return (<tr key={c.id}><td><div className="admName">{c.nom}</div><div className="admRole">{c.description || "-"}</div></td><td><div className="categoryPath" style={{ fontSize: "12px", color: "#666" }}>{categoryPath}</div></td><td><div className="admRowActions"><button type="button" className="admBtn mini" onClick={() => openEditCategory(c)}>{tx("admin.common.edit", UI_TEXT.edit)}</button><button type="button" className="admBtn mini danger" onClick={() => deleteCategory(c.id)}>{tx("admin.common.delete", UI_TEXT.delete)}</button></div></td></tr>);
                                         })}
                                         {!pagedCategories.length && (<tr><td colSpan="3"><div className="admEmpty">{UI_TEXT.noCategories}</div></td></tr>)}
                                     </tbody>
@@ -1824,12 +1690,7 @@ function handleHistoryFilterChange(type, value) {
                                 <table className="adminDataTable compactTable">
                                     <thead><tr><th>{UI_TEXT.colors}</th><th>{UI_TEXT.tableActions}</th></tr></thead>
                                     <tbody>
-                                        {pagedColors.map((c) => (
-                                            <tr key={c.id}>
-                                                <td><div className="colorCell"><span className="colorDot" style={{ background: c.codeHex }} /><div><div className="admName">{c.nom}</div><div className="admRole">{c.codeHex}</div></div></div></td>
-                                                <td><div className="admRowActions"><button type="button" className="admBtn mini" onClick={() => openEditColor(c)}>{tx("admin.common.edit", UI_TEXT.edit)}</button><button type="button" className="admBtn mini danger" onClick={() => deleteColor(c.id)}>{tx("admin.common.delete", UI_TEXT.delete)}</button></div></td>
-                                            </tr>
-                                        ))}
+                                        {pagedColors.map((c) => (<tr key={c.id}><td><div className="colorCell"><span className="colorDot" style={{ background: c.codeHex }} /><div><div className="admName">{c.nom}</div><div className="admRole">{c.codeHex}</div></div></div></td><td><div className="admRowActions"><button type="button" className="admBtn mini" onClick={() => openEditColor(c)}>{tx("admin.common.edit", UI_TEXT.edit)}</button><button type="button" className="admBtn mini danger" onClick={() => deleteColor(c.id)}>{tx("admin.common.delete", UI_TEXT.delete)}</button></div></td></tr>))}
                                         {!pagedColors.length && (<tr><td colSpan="2"><div className="admEmpty">{UI_TEXT.noColors}</div></td></tr>)}
                                     </tbody>
                                 </table>
@@ -1843,12 +1704,7 @@ function handleHistoryFilterChange(type, value) {
                                 <table className="adminDataTable compactTable">
                                     <thead><tr><th>{UI_TEXT.sizes}</th><th>{UI_TEXT.tableActions}</th></tr></thead>
                                     <tbody>
-                                        {pagedSizes.map((s) => (
-                                            <tr key={s.id}>
-                                                <td><div className="admName">{s.pointure}</div></td>
-                                                <td><div className="admRowActions"><button type="button" className="admBtn mini" onClick={() => openEditSize(s)}>{tx("admin.common.edit", UI_TEXT.edit)}</button><button type="button" className="admBtn mini danger" onClick={() => deleteSize(s.id)}>{tx("admin.common.delete", UI_TEXT.delete)}</button></div></td>
-                                            </tr>
-                                        ))}
+                                        {pagedSizes.map((s) => (<tr key={s.id}><td><div className="admName">{s.pointure}</div></td><td><div className="admRowActions"><button type="button" className="admBtn mini" onClick={() => openEditSize(s)}>{tx("admin.common.edit", UI_TEXT.edit)}</button><button type="button" className="admBtn mini danger" onClick={() => deleteSize(s.id)}>{tx("admin.common.delete", UI_TEXT.delete)}</button></div></td></tr>))}
                                         {!pagedSizes.length && (<tr><td colSpan="2"><div className="admEmpty">{UI_TEXT.noSizes}</div></td></tr>)}
                                     </tbody>
                                 </table>
@@ -1859,103 +1715,15 @@ function handleHistoryFilterChange(type, value) {
                 </div>
             </div>
 
-            {/* ==================== ARTICLE DIALOG (3 levels for shoes, 2 for accessories) ==================== */}
+            {/* ========== DIALOGS ========== */}
+            {/* Article Dialog */}
             <dialog ref={articleDialogRef} className="admDialog productDialog">
-                <div className="admDialogHead">
-                    <div className="admDialogTitle">{editingArticleId ? UI_TEXT.articleDialogEdit : UI_TEXT.articleDialogAdd}</div>
-                    <button type="button" className="admBtn mini" onClick={() => articleDialogRef.current?.close()}>{tx("admin.common.close", UI_TEXT.close)}</button>
-                </div>
+                <div className="admDialogHead"><div className="admDialogTitle">{editingArticleId ? UI_TEXT.articleDialogEdit : UI_TEXT.articleDialogAdd}</div><button type="button" className="admBtn mini" onClick={() => articleDialogRef.current?.close()}>{UI_TEXT.close}</button></div>
                 <form className="productForm admDialogBody" onSubmit={saveArticle}>
                     <label><span>{UI_TEXT.productName}</span><input value={articleForm.nom} onChange={(e) => setArticleForm({ ...articleForm, nom: e.target.value })} required /></label>
-
-                    {/* Level 1: Main Category */}
-                    <label>
-                        <span>{UI_TEXT.mainCategoryLabel}</span>
-                        <select
-                            value={selectedMainCat}
-                            onChange={async (e) => {
-                                const mainId = e.target.value;
-                                setSelectedMainCat(mainId);
-                                setSelectedSubCat("");
-                                setSelectedProductType("");
-                                setArticleForm({ ...articleForm, categorieId: "" });
-                                if (mainId) {
-                                    const mainObj = mainCategories.find(m => String(m.id) === String(mainId));
-                                    const isShoes = mainObj?.nom?.toUpperCase() === "CHAUSSURES";
-                                    setIsArticleMainShoes(isShoes);
-                                    if (isShoes) {
-                                        // For shoes: load sub categories (level 2)
-                                        await loadChildren(mainId, setSubCategories);
-                                        setProductTypes([]);
-                                    } else {
-                                        // For accessories: load product types directly (level 2)
-                                        await loadChildren(mainId, setProductTypes);
-                                        setSubCategories([]);
-                                    }
-                                } else {
-                                    setSubCategories([]);
-                                    setProductTypes([]);
-                                    setIsArticleMainShoes(false);
-                                }
-                            }}
-                            required
-                        >
-                            <option value="">{UI_TEXT.selectMainCategory}</option>
-                            {mainCategories.map((c) => (
-                                <option key={c.id} value={c.id}>{c.nom}</option>
-                            ))}
-                        </select>
-                    </label>
-
-                    {/* Level 2: Sub Category (only for shoes) */}
-                    {isArticleMainShoes && subCategories.length > 0 && (
-                        <label>
-                            <span>{UI_TEXT.subCategoryLabel}</span>
-                            <select
-                                value={selectedSubCat}
-                                onChange={async (e) => {
-                                    const subId = e.target.value;
-                                    setSelectedSubCat(subId);
-                                    setSelectedProductType("");
-                                    setArticleForm({ ...articleForm, categorieId: "" });
-                                    if (subId) {
-                                        await loadChildren(subId, setProductTypes);
-                                    } else {
-                                        setProductTypes([]);
-                                    }
-                                }}
-                                required
-                            >
-                                <option value="">{UI_TEXT.selectSubCategory}</option>
-                                {subCategories.map((c) => (
-                                    <option key={c.id} value={c.id}>{c.nom}</option>
-                                ))}
-                            </select>
-                        </label>
-                    )}
-
-                    {/* Level 3: Product Type – for shoes (after sub) or directly for accessories */}
-                    {((isArticleMainShoes && productTypes.length > 0) || (!isArticleMainShoes && productTypes.length > 0)) && (
-                        <label>
-                            <span>{UI_TEXT.productTypeLabel}</span>
-                            <select
-                                value={selectedProductType}
-                                onChange={(e) => {
-                                    const typeId = e.target.value;
-                                    setSelectedProductType(typeId);
-                                    setArticleForm({ ...articleForm, categorieId: typeId });
-                                }}
-                                required
-                            >
-                                <option value="">{UI_TEXT.selectProductType}</option>
-                                {productTypes.map((c) => (
-                                    <option key={c.id} value={c.id}>{c.nom}</option>
-                                ))}
-                            </select>
-                        </label>
-                    )}
-
-                    {/* Rest of article form fields */}
+                    <label><span>{UI_TEXT.mainCategoryLabel}</span><select value={selectedMainCat} onChange={async (e) => { const mainId = e.target.value; setSelectedMainCat(mainId); setSelectedSubCat(""); setSelectedProductType(""); setArticleForm({ ...articleForm, categorieId: "" }); if (mainId) { const mainObj = mainCategories.find(m => String(m.id) === String(mainId)); const isShoes = mainObj?.nom?.toUpperCase() === "CHAUSSURES"; setIsArticleMainShoes(isShoes); if (isShoes) { await loadChildren(mainId, setSubCategories); setProductTypes([]); } else { await loadChildren(mainId, setProductTypes); setSubCategories([]); } } else { setSubCategories([]); setProductTypes([]); setIsArticleMainShoes(false); } }} required><option value="">{UI_TEXT.selectMainCategory}</option>{mainCategories.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}</select></label>
+                    {isArticleMainShoes && subCategories.length > 0 && (<label><span>{UI_TEXT.subCategoryLabel}</span><select value={selectedSubCat} onChange={async (e) => { const subId = e.target.value; setSelectedSubCat(subId); setSelectedProductType(""); setArticleForm({ ...articleForm, categorieId: "" }); if (subId) await loadChildren(subId, setProductTypes); else setProductTypes([]); }} required><option value="">{UI_TEXT.selectSubCategory}</option>{subCategories.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}</select></label>)}
+                    {((isArticleMainShoes && productTypes.length > 0) || (!isArticleMainShoes && productTypes.length > 0)) && (<label><span>{UI_TEXT.productTypeLabel}</span><select value={selectedProductType} onChange={(e) => { const typeId = e.target.value; setSelectedProductType(typeId); setArticleForm({ ...articleForm, categorieId: typeId }); }} required><option value="">{UI_TEXT.selectProductType}</option>{productTypes.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}</select></label>)}
                     <label><span>{UI_TEXT.price}</span><input type="number" step="0.001" min="0.001" value={articleForm.prix} onChange={(e) => setArticleForm({ ...articleForm, prix: e.target.value })} required /></label>
                     <label><span>{UI_TEXT.salePrice}</span><input type="number" step="0.001" min="0" value={articleForm.salePrice} onChange={(e) => setArticleForm({ ...articleForm, salePrice: e.target.value })} /></label>
                     <label><span>{UI_TEXT.saleStart}</span><input type="datetime-local" value={articleForm.saleStartAt} onChange={(e) => setArticleForm({ ...articleForm, saleStartAt: e.target.value })} /></label>
@@ -1971,54 +1739,30 @@ function handleHistoryFilterChange(type, value) {
                 </form>
             </dialog>
 
-            {/* Variation Dialog (unchanged) */}
+            {/* Variation Dialog (create / edit) */}
             <dialog ref={variationDialogRef} className="admDialog admDialogWide">
                 <div className="admDialogHead">
-                    <div className="admDialogTitle">
-                        {editingVariationGroup ? UI_TEXT.bulkEditVariation : editingVariationId ? UI_TEXT.variationDialogEdit : UI_TEXT.variationDialogAdd}
-                    </div>
+                    <div className="admDialogTitle">{editingVariationGroup ? UI_TEXT.bulkEditVariation : editingVariationId ? UI_TEXT.variationDialogEdit : UI_TEXT.variationDialogAdd}</div>
                     <button type="button" className="admBtn mini" onClick={closeVariationDialog}>{UI_TEXT.close}</button>
                 </div>
-
                 <form className="productForm admDialogBody" onSubmit={editingVariationGroup ? saveVariationGroup : saveVariation}>
-                    <div className="variationHelp fullCol">
-                        {editingVariationGroup ? `${UI_TEXT.colorGroup}: ${variationGroupForm.couleurNom}` : isAccessoryCategory ? UI_TEXT.accessoryVariationCreateHelp : UI_TEXT.variationCreateHelp}
-                    </div>
-
+                    <div className="variationHelp fullCol">{editingVariationGroup ? `${UI_TEXT.colorGroup}: ${variationGroupForm.couleurNom}` : isAccessoryCategory ? UI_TEXT.accessoryVariationCreateHelp : UI_TEXT.variationCreateHelp}</div>
                     {variationError && <div className="admAlert fullCol">{variationError}</div>}
 
                     {!editingVariationGroup ? (
                         <>
-                            <label>
-                                <span>{UI_TEXT.colorLabel}</span>
-                                <select value={variationForm.couleurId} onChange={(e) => handleVariationColorChange(e.target.value)} required disabled={!colors.length}>
-                                    <option value="">{UI_TEXT.selectColor}</option>
-                                    {colors.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
-                                </select>
-                            </label>
+                            <label><span>{UI_TEXT.colorLabel}</span><select value={variationForm.couleurId} onChange={(e) => handleVariationColorChange(e.target.value)} required disabled={!colors.length}><option value="">{UI_TEXT.selectColor}</option>{colors.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}</select></label>
                             <label><span>{UI_TEXT.price}</span><input type="number" min="0.001" step="0.001" value={variationForm.prix} onChange={(e) => setVariationForm({ ...variationForm, prix: e.target.value })} required /></label>
                         </>
                     ) : (
-                        <>
-                            <label><span>{UI_TEXT.colorLabel}</span><input value={variationGroupForm.couleurNom} disabled /></label>
-                            <label><span>{UI_TEXT.price}</span><input value={variationGroupForm.prix} disabled /></label>
-                        </>
+                        // Group edit: show colour name (disabled) but no price field (we hide it as requested)
+                        <label><span>{UI_TEXT.colorLabel}</span><input value={variationGroupForm.couleurNom} disabled /></label>
                     )}
 
                     {isAccessoryCategory ? (
                         <div className="fullCol variationAccessoryBox">
                             <div className="variationHelp">{editingVariationGroup ? UI_TEXT.accessoryVariationEditHelp : UI_TEXT.accessoryVariationCreateHelp}</div>
-                            <label className="fullCol">
-                                <span>{UI_TEXT.stockLabel}</span>
-                                <input type="number" min="0" step="1" value={editingVariationGroup ? variationGroupForm.rows?.[0]?.quantiteStock ?? 0 : variationForm.quantiteStock ?? 0} onChange={(e) => {
-                                    const value = e.target.value;
-                                    if (editingVariationGroup) {
-                                        setVariationGroupForm((prev) => ({ ...prev, rows: (prev.rows || []).length ? prev.rows.map((row, index) => index === 0 ? { ...row, quantiteStock: value } : row) : [{ tailleId: null, label: UI_TEXT.stockOnly, variationId: null, checked: true, quantiteStock: value, prix: prev.prix ?? selectedArticle?.prix ?? "" }] }));
-                                    } else {
-                                        setVariationForm((prev) => ({ ...prev, quantiteStock: value }));
-                                    }
-                                }} required />
-                            </label>
+                            <label className="fullCol"><span>{UI_TEXT.stockLabel}</span><input type="number" min="0" step="1" value={editingVariationGroup ? variationGroupForm.rows?.[0]?.quantiteStock ?? 0 : variationForm.quantiteStock ?? 0} onChange={(e) => { const val = e.target.value; if (editingVariationGroup) setVariationGroupForm((prev) => ({ ...prev, rows: (prev.rows || []).length ? prev.rows.map((row, idx) => idx === 0 ? { ...row, quantiteStock: val } : row) : [{ tailleId: null, label: UI_TEXT.stockOnly, variationId: null, checked: true, quantiteStock: val, prix: prev.prix ?? selectedArticle?.prix ?? "" }] })); else setVariationForm((prev) => ({ ...prev, quantiteStock: val })); }} required /></label>
                         </div>
                     ) : (
                         <div className="fullCol variationCurrentImages">
@@ -2026,35 +1770,11 @@ function handleHistoryFilterChange(type, value) {
                             <div className="sizeStockGrid">
                                 {(editingVariationGroup ? variationGroupForm.rows : variationForm.sizeStocks || []).map((item) => (
                                     <label key={item.tailleId} className={`sizeStockCard ${item.checked ? "active" : ""} ${item.disabled ? "disabled" : ""}`}>
-                                        <div className="sizeStockTop">
-                                            <div className="sizeStockCheck">
-                                                <input type="checkbox" checked={!!item.checked} disabled={!editingVariationGroup && item.disabled} onChange={(e) => {
-                                                    if (editingVariationGroup) {
-                                                        setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, checked: e.target.checked } : row) }));
-                                                    } else {
-                                                        toggleVariationSize(item.tailleId, e.target.checked);
-                                                    }
-                                                }} />
-                                                <span>{UI_TEXT.sizeLabel} {item.label} {!editingVariationGroup && item.disabled ? ` • ${UI_TEXT.alreadyExists}` : ""}</span>
-                                            </div>
-                                        </div>
-                                        <div className="sizeStockBody">
-                                            <span>{UI_TEXT.stockLabel}</span>
-                                            <input type="number" min="0" step="1" value={item.quantiteStock} disabled={!item.checked} onChange={(e) => {
-                                                if (editingVariationGroup) {
-                                                    setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, quantiteStock: e.target.value } : row) }));
-                                                } else {
-                                                    changeVariationSizeStock(item.tailleId, e.target.value);
-                                                }
-                                            }} />
-                                        </div>
-                                        {editingVariationGroup && (
-                                            <div className="sizeStockBody">
-                                                <span>{UI_TEXT.price}</span>
-                                                <input type="number" min="0.001" step="0.001" value={item.prix} disabled={!item.checked} onChange={(e) => {
-                                                    setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, prix: e.target.value } : row) }));
-                                                }} />
-                                            </div>
+                                        <div className="sizeStockTop"><div className="sizeStockCheck"><input type="checkbox" checked={!!item.checked} disabled={!editingVariationGroup && item.disabled} onChange={(e) => { if (editingVariationGroup) setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, checked: e.target.checked } : row) })); else toggleVariationSize(item.tailleId, e.target.checked); }} /><span>{UI_TEXT.sizeLabel} {item.label} {!editingVariationGroup && item.disabled ? ` • ${UI_TEXT.alreadyExists}` : ""}</span></div></div>
+                                        <div className="sizeStockBody"><span>{UI_TEXT.stockLabel}</span><input type="number" min="0" step="1" value={item.quantiteStock} disabled={!item.checked} onChange={(e) => { if (editingVariationGroup) setVariationGroupForm((prev) => ({ ...prev, rows: prev.rows.map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, quantiteStock: e.target.value } : row) })); else changeVariationSizeStock(item.tailleId, e.target.value); }} /></div>
+                                        {/* Price input only in individual edit, not in group edit */}
+                                        {!editingVariationGroup && (
+                                            <div className="sizeStockBody"><span>{UI_TEXT.price}</span><input type="number" min="0.001" step="0.001" value={item.prix} disabled={!item.checked} onChange={(e) => setVariationForm((prev) => ({ ...prev, sizeStocks: (prev.sizeStocks || []).map((row) => Number(row.tailleId) === Number(item.tailleId) ? { ...row, prix: e.target.value } : row) }))} /></div>
                                         )}
                                     </label>
                                 ))}
@@ -2062,65 +1782,65 @@ function handleHistoryFilterChange(type, value) {
                         </div>
                     )}
 
-                    <label className="fullCol">
-                        <span>{UI_TEXT.variationImages}</span>
-                        <input type="file" accept="image/*" multiple onChange={(e) => {
-                            const files = Array.from(e.target.files || []);
-                            if (editingVariationGroup) setVariationGroupForm((prev) => ({ ...prev, imageFiles: files }));
-                            else setVariationForm((prev) => ({ ...prev, imageFiles: files }));
-                        }} />
-                    </label>
-
-                    {!!(editingVariationGroup ? variationGroupForm.existingImageUrls : variationForm.existingImageUrls)?.length && (
-                        <div className="fullCol variationCurrentImages">
-                            <div className="variationHelp">{UI_TEXT.savedVariationImages}</div>
-                            <div className="variationPreviewGrid">
-                                {(editingVariationGroup ? variationGroupForm.existingImageUrls : variationForm.existingImageUrls).map((url, index) => {
-                                    const imgSrc = fullImageUrl(url, `${editingVariationGroup?.key || editingVariationId || "variation"}-${index}`);
-                                    return (
-                                        <div key={`${url}-${index}`} className="variationPreviewItem">
-                                            <button type="button" className="variationPreviewRemove" onClick={() => removeExistingVariationImage(index)} title="Remove image">×</button>
-                                            {imgSrc ? (
-                                                <img src={imgSrc} alt={`Variation ${index + 1}`} className="variationPreviewThumb" onError={(e) => { e.currentTarget.style.display = "none"; const fallback = e.currentTarget.nextElementSibling; if (fallback) fallback.style.display = "flex"; }} />
-                                            ) : null}
-                                            <div className="variationPreviewThumb fallback" style={{ display: imgSrc ? "none" : "flex" }}>{UI_TEXT.noImage}</div>
-                                            <div className="variationPreviewName">{UI_TEXT.savedImage} {index + 1}</div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-                    <label className="fullCol">
-                        <span>{UI_TEXT.model3d}</span>
-                        <input type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" onChange={(e) => {
-                            const file = e.target.files?.[0] || null;
-                            if (editingVariationGroup) setVariationGroupForm((prev) => ({ ...prev, model3dFile: file }));
-                            else setVariationForm((prev) => ({ ...prev, model3dFile: file }));
-                        }} />
-                    </label>
-
-                    {(editingVariationGroup ? variationGroupForm.existingModel3dUrl || variationGroupForm.model3dFile : variationForm.existingModel3dUrl || variationForm.model3dFile) && (
-                        <div className="fullCol variationCurrentImages">
-                            <div className="variationHelp">{UI_TEXT.currentModel}</div>
-                            <div className="variationModelBox">
-                                {(editingVariationGroup ? variationGroupForm.model3dFile : variationForm.model3dFile) ? (
-                                    <div className="variationModelMeta"><strong>{UI_TEXT.newFile}:</strong> {(editingVariationGroup ? variationGroupForm.model3dFile : variationForm.model3dFile)?.name}</div>
-                                ) : null}
-                                {(editingVariationGroup ? variationGroupForm.existingModel3dUrl : variationForm.existingModel3dUrl) ? (
-                                    <div className="variationModelMeta">
-                                        <strong>{UI_TEXT.savedFile}:</strong>{" "}
-                                        <a href={fullImageUrl(editingVariationGroup ? variationGroupForm.existingModel3dUrl : variationForm.existingModel3dUrl, editingVariationGroup?.key || editingVariationId || "model")} target="_blank" rel="noreferrer">
-                                            {(editingVariationGroup ? variationGroupForm.existingModel3dName : variationForm.existingModel3dName) || UI_TEXT.openCurrentModel}
-                                        </a>
+                    {/* Images & 3D model – only for individual edit, never for group edit */}
+                    {!editingVariationGroup && (
+                        <>
+                            <label className="fullCol">
+                                <span>{UI_TEXT.variationImages}</span>
+                                <input type="file" accept="image/*" multiple onChange={(e) => {
+                                    const files = Array.from(e.target.files || []);
+                                    setVariationForm((prev) => ({ ...prev, imageFiles: files }));
+                                }} />
+                            </label>
+                            {!!variationForm.existingImageUrls?.length && (
+                                <div className="fullCol variationCurrentImages">
+                                    <div className="variationHelp">{UI_TEXT.savedVariationImages}</div>
+                                    <div className="variationPreviewGrid">
+                                        {variationForm.existingImageUrls.map((url, index) => {
+                                            const imgSrc = fullImageUrl(url, `${editingVariationId || "variation"}-${index}`);
+                                            return (
+                                                <div key={`${url}-${index}`} className="variationPreviewItem">
+                                                    <button type="button" className="variationPreviewRemove" onClick={() => removeExistingVariationImage(index)}>×</button>
+                                                    {imgSrc ? (
+                                                        <img src={imgSrc} alt={`Variation ${index + 1}`} className="variationPreviewThumb" onError={(e) => { e.currentTarget.style.display = "none"; const fb = e.currentTarget.nextElementSibling; if (fb) fb.style.display = "flex"; }} />
+                                                    ) : (
+                                                        <div className="variationPreviewThumb fallback" style={{ display: "flex" }}>{UI_TEXT.noImage}</div>
+                                                    )}
+                                                    <div className="variationPreviewName">{UI_TEXT.savedImage} {index + 1}</div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                ) : null}
-                            </div>
-                        </div>
+                                </div>
+                            )}
+                            <label className="fullCol">
+                                <span>{UI_TEXT.model3d}</span>
+                                <input type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" onChange={(e) => {
+                                    const file = e.target.files?.[0] || null;
+                                    setVariationForm((prev) => ({ ...prev, model3dFile: file }));
+                                }} />
+                            </label>
+                            {(variationForm.existingModel3dUrl || variationForm.model3dFile) && (
+                                <div className="fullCol variationCurrentImages">
+                                    <div className="variationHelp">{UI_TEXT.currentModel}</div>
+                                    <div className="variationModelBox">
+                                        {variationForm.model3dFile ? (
+                                            <div className="variationModelMeta"><strong>{UI_TEXT.newFile}:</strong> {variationForm.model3dFile.name}</div>
+                                        ) : null}
+                                        {variationForm.existingModel3dUrl ? (
+                                            <div className="variationModelMeta">
+                                                <strong>{UI_TEXT.savedFile}:</strong>
+                                                <a href={fullImageUrl(variationForm.existingModel3dUrl, editingVariationId || "model")} target="_blank" rel="noreferrer">
+                                                    {variationForm.existingModel3dName || UI_TEXT.openCurrentModel}
+                                                </a>
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            )}
+                            <div className="fullCol variationHelp">{UI_TEXT.variationImageHint}</div>
+                        </>
                     )}
-
-                    <div className="fullCol variationHelp">{UI_TEXT.variationImageHint}</div>
 
                     <div className="admDialogActions fullCol">
                         <button type="submit" className="admBtn primary" disabled={busyCatalog || !colors.length || (!isAccessoryCategory && !sizes.length)}>
@@ -2143,83 +1863,18 @@ function handleHistoryFilterChange(type, value) {
                 </form>
             </dialog>
 
-            {/* Category Dialog (two levels) */}
+            {/* Category Dialog */}
             <dialog ref={categoryDialogRef} className="admDialog productDialog">
-                <div className="admDialogHead">
-                    <div className="admDialogTitle">{editingCategoryId ? UI_TEXT.categoryDialogEdit : UI_TEXT.categoryDialogAdd}</div>
-                    <button type="button" className="admBtn mini" onClick={() => categoryDialogRef.current?.close()}>{UI_TEXT.close}</button>
-                </div>
+                <div className="admDialogHead"><div className="admDialogTitle">{editingCategoryId ? UI_TEXT.categoryDialogEdit : UI_TEXT.categoryDialogAdd}</div><button type="button" className="admBtn mini" onClick={() => categoryDialogRef.current?.close()}>{UI_TEXT.close}</button></div>
                 <form className="productForm admDialogBody" onSubmit={saveCategory}>
-                    <label className="fullCol">
-                        <span>{UI_TEXT.categoryName}</span>
-                        <input value={categoryForm.nom} onChange={(e) => setCategoryForm({ ...categoryForm, nom: e.target.value })} required />
-                    </label>
-
-                    <label className="fullCol">
-                        <span>{UI_TEXT.mainCategoryLabel}</span>
-                        <select
-                            value={categorySelectedMain}
-                            onChange={async (e) => {
-                                const mainId = e.target.value;
-                                setCategorySelectedMain(mainId);
-                                setCategorySelectedLevel2("");
-                                if (mainId) {
-                                    await loadChildren(mainId, setCategoryLevel2Options);
-                                    const mainObj = mainCategories.find(m => String(m.id) === String(mainId));
-                                    setIsCategoryMainShoes(mainObj?.nom?.toUpperCase() === "CHAUSSURES");
-                                } else {
-                                    setCategoryLevel2Options([]);
-                                    setIsCategoryMainShoes(false);
-                                }
-                            }}
-                        >
-                            <option value="">{UI_TEXT.selectMainCategory}</option>
-                            {mainCategories.map((c) => (
-                                <option key={c.id} value={c.id}>{c.nom}</option>
-                            ))}
-                        </select>
-                    </label>
-
-                    {categoryLevel2Options.length > 0 && (
-                        <label className="fullCol">
-                            <span>{isCategoryMainShoes ? UI_TEXT.subCategoryLabel : UI_TEXT.productTypeLabel}</span>
-                            <select
-                                value={categorySelectedLevel2}
-                                onChange={(e) => setCategorySelectedLevel2(e.target.value)}
-                            >
-                                <option value="">{isCategoryMainShoes ? UI_TEXT.selectSubCategory : UI_TEXT.selectProductType}</option>
-                                {categoryLevel2Options.map((c) => (
-                                    <option key={c.id} value={c.id}>{c.nom}</option>
-                                ))}
-                            </select>
-                        </label>
-                    )}
-
-                    <label className="fullCol">
-                        <span>{UI_TEXT.displayOrder}</span>
-                        <input type="number" min="0" step="1" value={categoryForm.displayOrder} onChange={(e) => setCategoryForm({ ...categoryForm, displayOrder: Number(e.target.value) })} />
-                    </label>
-
-                    <label className="fullCol">
-                        <span>{UI_TEXT.iconUrl}</span>
-                        <input value={categoryForm.iconUrl} onChange={(e) => setCategoryForm({ ...categoryForm, iconUrl: e.target.value })} placeholder="/images/category-icon.png" />
-                    </label>
-
-                    <label className="checkRow fullCol">
-                        <input type="checkbox" checked={categoryForm.actif} onChange={(e) => setCategoryForm({ ...categoryForm, actif: e.target.checked })} />
-                        <span>Active</span>
-                    </label>
-
-                    <label className="fullCol">
-                        <span>{UI_TEXT.description}</span>
-                        <textarea rows="3" value={categoryForm.description} onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} />
-                    </label>
-
-                    <div className="admDialogActions fullCol">
-                        <button type="submit" className="admBtn primary" disabled={busyCatalog}>
-                            {editingCategoryId ? UI_TEXT.updateCategory : UI_TEXT.saveCategory}
-                        </button>
-                    </div>
+                    <label className="fullCol"><span>{UI_TEXT.categoryName}</span><input value={categoryForm.nom} onChange={(e) => setCategoryForm({ ...categoryForm, nom: e.target.value })} required /></label>
+                    <label className="fullCol"><span>{UI_TEXT.mainCategoryLabel}</span><select value={categorySelectedMain} onChange={async (e) => { const mainId = e.target.value; setCategorySelectedMain(mainId); setCategorySelectedLevel2(""); if (mainId) { await loadChildren(mainId, setCategoryLevel2Options); const mainObj = mainCategories.find(m => String(m.id) === String(mainId)); setIsCategoryMainShoes(mainObj?.nom?.toUpperCase() === "CHAUSSURES"); } else { setCategoryLevel2Options([]); setIsCategoryMainShoes(false); } }}><option value="">{UI_TEXT.selectMainCategory}</option>{mainCategories.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}</select></label>
+                    {categoryLevel2Options.length > 0 && (<label className="fullCol"><span>{isCategoryMainShoes ? UI_TEXT.subCategoryLabel : UI_TEXT.productTypeLabel}</span><select value={categorySelectedLevel2} onChange={(e) => setCategorySelectedLevel2(e.target.value)}><option value="">{isCategoryMainShoes ? UI_TEXT.selectSubCategory : UI_TEXT.selectProductType}</option>{categoryLevel2Options.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}</select></label>)}
+                    <label className="fullCol"><span>{UI_TEXT.displayOrder}</span><input type="number" min="0" step="1" value={categoryForm.displayOrder} onChange={(e) => setCategoryForm({ ...categoryForm, displayOrder: Number(e.target.value) })} /></label>
+                    <label className="fullCol"><span>{UI_TEXT.iconUrl}</span><input value={categoryForm.iconUrl} onChange={(e) => setCategoryForm({ ...categoryForm, iconUrl: e.target.value })} placeholder="/images/category-icon.png" /></label>
+                    <label className="checkRow fullCol"><input type="checkbox" checked={categoryForm.actif} onChange={(e) => setCategoryForm({ ...categoryForm, actif: e.target.checked })} /><span>Active</span></label>
+                    <label className="fullCol"><span>{UI_TEXT.description}</span><textarea rows="3" value={categoryForm.description} onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} /></label>
+                    <div className="admDialogActions fullCol"><button type="submit" className="admBtn primary" disabled={busyCatalog}>{editingCategoryId ? UI_TEXT.updateCategory : UI_TEXT.saveCategory}</button></div>
                 </form>
             </dialog>
 
