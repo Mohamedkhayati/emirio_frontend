@@ -99,22 +99,22 @@ export default function OrdersPage() {
   }
 
   // Accept/reject payment – changes payment status only, order status stays EN_ATTENTE
-  async function reviewPayment(id, accepted) {
-    if (!isAdminGeneral && !isEcommerceManager) return;
-    setBusyOrderId(id);
-    setOrdersError("");
-    try {
-      await api.patch(`/api/admin/orders/${id}/payment-review`, {
-        accepted,
-        note: accepted ? "Payment accepted by admin" : "Payment rejected by admin",
-      });
-      await loadOrders();
-    } catch (e) {
-      setOrdersError(e?.response?.data?.message || "Cannot review payment");
-    } finally {
-      setBusyOrderId(null);
-    }
+ async function reviewPayment(id, accepted) {
+  if (!isAdminGeneral && !isEcommerceManager) return;
+  setBusyOrderId(id);
+  setOrdersError("");
+  try {
+    await api.patch(`/api/admin/orders/${id}/payment-review`, {
+      accepted,
+      note: accepted ? "Payment accepted by admin" : "Payment rejected by admin",
+    });
+    await loadOrders(); // refresh list
+  } catch (e) {
+    setOrdersError(e?.response?.data?.message || "Cannot review payment");
+  } finally {
+    setBusyOrderId(null);
   }
+}
 
   async function markDelivered(id) {
     if (!isAdminGeneral && !isEcommerceManager) return;

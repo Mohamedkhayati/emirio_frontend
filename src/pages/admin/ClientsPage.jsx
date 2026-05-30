@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { api } from "../../lib/api";
 import { fmt, initials } from "./adminShared";
+import { useTranslation } from "react-i18next";
 
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
@@ -42,6 +43,8 @@ const getRoleDisplayName = (role) => {
 };
 
 export default function ClientsPage() {
+    const { t } = useTranslation();
+
   const { isAdminGeneral } = useOutletContext();
 
   const [rows, setRows] = useState([]);

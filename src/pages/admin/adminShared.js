@@ -131,22 +131,16 @@ export const emptyArticleForm = {
 };
 
 export const emptyVariationForm = {
-  prix: "",
-  quantiteStock: "",
-  couleurId: "",
-  tailleId: "",
-  imageFile1: null,
-  imageFile2: null,
-  imageFile3: null,
-  imageFile4: null,
-  model3dFile: null,
-  existingImage1: "",
-  existingImage2: "",
-  existingImage3: "",
-  existingImage4: "",
-  existingModel3dUrl: "",
-  existingModel3dName: "",
-  existingModel3dType: "",
+    prix: "",
+    couleurId: "",
+    quantiteStock: 0,  // Add this with default value 0
+    sizeStocks: [],
+    imageFiles: [],
+    existingImageUrls: [],
+    model3dFile: null,
+    existingModel3dUrl: "",
+    existingModel3dName: "",
+    existingModel3dType: "",
 };
 
 export const emptyCategoryForm = { nom: "", description: "" };

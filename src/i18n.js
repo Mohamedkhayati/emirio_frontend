@@ -88,7 +88,33 @@ const resources = {
         date: "Date",
         country: "Country",
         city: "City",
-        note: "Only Nom and Prenom are saved to backend in Sprint 1."
+        note: "Only Nom and Prenom are saved to backend in Sprint 1.",
+        age: "Age",
+        gender: "Gender",
+        status: "Profile status",
+        complete: "Complete",
+        incomplete: "Incomplete",
+        photoReady: "Your profile photo is stored in the database.",
+        photoFallback: "No profile photo yet. Upload one now.",
+        uploadingPhoto: "Uploading...",
+        changePhoto: "Upload profile photo",
+        personalInfo: "Personal information",
+        email: "Email",
+        dateOfBirth: "Date of birth",
+        selectGender: "Select gender",
+        male: "Male",
+        female: "Female",
+        completeTitle: "Complete your profile",
+        completeText: "Please complete your profile before continuing.",
+        saveContinue: "Save and continue",
+        photoInvalid: "Please choose a valid image file.",
+        photoUpdated: "Profile photo updated successfully.",
+        photoUploadFailed: "Failed to upload profile photo.",
+        nomRequired: "Last name is required.",
+        prenomRequired: "First name is required.",
+        birthRequired: "Date of birth is required.",
+        birthInvalid: "Please enter a valid date of birth.",
+        genderRequired: "Please select gender."
       },
       catalog: {
         title: "Catalog",
@@ -108,7 +134,10 @@ const resources = {
         favoritesOnly: "Favorites only",
         favoritesOnlyActive: "Showing favorites only",
         resetFilters: "Reset filters",
-        toggleFavorite: "Toggle favorite"
+        toggleFavorite: "Toggle favorite",
+        subCategory: "Sub Category",
+        productType: "Product Type",
+        selectedCategory: "Selected category"
       },
       product: {
         cannotLoad: "Cannot load product",
@@ -137,7 +166,8 @@ const resources = {
         writeReviewPlaceholder: "Write your review...",
         writeReview: "Write a Review",
         user: "User",
-        youMightAlsoLike: "YOU MIGHT ALSO LIKE"
+        youMightAlsoLike: "YOU MIGHT ALSO LIKE",
+        noReviews: "No reviews yet."
       },
       admin: {
         language: "Language",
@@ -204,7 +234,28 @@ const resources = {
           colorDialogAdd: "Add color",
           colorDialogEdit: "Edit color",
           sizeDialogAdd: "Add size",
-          sizeDialogEdit: "Edit size"
+          sizeDialogEdit: "Edit size",
+          history: "History",
+          historyModalTitle: "Catalog activity history",
+          historyModalSubtitle: "Track who created, edited, or deleted articles and variations.",
+          created: "Created",
+          edited: "Edited",
+          deleted: "Deleted",
+          filterAction: "Action",
+          allActions: "All actions",
+          filterTargetType: "Type",
+          allTypes: "All types",
+          article: "Article",
+          variation: "Variation",
+          filterActor: "Actor",
+          filterActorPlaceholder: "Name or email",
+          filterFrom: "From",
+          filterTo: "To",
+          clearFilters: "Clear filters",
+          results: "results",
+          loadingHistory: "Loading history...",
+          noHistoryMatch: "No history matches these filters.",
+          viewDetails: "View details"
         },
         dashboard: {
           title: "Statistics Dashboard",
@@ -276,7 +327,6 @@ const resources = {
       }
     }
   },
-
   fr: {
     translation: {
       common: {
@@ -354,7 +404,6 @@ const resources = {
       }
     }
   },
-
   ar: {
     translation: {
       common: {
