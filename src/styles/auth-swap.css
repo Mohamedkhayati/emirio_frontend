@@ -454,3 +454,36 @@
     font-size: 13px;
   }
 }
+.passwordWrapper {
+  position: relative;
+  width: 100%;
+}
+
+.passwordInput {
+  padding-right: 40px !important;
+}
+
+.eyeButton {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  transition: color 0.2s ease;
+}
+
+.eyeButton:hover {
+  color: #333;
+}
+
+.eyeButton svg {
+  width: 20px;
+  height: 20px;
+}

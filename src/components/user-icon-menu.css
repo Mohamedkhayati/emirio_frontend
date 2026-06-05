@@ -14,6 +14,143 @@
   align-items: center;
   justify-content: center;
 }
+/* User Icon Menu Styles */
+.userMenuWrap {
+  position: relative;
+}
+
+.userMenuTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: #111111;
+  color: #ffffff;
+  cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+}
+
+.userMenuTrigger:hover {
+  transform: translateY(-2px);
+  background: #d81b60;
+  box-shadow: 0 8px 18px rgba(216, 27, 96, 0.22);
+}
+
+.userIcon {
+  width: 22px;
+  height: 22px;
+}
+
+.userDropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 240px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 18px;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.12);
+  padding: 10px;
+  z-index: 1000;
+  animation: fadeDrop 0.2s ease;
+}
+
+.userDropdownHead {
+  padding: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  margin-bottom: 8px;
+}
+
+.userDropdownName {
+  font-weight: 700;
+  color: #111111;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.userDropdownEmail {
+  color: #777777;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.userDropdownItem {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  text-decoration: none;
+  color: #111111;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.userDropdownItem:hover {
+  background: #f5f5f5;
+}
+
+.userDropdownItem.danger {
+  color: #c62828;
+}
+
+.userDropdownItem.danger:hover {
+  background: #ffebee;
+}
+
+@keyframes fadeDrop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Optional: Add a small arrow to the dropdown */
+.userDropdown::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  right: 18px;
+  width: 12px;
+  height: 12px;
+  background: #ffffff;
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  transform: rotate(45deg);
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 640px) {
+  .userMenuTrigger {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .userIcon {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .userDropdown {
+    min-width: 220px;
+    right: -10px;
+  }
+  
+  .userDropdown::before {
+    right: 22px;
+  }
+}
 
 .userBubble.avatar {
   width: 44px;

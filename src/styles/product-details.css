@@ -1273,3 +1273,277 @@
   content: "📁 ";
   font-size: 10px;
 }
+/* ================= PRODUCT DETAILS PAGE - ENHANCED STYLES ================= */
+/* Add this to your existing product-details.css or create a new file */
+
+/* ---------- Price Section ---------- */
+.pdPriceSection {
+  margin: 1rem 0 0.5rem;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%);
+  padding: 1rem 1.2rem;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+}
+
+.pdRegularPrice {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1a1a2e;
+  letter-spacing: -0.02em;
+}
+
+.pdOldPrice {
+  font-size: 1.4rem;
+  text-decoration: line-through;
+  color: #8e8e93;
+  font-weight: 400;
+}
+
+.pdSalePrice {
+  font-size: 2rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #e63946, #c72535);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.pdDiscountBadge {
+  background: #e63946;
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 40px;
+  margin-left: 4px;
+  box-shadow: 0 2px 6px rgba(230,57,70,0.3);
+  animation: pulseBadge 1.5s infinite;
+}
+
+@keyframes pulseBadge {
+  0% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.05); opacity: 1; background: #ff4d6d; }
+  100% { transform: scale(1); opacity: 0.9; }
+}
+
+/* ---------- Countdown Timer ---------- */
+.pdCountdown {
+  background: linear-gradient(105deg, #fff5f5 0%, #ffe9e9 100%);
+  border-left: 4px solid #e63946;
+  border-radius: 16px;
+  padding: 1rem 1.2rem;
+  margin: 0.5rem 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: fadeSlideUp 0.5s ease-out;
+}
+
+.pdCountdownLabel {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #e63946;
+  font-weight: 600;
+}
+
+.pdCountdownTimer {
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  color: #1e1e2a;
+  background: rgba(230,57,70,0.1);
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 48px;
+  letter-spacing: 1px;
+  animation: countdownPulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes countdownPulse {
+  from { background: rgba(230,57,70,0.1); transform: scale(1); }
+  to { background: rgba(230,57,70,0.2); transform: scale(1.02); }
+}
+
+.pdSaleEndDate {
+  font-size: 0.75rem;
+  color: #6c757d;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pdSaleEndDate::before {
+  content: "📅";
+  font-size: 0.8rem;
+}
+
+/* ---------- Fade / Slide Animations ---------- */
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- Existing Product Summary Improvements ---------- */
+.pdSummary {
+  transition: all 0.2s ease;
+}
+
+.brandTitle {
+  font-size: 0.8rem;
+  letter-spacing: 2px;
+  font-weight: 500;
+  color: #e63946;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+/* Enhance color card and size button */
+.pdColorCard, .pdSizeBtn {
+  transition: all 0.2s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+}
+
+.pdColorCard:hover:not(.sold) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.08);
+}
+
+.pdSizeBtn:hover:not(.sold) {
+  transform: scale(0.98);
+  background: #f1f3f5;
+}
+
+/* Add to cart button animation */
+.addCartBtn {
+  transition: all 0.25s ease;
+  background: #1a1a2e;
+  position: relative;
+  overflow: hidden;
+}
+
+.addCartBtn:hover:not(:disabled) {
+  background: #16213e;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+.addCartBtn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* Quantity box enhancements */
+.qtyBox {
+  border: 1px solid #e9ecef;
+  border-radius: 44px;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+
+.qtyBox button {
+  transition: background 0.15s;
+}
+
+.qtyBox button:hover:not(:disabled) {
+  background: #f1f3f5;
+}
+
+/* Favorite button large */
+.favoriteBtnLarge {
+  transition: transform 0.2s ease;
+}
+
+.favoriteBtnLarge:hover {
+  transform: scale(1.1);
+}
+
+.favoriteBtnLarge.active {
+  color: #e63946;
+  text-shadow: 0 0 6px rgba(230,57,70,0.4);
+}
+
+/* Stock notice */
+.pdStockNotice {
+  font-size: 0.75rem;
+  padding: 6px 12px;
+  border-radius: 40px;
+  background: #f8f9fa;
+  display: inline-block;
+}
+
+.pdStockNotice.ok {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.pdStockNotice.bad {
+  background: #ffebee;
+  color: #c62828;
+}
+
+/* Fullscreen overlay improvements */
+.pdFullscreenOverlay {
+  background: rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(8px);
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.pdFullscreenClose {
+  background: rgba(255,255,255,0.2);
+  backdrop-filter: blur(8px);
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  transition: all 0.2s;
+}
+
+.pdFullscreenClose:hover {
+  background: rgba(255,255,255,0.4);
+  transform: scale(1.05);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .pdPriceSection {
+    padding: 0.8rem 1rem;
+    flex-wrap: wrap;
+  }
+  .pdRegularPrice, .pdSalePrice {
+    font-size: 1.6rem;
+  }
+  .pdOldPrice {
+    font-size: 1.2rem;
+  }
+  .pdCountdownTimer {
+    font-size: 1.2rem;
+  }
+  .pdCountdown {
+    padding: 0.8rem 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .pdPriceSection {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .pdDiscountBadge {
+    align-self: flex-start;
+  }
+}

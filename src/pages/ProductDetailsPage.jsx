@@ -41,6 +41,24 @@ function isSaleActive(p) {
   return true;
 }
 
+function getDiscountPercent(p) {
+  if (!isSaleActive(p)) return null;
+  return Math.round(((Number(p.prix) - Number(p.salePrice)) / Number(p.prix)) * 100);
+}
+
+function formatCountdown(endAt, nowTick, t) {
+  if (!endAt) return t("home.limitedOffer", "Limited offer");
+  const diff = new Date(endAt).getTime() - nowTick;
+  if (diff <= 0) return t("home.saleEnded", "Sale ended");
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+  const minutes = Math.floor((diff / (1000 * 60)) % 60);
+  const seconds = Math.floor((diff / 1000) % 60);
+  if (days > 0) return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  return `${minutes}m ${seconds}s`;
+}
+
 function normalizeId(v) {
   if (v === null || v === undefined || v === "") return "";
   return String(v);
@@ -207,8 +225,15 @@ export default function ProductDetailsPage() {
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [fullscreenType, setFullscreenType] = useState("");
   const [fullscreenSrc, setFullscreenSrc] = useState("");
+  const [nowTick, setNowTick] = useState(Date.now());
 
   const viewTrackedRef = useRef(false);
+
+  // Timer for countdowns
+  useEffect(() => {
+    const tick = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(tick);
+  }, []);
 
   async function loadData() {
     setError("");
@@ -638,6 +663,7 @@ export default function ProductDetailsPage() {
   }
 
   const onSale = isSaleActive(article);
+  const discountPercent = getDiscountPercent(article);
   const currentPrice = onSale
     ? Number(article?.salePrice)
     : Number(selectedVariation ? getVariationPrice(selectedVariation, article) : article?.prix);
@@ -666,7 +692,7 @@ export default function ProductDetailsPage() {
         id: Number(article.id),
         variationId: Number(selectedVariation.id),
         nom: article.nom,
-        prix: isSaleActive(article)
+        prix: onSale
           ? Number(article.salePrice)
           : getVariationPrice(selectedVariation, article),
         imageUrl: safeCartImage,
@@ -800,6 +826,31 @@ export default function ProductDetailsPage() {
             <p className="pdDesc">
               {article.description || t("product.noDescription", "No description available for this product.")}
             </p>
+
+            {/* Price Section with Sale Info */}
+            <div className="pdPriceSection">
+              {onSale ? (
+                <>
+                  <span className="pdOldPrice">{fmtPrice(article.prix)}</span>
+                  <span className="pdSalePrice">{fmtPrice(currentPrice)}</span>
+                  {discountPercent && <span className="pdDiscountBadge">-{discountPercent}%</span>}
+                </>
+              ) : (
+                <span className="pdRegularPrice">{fmtPrice(currentPrice)}</span>
+              )}
+            </div>
+
+            {/* Sale Countdown Timer */}
+            {onSale && article.saleEndAt && (
+              <div className="pdCountdown">
+                <span className="pdCountdownLabel">{t("home.endsIn", "Ends in")}</span>
+                <strong className="pdCountdownTimer">{formatCountdown(article.saleEndAt, nowTick, t)}</strong>
+                <div className="pdSaleEndDate">
+                  {t("product.saleEndsOn", "Sale ends on")} {new Date(article.saleEndAt).toLocaleDateString()}
+                </div>
+              </div>
+            )}
+
             <div className="pdDivider" />
             <div className="pdMetaGrid">
               <div>
