@@ -53,33 +53,58 @@ function startSocialLogin(provider) {
   window.location.href = `${API_BASE}/oauth2/authorization/${provider}`;
 }
 
-function extractErrorMessage(e, fallback) {
-  const data = e?.response?.data;
-  return data?.message || data?.error || (typeof data === "string" ? data : "") || fallback;
+function getLoginErrorMessage(error) {
+  console.log("Login error:", error?.response?.status, error?.response?.data);
+  
+  if (error?.response?.status === 404) {
+    const message = error?.response?.data?.message || "";
+    if (message.includes("User not found")) {
+      return "❌ User not found. No account exists with this email. Please sign up first.";
+    }
+    return "❌ Account not found. Please check your email or sign up.";
+  }
+  
+  if (error?.response?.status === 401) {
+    const message = error?.response?.data?.message || "";
+    if (message.includes("Incorrect password") || message.includes("Bad credentials")) {
+      return "❌ Incorrect password. Please try again.";
+    }
+    return "❌ Invalid email or password. Please check your credentials.";
+  }
+  
+  if (error?.response?.status === 403) {
+    return "⚠️ Your account is not active. Please contact support.";
+  }
+  
+  if (error?.response?.status === 500) {
+    return "⚠️ Server error. Please try again later.";
+  }
+  
+  const message = error?.response?.data?.message || error?.response?.data?.error || "";
+  return message || "❌ Login failed. Please try again.";
 }
 
-function getLoginErrorMessage(error) {
-  // 401 Unauthorized → definitely incorrect credentials
-  if (error?.response?.status === 401) {
-    return "Incorrect email or password. Please try again.";
+function getSignupErrorMessage(error) {
+  console.log("Signup error details:", error);
+  
+  if (error?.response?.status === 409) {
+    const message = error?.response?.data?.message || "";
+    if (message.includes("Email already used") || message.includes("already exists")) {
+      return "⚠️ User already exists with this email. Please login instead.";
+    }
+    return "⚠️ Email already registered. Please use a different email or login.";
   }
-
+  
+  if (error?.response?.status === 400) {
+    const message = error?.response?.data?.message || "";
+    if (message.includes("password") && message.includes("size")) {
+      return "❌ Password must be at least 6 characters.";
+    }
+    return "❌ Please check your input. Password must be at least 6 characters.";
+  }
+  
   const message = error?.response?.data?.message || error?.response?.data?.error || "";
-  const lowerMsg = message.toLowerCase();
-
-  if (
-    lowerMsg.includes("invalid") ||
-    lowerMsg.includes("incorrect") ||
-    lowerMsg.includes("wrong") ||
-    lowerMsg.includes("credentials") ||
-    lowerMsg.includes("password") ||
-    lowerMsg.includes("email")
-  ) {
-    return "Incorrect email or password. Please check your credentials.";
-  }
-
-  // If we can't detect, return the original message or a fallback
-  return message || "Login failed. Please try again later.";
+  return message || "❌ Signup failed. Please try again.";
 }
 
 export default function Auth({ setMe }) {
@@ -103,8 +128,6 @@ export default function Auth({ setMe }) {
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
   const [loading, setLoading] = useState(false);
-
-  // Animated alert state
   const [alert, setAlert] = useState({ show: false, message: "", type: "error" });
 
   const isLogin = mode === "login";
@@ -168,7 +191,7 @@ export default function Auth({ setMe }) {
     setAlert({ show: true, message, type });
     setTimeout(() => {
       setAlert({ show: false, message: "", type: "error" });
-    }, 4000);
+    }, 5000);
   }
 
   function switchMode(next) {
@@ -186,11 +209,28 @@ export default function Auth({ setMe }) {
 
     try {
       if (isLogin) {
+        if (!loginEmail.trim()) {
+          showAlert("Please enter your email address", "error");
+          setLoading(false);
+          return;
+        }
+        
+        if (!loginPassword) {
+          showAlert("Please enter your password", "error");
+          setLoading(false);
+          return;
+        }
+        
         const res = await api.post("/api/auth/login", {
           email: loginEmail.trim(),
           password: loginPassword,
         });
+        
         const token = res?.data?.token || "";
+        if (!token) {
+          throw new Error("No token received");
+        }
+        
         setToken(token);
         await syncMeAndGo(token);
       } else {
@@ -222,7 +262,7 @@ export default function Auth({ setMe }) {
       if (isLogin) {
         errorMsg = getLoginErrorMessage(e2);
       } else {
-        errorMsg = extractErrorMessage(e2, t("auth.signupFailed", "Signup failed."));
+        errorMsg = getSignupErrorMessage(e2);
       }
       setErr(errorMsg);
       showAlert(errorMsg, "error");
@@ -233,11 +273,16 @@ export default function Auth({ setMe }) {
 
   return (
     <div className="authShellSwap">
-      {/* Animated Alert */}
+      {/* Animated Alert - Now properly inside return */}
       {alert.show && (
         <div className={`animatedAlert ${alert.type}`}>
           <div className="alertContent">
-            <span className="alertIcon">{alert.type === "error" ? "⚠️" : "✅"}</span>
+            <span className="alertIcon">
+              {alert.type === "error" && "⚠️"}
+              {alert.type === "success" && "✅"}
+              {alert.type === "warning" && "⚠️"}
+              {alert.type === "info" && "ℹ️"}
+            </span>
             <span className="alertMessage">{alert.message}</span>
             <button
               className="alertClose"
@@ -246,6 +291,7 @@ export default function Auth({ setMe }) {
               ✕
             </button>
           </div>
+          <div className="alertProgress"></div>
         </div>
       )}
 

@@ -3,78 +3,174 @@
   position: relative;
 }
 
+/* ===== PROFESSIONAL ANIMATED ALERT STYLES ===== */
+.authShellSwap {
+  position: relative;
+}
+
 .animatedAlert {
   position: fixed;
   top: 24px;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(-100px);
   z-index: 1000;
-  min-width: 320px;
+  min-width: 340px;
   max-width: 90%;
-  animation: slideDown 0.4s cubic-bezier(0.21, 1.11, 0.35, 1.02), fadeOut 0.4s ease-in-out 3.6s forwards;
-  box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.25);
-  border-radius: 18px;
-  backdrop-filter: blur(12px);
+  opacity: 0;
+  animation: 
+    slideInBounce 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards,
+    glowPulse 2s ease-in-out 0.3s,
+    slideOutFade 0.4s ease-in 4.7s forwards;
+  box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.3);
+  border-radius: 20px;
+  backdrop-filter: blur(16px);
+  transition: all 0.3s ease;
+}
+
+.animatedAlert:hover {
+  transform: translateX(-50%) scale(1.02);
+  transition: transform 0.2s ease;
 }
 
 .animatedAlert .alertContent {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 16px 20px;
-  border-radius: 18px;
-  background: rgba(15, 16, 20, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 18px 22px;
+  border-radius: 20px;
+  background: rgba(15, 16, 20, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: white;
   font-weight: 500;
+  position: relative;
+  overflow: hidden;
 }
 
+/* Animated gradient border */
+.animatedAlert .alertContent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(255, 255, 255, 0.1), 
+    transparent
+  );
+  animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* Error alert specific styles */
 .animatedAlert.error .alertContent {
-  border-left: 5px solid #ff4d4f;
-  background: linear-gradient(135deg, rgba(255, 77, 79, 0.18), rgba(15, 16, 20, 0.96));
+  border-left: 4px solid #ff4d4f;
+  background: linear-gradient(135deg, rgba(255, 77, 79, 0.2), rgba(15, 16, 20, 0.96));
+  box-shadow: 0 4px 15px rgba(255, 77, 79, 0.2);
 }
 
+.animatedAlert.error .alertIcon {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* Success alert specific styles */
 .animatedAlert.success .alertContent {
-  border-left: 5px solid #52c41a;
-  background: linear-gradient(135deg, rgba(82, 196, 26, 0.18), rgba(15, 16, 20, 0.96));
+  border-left: 4px solid #52c41a;
+  background: linear-gradient(135deg, rgba(82, 196, 26, 0.2), rgba(15, 16, 20, 0.96));
+  box-shadow: 0 4px 15px rgba(82, 196, 26, 0.2);
+}
+
+.animatedAlert.success .alertIcon {
+  animation: bounce 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Warning alert styles */
+.animatedAlert.warning .alertContent {
+  border-left: 4px solid #faad14;
+  background: linear-gradient(135deg, rgba(250, 173, 20, 0.2), rgba(15, 16, 20, 0.96));
+  box-shadow: 0 4px 15px rgba(250, 173, 20, 0.2);
+}
+
+.animatedAlert.info .alertContent {
+  border-left: 4px solid #1890ff;
+  background: linear-gradient(135deg, rgba(24, 144, 255, 0.2), rgba(15, 16, 20, 0.96));
+  box-shadow: 0 4px 15px rgba(24, 144, 255, 0.2);
 }
 
 .alertIcon {
-  font-size: 24px;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+  font-size: 26px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+  animation: pulse 1s ease-in-out;
 }
 
 .alertMessage {
   flex: 1;
   font-size: 15px;
-  line-height: 1.4;
+  line-height: 1.5;
   letter-spacing: -0.2px;
+  font-weight: 500;
 }
 
 .alertClose {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.1);
   border: none;
   border-radius: 30px;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   color: white;
-  font-size: 16px;
-  transition: all 0.2s ease;
+  font-size: 18px;
+  transition: all 0.2s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
 .alertClose:hover {
   background: rgba(255, 255, 255, 0.25);
-  transform: scale(1.05);
+  transform: rotate(90deg) scale(1.1);
 }
 
-@keyframes slideDown {
+/* Progress bar for alert */
+.animatedAlert .alertProgress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #ff2ea6, #ff6abf);
+  border-radius: 0 0 0 20px;
+  animation: progress 5s linear forwards;
+}
+
+.animatedAlert.error .alertProgress {
+  background: linear-gradient(90deg, #ff4d4f, #ff7875);
+}
+
+.animatedAlert.success .alertProgress {
+  background: linear-gradient(90deg, #52c41a, #95de64);
+}
+
+/* Keyframe Animations */
+@keyframes slideInBounce {
   0% {
     opacity: 0;
-    transform: translateX(-50%) translateY(-40px);
+    transform: translateX(-50%) translateY(-100px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(10px);
+  }
+  80% {
+    transform: translateX(-50%) translateY(-5px);
   }
   100% {
     opacity: 1;
@@ -82,11 +178,131 @@
   }
 }
 
-@keyframes fadeOut {
+@keyframes slideOutFade {
+  0% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    visibility: visible;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-30px);
+    visibility: hidden;
+  }
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 25px 45px -8px rgba(255, 46, 166, 0.4);
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  75% {
+    transform: translateX(5px);
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes progress {
+  0% {
+    width: 100%;
+  }
+  100% {
+    width: 0%;
+  }
+}
+
+/* Mobile responsive */
+@media (max-width: 560px) {
+  .animatedAlert {
+    min-width: 300px;
+    top: 16px;
+  }
+
+  .animatedAlert .alertContent {
+    padding: 14px 18px;
+  }
+
+  .alertMessage {
+    font-size: 13px;
+  }
+
+  .alertIcon {
+    font-size: 22px;
+  }
+
+  .alertClose {
+    width: 26px;
+    height: 26px;
+    font-size: 16px;
+  }
+}
+
+/* Toast container for multiple alerts */
+.toastContainer {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.toastContainer .animatedAlert {
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: translateX(0);
+  margin-bottom: 10px;
+  animation: slideInRight 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards,
+             slideOutRight 0.4s ease-in 4.7s forwards;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutRight {
   to {
     opacity: 0;
+    transform: translateX(100%);
     visibility: hidden;
-    transform: translateX(-50%) translateY(-10px);
   }
 }
 
@@ -486,4 +702,115 @@
 .eyeButton svg {
   width: 20px;
   height: 20px;
+}
+/* Input validation styles */
+.inputGroup {
+  margin-bottom: 1.25rem;
+  position: relative;
+}
+
+.inputWrapper {
+  position: relative;
+  width: 100%;
+}
+
+.inputValidationIcon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inputErrorMessage {
+  color: #ef4444;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  margin-left: 0.5rem;
+  animation: slideDown 0.2s ease-out;
+}
+
+.inputSuccessMessage {
+  color: #10b981;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  margin-left: 0.5rem;
+  animation: slideDown 0.2s ease-out;
+}
+
+.authInputReal.inputError {
+  border-color: #ef4444;
+  background-color: #fef2f2;
+}
+
+.authInputReal.inputError:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.authInputReal {
+  transition: all 0.2s ease;
+}
+
+.authInputReal:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Password wrapper adjustments */
+.passwordWrapper {
+  position: relative;
+  width: 100%;
+}
+
+.passwordWrapper .eyeButton {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.passwordWrapper .authInputReal {
+  padding-right: 40px;
+}
+
+/* Adjust validation icon position when eye button is present */
+.inputWrapper:has(.passwordWrapper) .inputValidationIcon {
+  right: 45px;
+}
+
+/* Animation for error messages */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Disabled button styles */
+.btnPrimaryReal:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btnPrimaryReal:disabled:hover {
+  transform: none;
+  box-shadow: none;
 }

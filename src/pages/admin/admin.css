@@ -3037,4 +3037,27 @@ html[dir="rtl"] .variationRowMain{
     .statsGrid {
         grid-template-columns: repeat(2, 1fr);
     }
+}.admAlert.success {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  color: #166534;
+  border-left: 4px solid #22c55e;
+  animation: slideDown 0.3s ease-out;
+}
+
+.admAlert.error {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  color: #991b1b;
+  border-left: 4px solid #ef4444;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
