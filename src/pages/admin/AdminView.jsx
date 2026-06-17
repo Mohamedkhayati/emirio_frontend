@@ -1,70 +1,105 @@
-export default function AdminView({
+// src/pages/admin/AdminSidebar.jsx
+export default function AdminSidebar({
   isAdminGeneral,
-  isCatalogManager,  // renamed from isVendeur
-  isEcommerceManager, // renamed from isControleur
+  isCatalogManager,
+  isEcommerceManager,
   currentLang,
   changeLang,
   t,
   section,
   setSection,
-  customersProps,
-  workersProps,
-  catalogProps,
-  dashboardProps,
-  ordersProps,
-  clientDialogProps,
 }) {
-  if (!isAdminGeneral && !isCatalogManager && !isEcommerceManager) {
-    return (
-      <div className="fadeInUp">
-        <div className="admPage">
-          <div className="admAlert">Access denied. You don't have permission to view this page.</div>
-        </div>
-      </div>
-    );
-  }
+  // Determine panel title
+  const getPanelTitle = () => {
+    if (isAdminGeneral) return t("admin.panelTitle.general") || "Administrator Panel";
+    if (isEcommerceManager) return t("admin.panelTitle.ecommerce") || "E-commerce Manager Panel";
+    if (isCatalogManager) return t("admin.panelTitle.catalog") || "Catalog Manager Panel";
+    return t("admin.panelTitle.default") || "Panel";
+  };
 
   return (
-    <div className="adminLayout">
-      <AdminSidebar
-        isAdminGeneral={isAdminGeneral}
-        isCatalogManager={isCatalogManager}
-        isEcommerceManager={isEcommerceManager}
-        currentLang={currentLang}
-        changeLang={changeLang}
-        t={t}
-        section={section}
-        setSection={setSection}
-      />
+    <aside className="adminSidebar clean">
+      <div className="adminSidebarTop">
+        <div className="adminBrandBlock">
+          <div className="adminBrandTitle">EMIRIO</div>
+          <div className="adminBrandSub">
+            {getPanelTitle()}
+          </div>
+        </div>
 
-      <main className="adminContent">
-        {(isAdminGeneral || isCatalogManager || isEcommerceManager) && section === "orders" && (
-          <OrdersPage {...ordersProps} />
+        <div className="adminLangBox">
+          <label className="adminLangLabel" htmlFor="admin-language">
+            {t("admin.language") || "Language"}
+          </label>
+
+          <select
+            id="admin-language"
+            className="adminLangSelect"
+            value={currentLang}
+            onChange={(e) => changeLang(e.target.value)}
+          >
+            <option value="en">English</option>
+            <option value="fr">Français</option>
+            <option value="ar">العربية</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="adminMenu onlyMenu">
+        {/* Customers - ONLY Administrateur */}
+        {isAdminGeneral && (
+          <button
+            className={`adminMenuItem ${section === "customers" ? "active" : ""}`}
+            onClick={() => setSection("customers")}>
+            {t("admin.menu.customers") || "Clients"}
+          </button>
         )}
 
-        {section === "customers" && isAdminGeneral && (
-          <CustomersPage {...customersProps} />
+        {/* Workers - ONLY Administrateur */}
+        {isAdminGeneral && (
+          <button
+            className={`adminMenuItem ${section === "workers" ? "active" : ""}`}
+            onClick={() => setSection("workers")}>
+            {t("admin.menu.workers") || "Workers"}
+          </button>
         )}
 
-        {section === "workers" && isAdminGeneral && (
-          <WorkersPage {...workersProps} />
+        {/* Reclamations - Admin and E-commerce Manager */}
+        {(isAdminGeneral || isEcommerceManager) && (
+          <button
+            className={`adminMenuItem ${section === "reclamations" ? "active" : ""}`}
+            onClick={() => setSection("reclamations")}>
+            {t("admin.menu.reclamations") || "Reclamations"}
+          </button>
         )}
 
-        {section === "catalog" && (isAdminGeneral || isCatalogManager || isEcommerceManager) && (
-          <CatalogPage 
-            isAdminGeneral={isAdminGeneral}
-            isCatalogManager={isCatalogManager}
-            isEcommerceManager={isEcommerceManager}
-            {...catalogProps} 
-          />
+        {/* Catalog - ALL THREE ROLES */}
+        {(isAdminGeneral || isCatalogManager || isEcommerceManager) && (
+          <button
+            className={`adminMenuItem ${section === "catalog" ? "active" : ""}`}
+            onClick={() => setSection("catalog")}>
+            {t("admin.menu.catalog") || "Catalog"}
+          </button>
         )}
 
-        {section === "dashboard" && isAdminGeneral && (
-          <DashboardPage {...dashboardProps} />
+        {/* Dashboard - ONLY Administrateur */}
+        {isAdminGeneral && (
+          <button
+            className={`adminMenuItem ${section === "dashboard" ? "active" : ""}`}
+            onClick={() => setSection("dashboard")}>
+            {t("admin.menu.dashboard") || "Dashboard"}
+          </button>
         )}
 
-        <ClientProfileDialog {...clientDialogProps} />
-      </main>
-    </div>
+        {/* Orders - ALL THREE ROLES */}
+        {(isAdminGeneral || isCatalogManager || isEcommerceManager) && (
+          <button
+            className={`adminMenuItem ${section === "orders" ? "active" : ""}`}
+            onClick={() => setSection("orders")}>
+            {t("admin.menu.orders") || "Orders"}
+          </button>
+        )}
+      </div>
+    </aside>
   );
 }

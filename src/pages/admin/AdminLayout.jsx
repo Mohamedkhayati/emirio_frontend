@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { NavLink, Navigate, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "../../lib/api";
+import VendeurCatalogPage from "./VendeurCatalogPage";
+import CatalogPage from "./CatalogPage";
 import "./admin.css";
 
 // Helper functions
@@ -47,6 +49,22 @@ function SidebarLink({ to, label }) {
   );
 }
 
+// Component to render the correct catalog page based on role
+function CatalogRenderer({ isCatalogManager, isAdminGeneral, isEcommerceManager, ...props }) {
+  console.log("🔍 CatalogRenderer - isCatalogManager:", isCatalogManager);
+  console.log("🔍 CatalogRenderer - isAdminGeneral:", isAdminGeneral);
+  
+  // If user is a Catalog Manager, show VendeurCatalogPage
+  if (isCatalogManager) {
+    console.log("✅ Rendering VendeurCatalogPage for Catalog Manager");
+    return <VendeurCatalogPage {...props} />;
+  }
+  
+  // For Admin General or E-commerce Manager, show regular CatalogPage
+  console.log("✅ Rendering regular CatalogPage");
+  return <CatalogPage {...props} />;
+}
+
 export default function AdminLayout() {
   const { t, i18n } = useTranslation();
   const location = useLocation();
@@ -64,6 +82,10 @@ export default function AdminLayout() {
     if (isEcommerceManager) return ["orders", "reclamations", "catalog"];
     return [];
   }, [isAdminGeneral, isCatalogManager, isEcommerceManager]);
+
+  console.log("🔍 AdminLayout - Role:", role);
+  console.log("🔍 AdminLayout - isCatalogManager:", isCatalogManager);
+  console.log("🔍 AdminLayout - Allowed sections:", allowedSections);
 
   const debugAuth = () => {
     const token = localStorage.getItem("token");
@@ -168,13 +190,9 @@ export default function AdminLayout() {
     );
   }
 
-  // FIXED: Declare currentSection BEFORE using it
   const currentSection = location.pathname.split("/").filter(Boolean).pop();
   
-  // Debug logging
   console.log("🔍 AdminLayout - Current section:", currentSection);
-  console.log("🔍 AdminLayout - Allowed sections:", allowedSections);
-  console.log("🔍 AdminLayout - Is catalog allowed?", allowedSections.includes("catalog"));
   console.log("🔍 AdminLayout - Pathname:", location.pathname);
   
   // Redirect root /admin to the first allowed section
@@ -197,6 +215,17 @@ export default function AdminLayout() {
     if (isCatalogManager) return "Catalog Manager Panel";
     return "Panel";
   }
+
+  // Context to pass to child routes
+  const outletContext = {
+    role,
+    isAdminGeneral,
+    isCatalogManager,
+    isEcommerceManager,
+    currentLang,
+    changeLang,
+    t
+  };
 
   return (
     <div className="adminLayout">
@@ -251,14 +280,7 @@ export default function AdminLayout() {
       </aside>
       
       <main className="adminContent">
-        <Outlet context={{ 
-          role, 
-          isAdminGeneral, 
-          isCatalogManager,
-          isEcommerceManager,
-          currentLang, 
-          changeLang 
-        }} />
+        <Outlet context={outletContext} />
       </main>
     </div>
   );

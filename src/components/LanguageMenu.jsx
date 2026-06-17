@@ -17,13 +17,14 @@ export default function LanguageMenu() {
   const current =
     languages.find((l) => l.code === i18n.language) || languages[0];
 
-  function changeLanguage(code) {
-    i18n.changeLanguage(code);
-    localStorage.setItem("language", code);
-    document.documentElement.lang = code;
-    document.documentElement.dir = code === "ar" ? "rtl" : "ltr";
-    setOpen(false);
-  }
+  // This is already correct in your code
+function changeLanguage(code) {
+  i18n.changeLanguage(code);
+  localStorage.setItem("language", code);
+  document.documentElement.lang = code;
+  document.documentElement.dir = code === "ar" ? "rtl" : "ltr";
+  setOpen(false);
+}
 
   useEffect(() => {
     function onClickOutside(e) {

@@ -83,6 +83,11 @@ export default function App() {
   const isEcommerceManager = role === "Responsable e-commerce";
   const isAdmin = isSuperAdmin || isCatalogManager || isEcommerceManager;
 
+  console.log("🔍 App - Role:", role);
+  console.log("🔍 App - isSuperAdmin:", isSuperAdmin);
+  console.log("🔍 App - isCatalogManager:", isCatalogManager);
+  console.log("🔍 App - isEcommerceManager:", isEcommerceManager);
+
   const getAdminRedirect = () => {
     if (isSuperAdmin) return "dashboard";
     if (isCatalogManager) return "catalog";
@@ -142,9 +147,18 @@ export default function App() {
                   </>
                 )}
 
-                {/* Catalog - ALL admin roles can access */}
+                {/* Catalog - CONDITIONALLY RENDER BASED ON ROLE */}
                 {(isSuperAdmin || isCatalogManager || isEcommerceManager) && (
-                  <Route path="catalog" element={<AdminCatalogPage />} />
+                  <Route 
+                    path="catalog" 
+                    element={
+                      isCatalogManager ? (
+                        <VendeurCatalogPage />
+                      ) : (
+                        <AdminCatalogPage />
+                      )
+                    } 
+                  />
                 )}
 
                 {/* Dashboard - Only Admin and Catalog Manager */}

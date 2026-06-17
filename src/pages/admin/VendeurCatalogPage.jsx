@@ -1,6 +1,5 @@
 // src/pages/admin/VendeurCatalogPage.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useOutletContext } from "react-router-dom";
 import { api } from "../../lib/api";
 import {
   emptyArticleForm,
@@ -146,10 +145,16 @@ function TablePager({ total, page, setPage, rows, setRows, rowsOptions = [3, 5, 
   );
 }
 
-export default function VendeurCatalogPage() {
- const { isCatalogManager, isAdminGeneral } = useOutletContext();
+export default function VendeurCatalogPage({ 
+  isAdminGeneral = false,
+  isCatalogManager = true,
+  isEcommerceManager = false,
+  ...props 
+}) {
+  // Use the props passed from AdminView
   const isVendeur = isCatalogManager || isAdminGeneral;
-    const [articles, setArticles] = useState([]);
+  
+  const [articles, setArticles] = useState([]);
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [searchQ, setSearchQ] = useState("");
   const [error, setError] = useState("");
@@ -206,26 +211,25 @@ export default function VendeurCatalogPage() {
   }, [selectedArticle]);
 
   // Load my articles
- async function loadMyArticles() {
-  setError("");
-  setLoading(true);
-  try {
-    const res = await api.get("/api/vendeur/articles");
-    setArticles(res.data || []);
-    // If the previously selected article is no longer in the list, deselect it
-    if (selectedArticle && !res.data.some(a => a.id === selectedArticle.id)) {
-      setSelectedArticle(null);
-      setVariations([]);
-    } else if (!selectedArticle && res.data?.length) {
-      await loadArticleDetails(res.data[0].id);
+  async function loadMyArticles() {
+    setError("");
+    setLoading(true);
+    try {
+      const res = await api.get("/api/vendeur/articles");
+      setArticles(res.data || []);
+      // If the previously selected article is no longer in the list, deselect it
+      if (selectedArticle && !res.data.some(a => a.id === selectedArticle.id)) {
+        setSelectedArticle(null);
+        setVariations([]);
+      } else if (!selectedArticle && res.data?.length) {
+        await loadArticleDetails(res.data[0].id);
+      }
+    } catch (e) {
+      setError(e?.response?.data?.message || UI_TEXT.errLoadCatalog);
+    } finally {
+      setLoading(false);
     }
-  } catch (e) {
-    setError(e?.response?.data?.message || UI_TEXT.errLoadCatalog);
-  } finally {
-    setLoading(false);
   }
-}
-
 
   async function loadArticleDetails(id) {
     try {
@@ -858,8 +862,8 @@ export default function VendeurCatalogPage() {
 
           <label><span>{UI_TEXT.price}</span><input type="number" step="0.001" min="0.001" value={articleForm.prix} onChange={e => setArticleForm({...articleForm, prix: e.target.value})} required /></label>
           <label><span>{UI_TEXT.salePrice}</span><input type="number" step="0.001" min="0" value={articleForm.salePrice} onChange={e => setArticleForm({...articleForm, salePrice: e.target.value})} /></label>
-          <label><span>{UI_TEXT.saleStart}</span><input type="datetime-local" value={articleForm.saleStartAt} onChange={e => setArticleForm({...articleForm, saleStartAt: e.target.value})} /></label>
-          <label><span>{UI_TEXT.saleEnd}</span><input type="datetime-local" value={articleForm.saleEndAt} onChange={e => setArticleForm({...articleForm, saleEndAt: e.target.value})} /></label>
+          <label><span>Sale Start</span><input type="datetime-local" value={articleForm.saleStartAt} onChange={e => setArticleForm({...articleForm, saleStartAt: e.target.value})} /></label>
+          <label><span>Sale End</span><input type="datetime-local" value={articleForm.saleEndAt} onChange={e => setArticleForm({...articleForm, saleEndAt: e.target.value})} /></label>
           <label><span>{UI_TEXT.brand}</span><input value={articleForm.marque} onChange={e => setArticleForm({...articleForm, marque: e.target.value})} /></label>
           <label><span>{UI_TEXT.material}</span><input value={articleForm.matiere} onChange={e => setArticleForm({...articleForm, matiere: e.target.value})} /></label>
           <label><span>{UI_TEXT.sku}</span><input value={articleForm.sku} onChange={e => setArticleForm({...articleForm, sku: e.target.value})} /></label>

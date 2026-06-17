@@ -70,3 +70,36 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+/* RTL Support for Arabic */
+html[dir="rtl"] {
+  direction: rtl;
+}
+
+html[dir="rtl"] .navbarLinks,
+html[dir="rtl"] .navbarActions,
+html[dir="rtl"] .footerGrid,
+html[dir="rtl"] .adminMenu {
+  direction: rtl;
+}
+
+/* Adjust margins for RTL */
+html[dir="rtl"] .navbarLink {
+  margin-left: 0;
+  margin-right: 1rem;
+}
+
+html[dir="rtl"] .navbarLink:first-child {
+  margin-right: 0;
+}
+
+/* Adjust admin sidebar for RTL */
+html[dir="rtl"] .adminSidebar {
+  border-right: none;
+  border-left: 1px solid rgba(0,0,0,0.08);
+}
+
+/* Language menu dropdown position for RTL */
+html[dir="rtl"] .langDropdown {
+  right: auto;
+  left: 0;
+}

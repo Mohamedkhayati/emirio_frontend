@@ -10,11 +10,11 @@ export default function AdminSidebar({
 }) {
   // Determine panel title
   const getPanelTitle = () => {
-    if (isAdminGeneral) return "Admin General Panel";
-    if (isEcommerceManager) return "E-commerce Manager Panel";
-    if (isCatalogManager) return "Catalog Manager Panel";
-    return "Panel";
-  };
+  if (isAdminGeneral) return t("admin.panelTitle.general");
+  if (isEcommerceManager) return t("admin.panelTitle.ecommerce");
+  if (isCatalogManager) return t("admin.panelTitle.catalog");
+  return t("admin.panelTitle.default");
+};
 
   return (
     <aside className="adminSidebar clean">
@@ -49,60 +49,56 @@ export default function AdminSidebar({
         {isAdminGeneral && (
           <button
             className={`adminMenuItem ${section === "customers" ? "active" : ""}`}
-            onClick={() => setSection("customers")}
-          >
-            Customers
-          </button>
+            onClick={() => setSection("customers")}>
+  {t("admin.menu.customers")}
+</button>
+
         )}
 
         {/* Workers - ONLY Administrateur */}
         {isAdminGeneral && (
           <button
             className={`adminMenuItem ${section === "workers" ? "active" : ""}`}
-            onClick={() => setSection("workers")}
-          >
-            Workers
-          </button>
+            onClick={() => setSection("workers")}>
+  {t("admin.menu.workers")}
+</button>
+
         )}
 
         {/* Reclamations - Admin and E-commerce Manager */}
         {(isAdminGeneral || isEcommerceManager) && (
           <button
             className={`adminMenuItem ${section === "reclamations" ? "active" : ""}`}
-            onClick={() => setSection("reclamations")}
-          >
-            Reclamations
-          </button>
+            onClick={() => setSection("reclamations")}>
+  {t("admin.menu.reclamations")}
+</button>
         )}
 
         {/* Catalog - ALL THREE ROLES */}
         {(isAdminGeneral || isCatalogManager || isEcommerceManager) && (
           <button
             className={`adminMenuItem ${section === "catalog" ? "active" : ""}`}
-            onClick={() => setSection("catalog")}
-          >
-            Catalog
-          </button>
+             onClick={() => setSection("catalog")}>
+  {t("admin.menu.catalog")}
+</button>
         )}
 
         {/* Dashboard - ONLY Administrateur */}
         {isAdminGeneral && (
           <button
             className={`adminMenuItem ${section === "dashboard" ? "active" : ""}`}
-            onClick={() => setSection("dashboard")}
-          >
-            Dashboard
-          </button>
+            onClick={() => setSection("dashboard")}>
+  {t("admin.menu.dashboard")}
+</button>
         )}
 
         {/* Orders - ALL THREE ROLES */}
         {(isAdminGeneral || isCatalogManager || isEcommerceManager) && (
           <button
             className={`adminMenuItem ${section === "orders" ? "active" : ""}`}
-            onClick={() => setSection("orders")}
-          >
-            Orders
-          </button>
+            onClick={() => setSection("orders")}>
+  {t("admin.menu.orders")}
+</button>
         )}
       </div>
     </aside>
